@@ -16,7 +16,75 @@ import {
 } from '../types';
 
 export class RoomHandlers {
+  private messageQueue = new Map<string, Array<{ event: string; data: any; timestamp: number }>>();
+  private batchTimeouts = new Map<string, NodeJS.Timeout>();
+  private readonly BATCH_INTERVAL = 16; // ~60fps
+  private readonly MAX_QUEUE_SIZE = 50;
+
   constructor(private roomService: RoomService, private io: Server) {}
+
+  // Batch message processing for better performance
+  private processBatch(roomId: string): void {
+    const queue = this.messageQueue.get(roomId);
+    if (!queue || queue.length === 0) return;
+
+    const messages = [...queue];
+    this.messageQueue.set(roomId, []);
+
+    // Group messages by event type and user
+    const groupedMessages = messages.reduce((acc, msg) => {
+      const userId = msg.data?.userId || 'system';
+      const key = `${msg.event}-${userId}`;
+      if (!acc[key]) {
+        acc[key] = [];
+      }
+      acc[key].push(msg.data);
+      return acc;
+    }, {} as Record<string, any[]>);
+
+    // Process each group, sending only the latest message per group
+    Object.entries(groupedMessages).forEach(([key, dataArray]) => {
+      const latestData = dataArray[dataArray.length - 1];
+      const [event] = key.split('-');
+      if (event) {
+        this.io.to(roomId).emit(event, latestData);
+      }
+    });
+
+    this.batchTimeouts.delete(roomId);
+  }
+
+  // Queue message for batched processing
+  private queueMessage(roomId: string, event: string, data: any): void {
+    if (!this.messageQueue.has(roomId)) {
+      this.messageQueue.set(roomId, []);
+    }
+
+    const queue = this.messageQueue.get(roomId)!;
+    queue.push({ event, data, timestamp: Date.now() });
+
+    // Limit queue size to prevent memory leaks
+    if (queue.length > this.MAX_QUEUE_SIZE) {
+      this.messageQueue.set(roomId, queue.slice(-this.MAX_QUEUE_SIZE / 2));
+    }
+
+    // Schedule batch processing if not already scheduled
+    if (!this.batchTimeouts.has(roomId)) {
+      const timeout = setTimeout(() => this.processBatch(roomId), this.BATCH_INTERVAL);
+      this.batchTimeouts.set(roomId, timeout);
+    }
+  }
+
+  // Optimized emit function that uses batching for non-critical events
+  private optimizedEmit(socket: Socket, roomId: string, event: string, data: any, immediate: boolean = false): void {
+    if (immediate || event === 'note_played' || event === 'user_joined' || event === 'user_left') {
+      // Critical events are sent immediately, excluding the sender
+      socket.to(roomId).emit(event, data);
+    } else {
+      // Other events are batched for better performance
+      this.queueMessage(roomId, event, data);
+    }
+  }
 
   // Private method to handle room owner leaving
   private handleRoomOwnerLeaving(roomId: string, leavingUserId: string): void {
@@ -37,7 +105,6 @@ export class RoomHandlers {
 
     // Check if room should be closed (no users left)
     if (this.roomService.shouldCloseRoom(roomId)) {
-      console.log('Room is empty, closing room:', roomId);
       this.io.to(roomId).emit('room_closed', { message: 'Room is empty and has been closed' });
       this.roomService.deleteRoom(roomId);
       
@@ -51,7 +118,6 @@ export class RoomHandlers {
     if (newOwner) {
       const result = this.roomService.transferOwnership(roomId, newOwner.id, oldOwner);
       if (result) {
-        console.log('Ownership transferred to:', newOwner.username);
         this.io.to(roomId).emit('ownership_transferred', {
           newOwner: result.newOwner,
           oldOwner: result.oldOwner
@@ -74,16 +140,11 @@ export class RoomHandlers {
   handleJoinRoom(socket: Socket, data: JoinRoomData): void {
     const { roomId, username, role } = data;
     
-    console.log('Join room request:', { roomId, username, role });
-    
     const room = this.roomService.getRoom(roomId);
     if (!room) {
-      console.log('Room not found:', roomId);
       socket.emit('error', { message: 'Room not found' });
       return;
     }
-
-    console.log('Room found:', { roomId: room.id, owner: room.owner, userCount: room.users.size });
     
     // Check if user already exists in the room
     const existingUser = this.roomService.findUserInRoom(roomId, username);
@@ -94,7 +155,6 @@ export class RoomHandlers {
       // User already exists in room, use existing user data
       userId = existingUser.id;
       user = existingUser;
-      console.log('User already exists in room, using existing user:', { userId, username, role: user.role });
     } else {
       // Create new user
       userId = uuidv4();
@@ -104,7 +164,6 @@ export class RoomHandlers {
         role: role || 'audience',
         isReady: (role || 'audience') === 'audience'
       };
-      console.log('Created new user:', { userId, username, role: user.role });
     }
     
     // Set up session
@@ -119,8 +178,6 @@ export class RoomHandlers {
       // User already exists in room, join them directly
       socket.join(roomId);
       
-      console.log('Existing user rejoined room. Socket data:', socket.data);
-      
       // Notify others in room about the rejoin
       socket.to(roomId).emit('user_joined', { user });
       socket.emit('room_joined', { 
@@ -132,7 +189,6 @@ export class RoomHandlers {
     } else if (role === 'band_member') {
       // New user requesting to join as band member - needs approval
       this.roomService.addPendingMember(roomId, user);
-      console.log('Added user to pending members:', { userId, username });
       
       socket.emit('pending_approval', { message: 'Waiting for room owner approval' });
       
@@ -141,20 +197,14 @@ export class RoomHandlers {
       if (ownerSocketId) {
         const ownerSocket = this.io.sockets.sockets.get(ownerSocketId);
         if (ownerSocket) {
-          console.log('Found owner socket, sending member request');
           ownerSocket.emit('member_request', { user });
         }
-      } else {
-        console.log('Owner socket not found');
       }
     } else {
       // New audience member - join directly
       this.roomService.addUserToRoom(roomId, user);
-      console.log('Added user to room users:', { userId, username });
       
       socket.join(roomId);
-      
-      console.log('User joined room. Socket data:', socket.data);
       
       // Notify others in room
       socket.to(roomId).emit('user_joined', { user });
@@ -167,39 +217,30 @@ export class RoomHandlers {
   }
 
   handleApproveMember(socket: Socket, data: ApproveMemberData): void {
-    console.log('Approve member event received:', data);
-    
     const session = this.roomService.getUserSession(socket.id);
     if (!session) {
-      console.log('No session found for socket:', socket.id);
       return;
     }
     
     const room = this.roomService.getRoom(session.roomId);
     if (!room) {
-      console.log('Room not found:', session.roomId);
       return;
     }
     
     if (!this.roomService.isRoomOwner(session.roomId, session.userId)) {
-      console.log('User is not room owner');
       return;
     }
 
     const approvedUser = this.roomService.approveMember(session.roomId, data.userId);
     if (!approvedUser) {
-      console.log('Pending user not found:', data.userId);
       return;
     }
-
-    console.log('Approving user:', approvedUser.username);
 
     // Notify the approved user
     const approvedSocketId = this.roomService.findSocketByUserId(data.userId);
     if (approvedSocketId) {
       const approvedSocket = this.io.sockets.sockets.get(approvedSocketId);
       if (approvedSocket) {
-        console.log('Found approved user socket, sending approval');
         approvedSocket.emit('member_approved', { 
           room: {
             ...room,
@@ -209,8 +250,6 @@ export class RoomHandlers {
         });
         approvedSocket.join(session.roomId);
       }
-    } else {
-      console.log('Approved user socket not found');
     }
 
     // Notify all users in room about the new member (including the approver)
@@ -228,32 +267,24 @@ export class RoomHandlers {
   }
 
   handleRejectMember(socket: Socket, data: RejectMemberData): void {
-    console.log('Reject member event received:', data);
-    
     const session = this.roomService.getUserSession(socket.id);
     if (!session) {
-      console.log('No session found for socket:', socket.id);
       return;
     }
     
     const room = this.roomService.getRoom(session.roomId);
     if (!room) {
-      console.log('Room not found:', session.roomId);
       return;
     }
     
     if (!this.roomService.isRoomOwner(session.roomId, session.userId)) {
-      console.log('User is not room owner');
       return;
     }
 
     const rejectedUser = this.roomService.rejectMember(session.roomId, data.userId);
     if (!rejectedUser) {
-      console.log('Pending user not found:', data.userId);
       return;
     }
-
-    console.log('Rejecting user:', rejectedUser.username);
 
     // Notify the rejected user
     const rejectedSocketId = this.roomService.findSocketByUserId(data.userId);
@@ -287,8 +318,8 @@ export class RoomHandlers {
     // Update user's current instrument
     this.roomService.updateUserInstrument(session.roomId, session.userId, data.instrument, data.category);
 
-    // Broadcast to all users in room (except sender)
-    socket.to(session.roomId).emit('note_played', {
+    // Use optimized emit for better performance
+    this.optimizedEmit(socket, session.roomId, 'note_played', {
       userId: session.userId,
       username: user.username,
       notes: data.notes,
@@ -297,7 +328,7 @@ export class RoomHandlers {
       category: data.category,
       eventType: data.eventType,
       isKeyHeld: data.isKeyHeld
-    });
+    }, true); // Note events are critical and sent immediately
   }
 
   handleChangeInstrument(socket: Socket, data: ChangeInstrumentData): void {
@@ -312,13 +343,13 @@ export class RoomHandlers {
 
     this.roomService.updateUserInstrument(session.roomId, session.userId, data.instrument, data.category);
 
-    // Notify others in room
-    socket.to(session.roomId).emit('instrument_changed', {
+    // Use optimized emit for better performance
+    this.optimizedEmit(socket, session.roomId, 'instrument_changed', {
       userId: session.userId,
       username: user.username,
       instrument: data.instrument,
       category: data.category
-    });
+    }, true); // Instrument changes are important and sent immediately
   }
 
   handleUpdateSynthParams(socket: Socket, data: UpdateSynthParamsData): void {
@@ -331,14 +362,14 @@ export class RoomHandlers {
     const user = room.users.get(session.userId);
     if (!user) return;
 
-    // Notify others in room
-    socket.to(session.roomId).emit('synth_params_changed', {
+    // Use optimized emit for better performance - synth params can be batched
+    this.optimizedEmit(socket, session.roomId, 'synth_params_changed', {
       userId: session.userId,
       username: user.username,
       instrument: user.currentInstrument || '',
       category: user.currentCategory || '',
       params: data.params
-    });
+    }, false); // Synth params can be batched for better performance
   }
 
   handleRequestSynthParams(socket: Socket): void {
@@ -399,7 +430,6 @@ export class RoomHandlers {
     
     // Check if this was a pending member who cancelled
     if (pendingUser) {
-      console.log('Pending member cancelled:', pendingUser.username);
       this.roomService.rejectMember(session.roomId, session.userId);
       
       // Notify room owner to clear the acceptance prompt
@@ -426,7 +456,6 @@ export class RoomHandlers {
       
       // Check if room should be closed after regular user leaves
       if (this.roomService.shouldCloseRoom(session.roomId)) {
-        console.log('Room is empty after user left, closing room:', session.roomId);
         this.io.to(session.roomId).emit('room_closed', { message: 'Room is empty and has been closed' });
         this.roomService.deleteRoom(session.roomId);
         
@@ -445,19 +474,14 @@ export class RoomHandlers {
   handleCreateRoom(socket: Socket, data: CreateRoomData): void {
     // Check if socket already has a session (prevent multiple room creation)
     if (socket.data?.roomId) {
-      console.log('Socket already has room session, ignoring create_room request');
       return;
     }
-    
-    console.log('Creating room with name:', data.name, 'and owner:', data.username);
     
     const { room, user, session } = this.roomService.createRoom(data.name, data.username);
 
     socket.join(room.id);
     socket.data = session;
     this.roomService.setUserSession(socket.id, session);
-
-    console.log('Room created. Socket data:', socket.data);
 
     socket.emit('room_created', { 
       room: {
@@ -469,7 +493,6 @@ export class RoomHandlers {
     });
 
     // Broadcast to all clients that a new room was created
-    console.log('Broadcasting room created to all clients');
     socket.broadcast.emit('room_created_broadcast', {
       id: room.id,
       name: room.name,
@@ -495,7 +518,6 @@ export class RoomHandlers {
             
             // Check if room should be closed after user disconnects
             if (this.roomService.shouldCloseRoom(session.roomId)) {
-              console.log('Room is empty after user disconnected, closing room:', session.roomId);
               this.io.to(session.roomId).emit('room_closed', { message: 'Room is empty and has been closed' });
               this.roomService.deleteRoom(session.roomId);
               
@@ -510,6 +532,5 @@ export class RoomHandlers {
       }
       this.roomService.removeUserSession(socket.id);
     }
-    console.log(`User disconnected: ${socket.id}`);
   }
 } 
