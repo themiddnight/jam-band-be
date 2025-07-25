@@ -20,6 +20,10 @@ export class RoomHandlers {
   private batchTimeouts = new Map<string, NodeJS.Timeout>();
   private readonly BATCH_INTERVAL = 16; // ~60fps
   private readonly MAX_QUEUE_SIZE = 50;
+  
+  // Temporary blacklist for rejected users (prevents immediate rejoin)
+  private rejectedUsers = new Map<string, { roomId: string; timestamp: number }>();
+  private readonly REJECTION_COOLDOWN = 5000; // 5 seconds cooldown
 
   constructor(private roomService: RoomService, private io: Server) {}
 
@@ -52,6 +56,16 @@ export class RoomHandlers {
     });
 
     this.batchTimeouts.delete(roomId);
+  }
+
+  // Clean up expired rejection entries
+  private cleanupExpiredRejections(): void {
+    const now = Date.now();
+    for (const [key, rejection] of this.rejectedUsers.entries()) {
+      if (now - rejection.timestamp >= this.REJECTION_COOLDOWN) {
+        this.rejectedUsers.delete(key);
+      }
+    }
   }
 
   // Queue message for batched processing
@@ -122,6 +136,16 @@ export class RoomHandlers {
           newOwner: result.newOwner,
           oldOwner: result.oldOwner
         });
+        
+        // Send updated room state to all users to ensure UI consistency
+        const updatedRoomData = {
+          room: {
+            ...room,
+            users: this.roomService.getRoomUsers(roomId),
+            pendingMembers: this.roomService.getPendingMembers(roomId)
+          }
+        };
+        this.io.to(roomId).emit('room_state_updated', updatedRoomData);
       }
     }
   }
@@ -145,6 +169,17 @@ export class RoomHandlers {
       socket.emit('error', { message: 'Room not found' });
       return;
     }
+    
+    // Check if user is temporarily blacklisted from this room
+    const userKey = `${username}-${roomId}`;
+    const rejection = this.rejectedUsers.get(userKey);
+    if (rejection && (Date.now() - rejection.timestamp) < this.REJECTION_COOLDOWN) {
+      socket.emit('error', { message: 'Please wait before requesting to join again' });
+      return;
+    }
+    
+    // Clean up expired rejections
+    this.cleanupExpiredRejections();
     
     // Check if user already exists in the room
     const existingUser = this.roomService.findUserInRoom(roomId, username);
@@ -186,6 +221,16 @@ export class RoomHandlers {
         pendingMembers: this.roomService.getPendingMembers(roomId),
 
       });
+      
+      // Send updated room state to all users to ensure UI consistency
+      const updatedRoomData = {
+        room: {
+          ...room,
+          users: this.roomService.getRoomUsers(roomId),
+          pendingMembers: this.roomService.getPendingMembers(roomId)
+        }
+      };
+      this.io.to(roomId).emit('room_state_updated', updatedRoomData);
     } else if (role === 'band_member') {
       // New user requesting to join as band member - needs approval
       this.roomService.addPendingMember(roomId, user);
@@ -213,6 +258,16 @@ export class RoomHandlers {
         users: this.roomService.getRoomUsers(roomId),
         pendingMembers: this.roomService.getPendingMembers(roomId)
       });
+      
+      // Send updated room state to all users to ensure UI consistency
+      const updatedRoomData = {
+        room: {
+          ...room,
+          users: this.roomService.getRoomUsers(roomId),
+          pendingMembers: this.roomService.getPendingMembers(roomId)
+        }
+      };
+      this.io.to(roomId).emit('room_state_updated', updatedRoomData);
     }
   }
 
@@ -286,23 +341,29 @@ export class RoomHandlers {
       return;
     }
 
+    // Add user to temporary blacklist to prevent immediate rejoin
+    const userKey = `${rejectedUser.username}-${session.roomId}`;
+    this.rejectedUsers.set(userKey, { roomId: session.roomId, timestamp: Date.now() });
+
     // Notify the rejected user
     const rejectedSocketId = this.roomService.findSocketByUserId(data.userId);
     if (rejectedSocketId) {
       const rejectedSocket = this.io.sockets.sockets.get(rejectedSocketId);
       if (rejectedSocket) {
+        // Send rejection message - the frontend will handle disconnection
         rejectedSocket.emit('member_rejected', { message: 'Your request was rejected', userId: data.userId });
       }
     }
 
-    // Notify room owner to remove the pending member from their view
-    const ownerSocketId = this.roomService.findSocketByUserId(room.owner);
-    if (ownerSocketId) {
-      const ownerSocket = this.io.sockets.sockets.get(ownerSocketId);
-      if (ownerSocket) {
-        ownerSocket.emit('pending_member_cancelled', { userId: data.userId });
+    // Send updated room state to all users in the room (excluding the rejected user)
+    const updatedRoomData = {
+      room: {
+        ...room,
+        users: this.roomService.getRoomUsers(session.roomId),
+        pendingMembers: this.roomService.getPendingMembers(session.roomId)
       }
-    }
+    };
+    this.io.to(session.roomId).emit('room_state_updated', updatedRoomData);
   }
 
   handlePlayNote(socket: Socket, data: PlayNoteData): void {
@@ -350,6 +411,16 @@ export class RoomHandlers {
       instrument: data.instrument,
       category: data.category
     }, true); // Instrument changes are important and sent immediately
+    
+    // Send updated room state to all users to ensure UI consistency
+    const updatedRoomData = {
+      room: {
+        ...room,
+        users: this.roomService.getRoomUsers(session.roomId),
+        pendingMembers: this.roomService.getPendingMembers(session.roomId)
+      }
+    };
+    this.io.to(session.roomId).emit('room_state_updated', updatedRoomData);
   }
 
   handleUpdateSynthParams(socket: Socket, data: UpdateSynthParamsData): void {
@@ -416,6 +487,19 @@ export class RoomHandlers {
       newOwner: result.newOwner,
       oldOwner: result.oldOwner
     });
+    
+    // Send updated room state to all users to ensure UI consistency
+    const room = this.roomService.getRoom(session.roomId);
+    if (room) {
+      const updatedRoomData = {
+        room: {
+          ...room,
+          users: this.roomService.getRoomUsers(session.roomId),
+          pendingMembers: this.roomService.getPendingMembers(session.roomId)
+        }
+      };
+      this.io.to(session.roomId).emit('room_state_updated', updatedRoomData);
+    }
   }
 
   handleLeaveRoom(socket: Socket): void {
@@ -432,14 +516,15 @@ export class RoomHandlers {
     if (pendingUser) {
       this.roomService.rejectMember(session.roomId, session.userId);
       
-      // Notify room owner to clear the acceptance prompt
-      const ownerSocketId = this.roomService.findSocketByUserId(room.owner);
-      if (ownerSocketId) {
-        const ownerSocket = this.io.sockets.sockets.get(ownerSocketId);
-        if (ownerSocket) {
-          ownerSocket.emit('pending_member_cancelled', { userId: session.userId });
+      // Send updated room state to all users in the room to remove the pending member
+      const updatedRoomData = {
+        room: {
+          ...room,
+          users: this.roomService.getRoomUsers(session.roomId),
+          pendingMembers: this.roomService.getPendingMembers(session.roomId)
         }
-      }
+      };
+      this.io.to(session.roomId).emit('room_state_updated', updatedRoomData);
       
       this.roomService.removeUserSession(socket.id);
       return;
@@ -464,6 +549,16 @@ export class RoomHandlers {
       } else {
         // Notify others about user leaving
         socket.to(session.roomId).emit('user_left', { user });
+        
+        // Send updated room state to all users to ensure UI consistency
+        const updatedRoomData = {
+          room: {
+            ...room,
+            users: this.roomService.getRoomUsers(session.roomId),
+            pendingMembers: this.roomService.getPendingMembers(session.roomId)
+          }
+        };
+        this.io.to(session.roomId).emit('room_state_updated', updatedRoomData);
       }
     }
 
@@ -508,6 +603,26 @@ export class RoomHandlers {
       const room = this.roomService.getRoom(session.roomId);
       if (room) {
         const user = room.users.get(session.userId);
+        const pendingUser = room.pendingMembers.get(session.userId);
+        
+        // Check if this was a pending member who disconnected
+        if (pendingUser) {
+          this.roomService.rejectMember(session.roomId, session.userId);
+          
+          // Send updated room state to all users in the room to remove the pending member
+          const updatedRoomData = {
+            room: {
+              ...room,
+              users: this.roomService.getRoomUsers(session.roomId),
+              pendingMembers: this.roomService.getPendingMembers(session.roomId)
+            }
+          };
+          this.io.to(session.roomId).emit('room_state_updated', updatedRoomData);
+          
+          this.roomService.removeUserSession(socket.id);
+          return;
+        }
+        
         if (user) {
           // Handle room owner disconnection
           if (user.role === 'room_owner') {
@@ -526,6 +641,16 @@ export class RoomHandlers {
             } else {
               // Notify others about user disconnection
               socket.to(session.roomId).emit('user_left', { user });
+              
+              // Send updated room state to all users to ensure UI consistency
+              const updatedRoomData = {
+                room: {
+                  ...room,
+                  users: this.roomService.getRoomUsers(session.roomId),
+                  pendingMembers: this.roomService.getPendingMembers(session.roomId)
+                }
+              };
+              this.io.to(session.roomId).emit('room_state_updated', updatedRoomData);
             }
           }
         }
