@@ -18,8 +18,6 @@ const app = express();
 const server = createServer(app);
 const io = createSocketServer(server);
 
-const PORT = process.env.PORT || 3001;
-
 // Initialize services
 const roomService = new RoomService();
 const roomHandlers = new RoomHandlers(roomService, io);
@@ -29,18 +27,20 @@ const socketManager = new SocketManager(io, roomHandlers);
 app.use(helmet());
 app.use(corsMiddleware);
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
 // Routes
-app.use('/', createRoutes(roomHandlers));
+app.use('/api', createRoutes(roomHandlers));
 
 // Initialize socket manager
 socketManager.initialize();
 
-// Start server
-server.listen(Number(PORT), '0.0.0.0', () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`🌐 Health check: http://localhost:${PORT}/health`);
-});
+// Periodic cleanup task for expired grace time entries
+setInterval(() => {
+  roomService.cleanupExpiredGraceTime();
+}, 30000); // Run every 30 seconds
 
-export default app; 
+const PORT = process.env.PORT || 3001;
+
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+}); 
