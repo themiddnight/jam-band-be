@@ -4,11 +4,14 @@ import { Room, User, UserSession } from '../types';
 export class RoomService {
   private rooms = new Map<string, Room>();
   private userSessions = new Map<string, UserSession>();
+  private gracePeriodUsers = new Map<string, { roomId: string; timestamp: number; isIntendedLeave: boolean; userData: User }>();
+  private readonly GRACE_PERIOD_MS = 60000; // 60 seconds
+  private intentionallyLeftUsers = new Map<string, { roomId: string; timestamp: number; userData: User }>();
+  private readonly INTENTIONAL_LEAVE_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
 
   // Room management
-  createRoom(name: string, username: string): { room: Room; user: User; session: UserSession } {
+  createRoom(name: string, username: string, userId: string, isPrivate: boolean = false, isHidden: boolean = false): { room: Room; user: User; session: UserSession } {
     const roomId = uuidv4();
-    const userId = uuidv4();
     
     const room: Room = {
       id: roomId,
@@ -16,7 +19,8 @@ export class RoomService {
       owner: userId,
       users: new Map(),
       pendingMembers: new Map(),
-
+      isPrivate,
+      isHidden,
       createdAt: new Date()
     };
 
@@ -39,13 +43,17 @@ export class RoomService {
   }
 
   getAllRooms() {
-    return Array.from(this.rooms.values()).map(room => ({
-      id: room.id,
-      name: room.name,
-      userCount: room.users.size,
-      owner: room.owner,
-      createdAt: room.createdAt
-    }));
+    return Array.from(this.rooms.values())
+      .filter(room => !room.isHidden) // Don't show hidden rooms in public list
+      .map(room => ({
+        id: room.id,
+        name: room.name,
+        userCount: room.users.size,
+        owner: room.owner,
+        isPrivate: room.isPrivate,
+        isHidden: room.isHidden,
+        createdAt: room.createdAt
+      }));
   }
 
   deleteRoom(roomId: string): boolean {
@@ -53,7 +61,14 @@ export class RoomService {
   }
 
   // User management
-  findUserInRoom(roomId: string, username: string): User | undefined {
+  findUserInRoom(roomId: string, userId: string): User | undefined {
+    const room = this.rooms.get(roomId);
+    if (!room) return undefined;
+    
+    return room.users.get(userId);
+  }
+
+  findUserInRoomByUsername(roomId: string, username: string): User | undefined {
     const room = this.rooms.get(roomId);
     if (!room) return undefined;
     
@@ -99,16 +114,101 @@ export class RoomService {
     return pendingUser;
   }
 
-  removeUserFromRoom(roomId: string, userId: string): User | undefined {
+  removeUserFromRoom(roomId: string, userId: string, isIntendedLeave: boolean = false): User | undefined {
     const room = this.rooms.get(roomId);
-    if (!room) return undefined;
+    if (!room) {
+      return undefined;
+    }
 
     const user = room.users.get(userId);
-    if (!user) return undefined;
+    if (!user) {
+      return undefined;
+    }
 
     room.users.delete(userId);
     room.pendingMembers.delete(userId);
+
+    if (isIntendedLeave) {
+      // For intentional leave, add to intentionally left users list
+      // This prevents automatic rejoining without approval
+      this.intentionallyLeftUsers.set(userId, {
+        roomId,
+        timestamp: Date.now(),
+        userData: user
+      });
+    } else {
+      // Add to grace period if not intended leave (e.g., page refresh, network issues)
+      this.gracePeriodUsers.set(userId, {
+        roomId,
+        timestamp: Date.now(),
+        isIntendedLeave: false,
+        userData: user // Store the complete user data including role
+      });
+    }
+
     return user;
+  }
+
+  // Grace period management
+  getGracePeriodMs(): number {
+    return this.GRACE_PERIOD_MS;
+  }
+
+  isUserInGracePeriod(userId: string, roomId: string): boolean {
+    const graceEntry = this.gracePeriodUsers.get(userId);
+    if (!graceEntry) return false;
+
+    if (graceEntry.roomId !== roomId) return false;
+
+    const now = Date.now();
+    if (now - graceEntry.timestamp > this.GRACE_PERIOD_MS) {
+      this.gracePeriodUsers.delete(userId);
+      return false;
+    }
+
+    return true;
+  }
+
+  removeFromGracePeriod(userId: string): void {
+    this.gracePeriodUsers.delete(userId);
+  }
+
+  // Intentional leave management
+  hasUserIntentionallyLeft(userId: string, roomId: string): boolean {
+    const intentionalEntry = this.intentionallyLeftUsers.get(userId);
+    if (!intentionalEntry) return false;
+
+    if (intentionalEntry.roomId !== roomId) return false;
+
+    const now = Date.now();
+    if (now - intentionalEntry.timestamp > this.INTENTIONAL_LEAVE_EXPIRY_MS) {
+      this.intentionallyLeftUsers.delete(userId);
+      return false;
+    }
+
+    return true;
+  }
+
+  removeFromIntentionallyLeft(userId: string): void {
+    this.intentionallyLeftUsers.delete(userId);
+  }
+
+  cleanupExpiredGracePeriod(): void {
+    const now = Date.now();
+    for (const [userId, entry] of this.gracePeriodUsers.entries()) {
+      if (now - entry.timestamp > this.GRACE_PERIOD_MS) {
+        this.gracePeriodUsers.delete(userId);
+      }
+    }
+  }
+
+  cleanupExpiredIntentionalLeaves(): void {
+    const now = Date.now();
+    for (const [userId, entry] of this.intentionallyLeftUsers.entries()) {
+      if (now - entry.timestamp > this.INTENTIONAL_LEAVE_EXPIRY_MS) {
+        this.intentionallyLeftUsers.delete(userId);
+      }
+    }
   }
 
   transferOwnership(roomId: string, newOwnerId: string, oldOwner?: User): { newOwner: User; oldOwner: User } | undefined {
@@ -137,12 +237,17 @@ export class RoomService {
     return { newOwner, oldOwner: actualOldOwner };
   }
 
-  // Check if room should be closed (no users left)
+  // Check if room should be closed (no owner or band members left)
   shouldCloseRoom(roomId: string): boolean {
     const room = this.rooms.get(roomId);
     if (!room) return true;
     
-    return room.users.size === 0;
+    // Check if there are any room_owner or band_member users
+    const hasActiveMembers = Array.from(room.users.values()).some(user => 
+      user.role === 'room_owner' || user.role === 'band_member'
+    );
+    
+    return !hasActiveMembers;
   }
 
   // Get any user in the room for ownership transfer
@@ -197,8 +302,6 @@ export class RoomService {
     return true;
   }
 
-
-
   // Utility methods
   isRoomOwner(roomId: string, userId: string): boolean {
     const room = this.rooms.get(roomId);
@@ -221,5 +324,37 @@ export class RoomService {
     
     return Array.from(room.users.values())
       .filter(u => u.role === 'band_member');
+  }
+
+  // Cleanup expired grace time entries
+  cleanupExpiredGraceTime(): void {
+    // Clean up expired grace period entries
+    this.cleanupExpiredGracePeriod();
+    
+    // Clean up expired intentional leave entries
+    this.cleanupExpiredIntentionalLeaves();
+    
+    // Example cleanup logic (can be expanded based on requirements):
+    // - Remove rooms that have been empty for too long
+    // - Clean up old user sessions
+    
+    const now = new Date();
+    const roomsToDelete: string[] = [];
+    
+    for (const [roomId, room] of this.rooms.entries()) {
+      // Delete rooms that have no owner/band members for more than 1 hour
+      const timeSinceCreation = now.getTime() - room.createdAt.getTime();
+      const oneHour = 60 * 60 * 1000;
+      
+      if (this.shouldCloseRoom(roomId) && timeSinceCreation > oneHour) {
+        roomsToDelete.push(roomId);
+      }
+    }
+    
+    // Delete expired rooms
+    roomsToDelete.forEach(roomId => {
+      this.rooms.delete(roomId);
+      console.log(`Deleted expired room: ${roomId}`);
+    });
   }
 } 

@@ -21,10 +21,6 @@ export class RoomHandlers {
   private readonly BATCH_INTERVAL = 16; // ~60fps
   private readonly MAX_QUEUE_SIZE = 50;
   
-  // Temporary blacklist for rejected users (prevents immediate rejoin)
-  private rejectedUsers = new Map<string, { roomId: string; timestamp: number }>();
-  private readonly REJECTION_COOLDOWN = 5000; // 5 seconds cooldown
-
   constructor(private roomService: RoomService, private io: Server) {}
 
   // Batch message processing for better performance
@@ -56,16 +52,6 @@ export class RoomHandlers {
     });
 
     this.batchTimeouts.delete(roomId);
-  }
-
-  // Clean up expired rejection entries
-  private cleanupExpiredRejections(): void {
-    const now = Date.now();
-    for (const [key, rejection] of this.rejectedUsers.entries()) {
-      if (now - rejection.timestamp >= this.REJECTION_COOLDOWN) {
-        this.rejectedUsers.delete(key);
-      }
-    }
   }
 
   // Queue message for batched processing
@@ -101,21 +87,91 @@ export class RoomHandlers {
   }
 
   // Private method to handle room owner leaving
-  private handleRoomOwnerLeaving(roomId: string, leavingUserId: string): void {
+  private handleRoomOwnerLeaving(roomId: string, leavingUserId: string, isIntendedLeave: boolean = false): void {
     const room = this.roomService.getRoom(roomId);
     if (!room) return;
 
     const leavingUser = room.users.get(leavingUserId);
     if (!leavingUser) return;
 
-    // First, notify all users that the owner is leaving
-    this.io.to(roomId).emit('user_left', { user: leavingUser });
-
     // Store the old owner information before removing them
     const oldOwner = { ...leavingUser };
 
     // Remove the leaving user from room
-    this.roomService.removeUserFromRoom(roomId, leavingUserId);
+    this.roomService.removeUserFromRoom(roomId, leavingUserId, isIntendedLeave);
+
+    // For unintentional leave (like page refresh), keep the room alive if owner is alone
+    if (!isIntendedLeave) {
+      // Check if room is now empty after owner disconnect
+      if (this.roomService.shouldCloseRoom(roomId)) {
+        // Don't close the room immediately for unintentional disconnects
+        // The owner is in grace period and can rejoin
+        return;
+      }
+      
+      // For unintentional disconnects, delay ownership transfer until grace period expires
+      // This prevents the double owner issue when room owners refresh the page
+      setTimeout(() => {
+        // Check if the user is still in grace period (hasn't rejoined)
+        if (this.roomService.isUserInGracePeriod(leavingUserId, roomId)) {
+          // Grace period expired, user hasn't rejoined - proceed with ownership transfer
+          this.handleDelayedOwnershipTransfer(roomId, oldOwner);
+        }
+        // If user is no longer in grace period, they have rejoined - no transfer needed
+      }, this.roomService.getGracePeriodMs()); // Use the grace period duration from RoomService
+      
+      return;
+    }
+
+    // For intentional leave, proceed with immediate ownership transfer
+    this.handleImmediateOwnershipTransfer(roomId, leavingUser, oldOwner);
+  }
+
+  // Handle immediate ownership transfer for intentional leaves
+  private handleImmediateOwnershipTransfer(roomId: string, leavingUser: any, oldOwner: any): void {
+    // First, notify all users that the owner is leaving
+    this.io.to(roomId).emit('user_left', { user: leavingUser });
+
+    // Check if room should be closed (no users left)
+    if (this.roomService.shouldCloseRoom(roomId)) {
+      this.io.to(roomId).emit('room_closed', { message: 'Room is empty and has been closed' });
+      this.roomService.deleteRoom(roomId);
+      
+      // Broadcast to all clients that the room was closed
+      this.io.emit('room_closed_broadcast', { roomId });
+      return;
+    }
+
+    // Try to transfer ownership to any remaining user
+    const newOwner = this.roomService.getAnyUserInRoom(roomId);
+    if (newOwner) {
+      const result = this.roomService.transferOwnership(roomId, newOwner.id, oldOwner);
+      if (result) {
+        this.io.to(roomId).emit('ownership_transferred', {
+          newOwner: result.newOwner,
+          oldOwner: result.oldOwner
+        });
+        
+        // Send updated room state to all users to ensure UI consistency
+        const room = this.roomService.getRoom(roomId);
+        if (room) {
+          const updatedRoomData = {
+            room: {
+              ...room,
+              users: this.roomService.getRoomUsers(roomId),
+              pendingMembers: this.roomService.getPendingMembers(roomId)
+            }
+          };
+          this.io.to(roomId).emit('room_state_updated', updatedRoomData);
+        }
+      }
+    }
+  }
+
+  // Handle delayed ownership transfer for unintentional disconnects
+  private handleDelayedOwnershipTransfer(roomId: string, oldOwner: any): void {
+    const room = this.roomService.getRoom(roomId);
+    if (!room) return;
 
     // Check if room should be closed (no users left)
     if (this.roomService.shouldCloseRoom(roomId)) {
@@ -162,7 +218,7 @@ export class RoomHandlers {
 
   // Socket Event Handlers
   handleJoinRoom(socket: Socket, data: JoinRoomData): void {
-    const { roomId, username, role } = data;
+    const { roomId, username, userId, role } = data;
     
     const room = this.roomService.getRoom(roomId);
     if (!room) {
@@ -170,29 +226,51 @@ export class RoomHandlers {
       return;
     }
     
-    // Check if user is temporarily blacklisted from this room
-    const userKey = `${username}-${roomId}`;
-    const rejection = this.rejectedUsers.get(userKey);
-    if (rejection && (Date.now() - rejection.timestamp) < this.REJECTION_COOLDOWN) {
-      socket.emit('error', { message: 'Please wait before requesting to join again' });
-      return;
-    }
+    // Check if user already exists in the room, is in grace period, or has intentionally left
+    const existingUser = this.roomService.findUserInRoom(roomId, userId);
+    const isInGracePeriod = this.roomService.isUserInGracePeriod(userId, roomId);
+    const hasIntentionallyLeft = this.roomService.hasUserIntentionallyLeft(userId, roomId);
     
-    // Clean up expired rejections
-    this.cleanupExpiredRejections();
-    
-    // Check if user already exists in the room
-    const existingUser = this.roomService.findUserInRoom(roomId, username);
-    let userId: string;
     let user: User;
     
     if (existingUser) {
-      // User already exists in room, use existing user data
-      userId = existingUser.id;
+      // User already exists in room, use their existing data (e.g., page refresh)
       user = existingUser;
+      // Remove from grace period if they were there
+      this.roomService.removeFromGracePeriod(userId);
+    } else if (isInGracePeriod) {
+      // User is in grace period, restore them to the room
+      const graceEntry = this.roomService['gracePeriodUsers'].get(userId);
+      if (graceEntry) {
+        // Restore user with their original role and data
+        user = {
+          ...graceEntry.userData,
+          username, // Update username in case it changed
+        };
+        this.roomService.removeFromGracePeriod(userId);
+      } else {
+        // Grace period expired, create new user
+        user = {
+          id: userId,
+          username,
+          role: role || 'audience',
+          isReady: (role || 'audience') === 'audience'
+        };
+      }
+    } else if (hasIntentionallyLeft) {
+      // User has intentionally left this room - they need approval to rejoin
+      // Remove them from the intentional leave list since they're trying to rejoin
+      this.roomService.removeFromIntentionallyLeft(userId);
+      
+      // Create new user that will need approval
+      user = {
+        id: userId,
+        username,
+        role: role || 'audience',
+        isReady: (role || 'audience') === 'audience'
+      };
     } else {
       // Create new user
-      userId = uuidv4();
       user = {
         id: userId,
         username,
@@ -210,7 +288,7 @@ export class RoomHandlers {
     this.roomService.removeOldSessionsForUser(userId, socket.id);
 
     if (existingUser) {
-      // User already exists in room, join them directly
+      // User already exists in room, join them directly (e.g., page refresh)
       socket.join(roomId);
       
       // Notify others in room about the rejoin
@@ -219,7 +297,6 @@ export class RoomHandlers {
         room, 
         users: this.roomService.getRoomUsers(roomId),
         pendingMembers: this.roomService.getPendingMembers(roomId),
-
       });
       
       // Send updated room state to all users to ensure UI consistency
@@ -231,8 +308,32 @@ export class RoomHandlers {
         }
       };
       this.io.to(roomId).emit('room_state_updated', updatedRoomData);
-    } else if (role === 'band_member') {
-      // New user requesting to join as band member - needs approval
+    } else if (isInGracePeriod) {
+      // User is in grace period (disconnected, not intentionally left), restore them to the room
+      this.roomService.addUserToRoom(roomId, user);
+      this.roomService.removeFromGracePeriod(userId);
+      
+      socket.join(roomId);
+      
+      // Notify others in room about the rejoin
+      socket.to(roomId).emit('user_joined', { user });
+      socket.emit('room_joined', { 
+        room, 
+        users: this.roomService.getRoomUsers(roomId),
+        pendingMembers: this.roomService.getPendingMembers(roomId),
+      });
+      
+      // Send updated room state to all users to ensure UI consistency
+      const updatedRoomData = {
+        room: {
+          ...room,
+          users: this.roomService.getRoomUsers(roomId),
+          pendingMembers: this.roomService.getPendingMembers(roomId)
+        }
+      };
+      this.io.to(roomId).emit('room_state_updated', updatedRoomData);
+    } else if (hasIntentionallyLeft || (role === 'band_member' && room.isPrivate)) {
+      // User has intentionally left or is requesting to join as band member in private room - needs approval
       this.roomService.addPendingMember(roomId, user);
       
       socket.emit('pending_approval', { message: 'Waiting for room owner approval' });
@@ -246,7 +347,7 @@ export class RoomHandlers {
         }
       }
     } else {
-      // New audience member - join directly
+      // New audience member or band member in public room - join directly
       this.roomService.addUserToRoom(roomId, user);
       
       socket.join(roomId);
@@ -340,10 +441,6 @@ export class RoomHandlers {
     if (!rejectedUser) {
       return;
     }
-
-    // Add user to temporary blacklist to prevent immediate rejoin
-    const userKey = `${rejectedUser.username}-${session.roomId}`;
-    this.rejectedUsers.set(userKey, { roomId: session.roomId, timestamp: Date.now() });
 
     // Notify the rejected user
     const rejectedSocketId = this.roomService.findSocketByUserId(data.userId);
@@ -473,8 +570,6 @@ export class RoomHandlers {
     });
   }
 
-
-
   handleTransferOwnership(socket: Socket, data: TransferOwnershipData): void {
     const session = this.roomService.getUserSession(socket.id);
     if (!session) return;
@@ -502,12 +597,16 @@ export class RoomHandlers {
     }
   }
 
-  handleLeaveRoom(socket: Socket): void {
+  handleLeaveRoom(socket: Socket, isIntendedLeave: boolean = false): void {
     const session = this.roomService.getUserSession(socket.id);
-    if (!session) return;
+    if (!session) {
+      return;
+    }
 
     const room = this.roomService.getRoom(session.roomId);
-    if (!room) return;
+    if (!room) {
+      return;
+    }
 
     const user = room.users.get(session.userId);
     const pendingUser = room.pendingMembers.get(session.userId);
@@ -530,14 +629,20 @@ export class RoomHandlers {
       return;
     }
 
-    if (!user) return;
+    if (!user) {
+      return;
+    }
 
     // If room owner leaves, handle ownership transfer or room closure
     if (user.role === 'room_owner') {
-      this.handleRoomOwnerLeaving(session.roomId, session.userId);
+      // Notify the leaving owner that their leave is confirmed before handling transfer
+      socket.emit('leave_confirmed', { message: 'Successfully left the room' });
+      this.handleRoomOwnerLeaving(session.roomId, session.userId, isIntendedLeave);
     } else {
       // Regular user leaving - just remove them from room
-      this.roomService.removeUserFromRoom(session.roomId, session.userId);
+      // Notify the leaving user that their leave is confirmed
+      socket.emit('leave_confirmed', { message: 'Successfully left the room' });
+      this.roomService.removeUserFromRoom(session.roomId, session.userId, isIntendedLeave);
       
       // Check if room should be closed after regular user leaves
       if (this.roomService.shouldCloseRoom(session.roomId)) {
@@ -572,7 +677,13 @@ export class RoomHandlers {
       return;
     }
     
-    const { room, user, session } = this.roomService.createRoom(data.name, data.username);
+    const { room, user, session } = this.roomService.createRoom(
+      data.name, 
+      data.username, 
+      data.userId, 
+      data.isPrivate, 
+      data.isHidden
+    );
 
     socket.join(room.id);
     socket.data = session;
@@ -593,6 +704,8 @@ export class RoomHandlers {
       name: room.name,
       userCount: room.users.size,
       owner: room.owner,
+      isPrivate: room.isPrivate,
+      isHidden: room.isHidden,
       createdAt: room.createdAt.toISOString()
     });
   }
@@ -626,10 +739,10 @@ export class RoomHandlers {
         if (user) {
           // Handle room owner disconnection
           if (user.role === 'room_owner') {
-            this.handleRoomOwnerLeaving(session.roomId, session.userId);
+            this.handleRoomOwnerLeaving(session.roomId, session.userId, false);
           } else {
-            // Regular user disconnection
-            this.roomService.removeUserFromRoom(session.roomId, session.userId);
+            // Regular user disconnection - treat as temporary (grace period)
+            this.roomService.removeUserFromRoom(session.roomId, session.userId, false);
             
             // Check if room should be closed after user disconnects
             if (this.roomService.shouldCloseRoom(session.roomId)) {

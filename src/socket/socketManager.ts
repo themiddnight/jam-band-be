@@ -31,7 +31,7 @@ export class SocketManager {
     // Room management events
     socket.on('create_room', (data) => this.roomHandlers.handleCreateRoom(socket, data));
     socket.on('join_room', (data) => this.roomHandlers.handleJoinRoom(socket, data));
-    socket.on('leave_room', () => this.roomHandlers.handleLeaveRoom(socket));
+    socket.on('leave_room', (data) => this.roomHandlers.handleLeaveRoom(socket, data?.isIntendedLeave || false));
 
     // Member management events
     socket.on('approve_member', (data) => this.roomHandlers.handleApproveMember(socket, data));
@@ -42,8 +42,6 @@ export class SocketManager {
     socket.on('change_instrument', (data) => this.roomHandlers.handleChangeInstrument(socket, data));
     socket.on('update_synth_params', (data) => this.roomHandlers.handleUpdateSynthParams(socket, data));
     socket.on('request_synth_params', () => this.roomHandlers.handleRequestSynthParams(socket));
-
-
 
     // Ownership events
     socket.on('transfer_ownership', (data) => this.roomHandlers.handleTransferOwnership(socket, data));

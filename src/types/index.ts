@@ -13,7 +13,8 @@ export interface Room {
   owner: string;
   users: Map<string, User>;
   pendingMembers: Map<string, User>;
-
+  isPrivate: boolean;
+  isHidden: boolean;
   createdAt: Date;
 }
 
@@ -25,12 +26,16 @@ export interface UserSession {
 export interface JoinRoomData {
   roomId: string;
   username: string;
+  userId: string;
   role: 'band_member' | 'audience';
 }
 
 export interface CreateRoomData {
   name: string;
   username: string;
+  userId: string;
+  isPrivate: boolean;
+  isHidden: boolean;
 }
 
 export interface ApproveMemberData {
@@ -59,8 +64,6 @@ export interface UpdateSynthParamsData {
   params: any;
 }
 
-
-
 export interface TransferOwnershipData {
   newOwnerId: string;
 }
@@ -70,5 +73,7 @@ export interface RoomListResponse {
   name: string;
   userCount: number;
   owner: string;
+  isPrivate: boolean;
+  isHidden: boolean;
   createdAt: Date;
 } 
