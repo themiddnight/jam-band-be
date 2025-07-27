@@ -216,6 +216,81 @@ export class RoomHandlers {
     res.json(roomList);
   }
 
+  handleLeaveRoomHttp(req: Request, res: Response): void {
+    const { roomId } = req.params;
+    const { userId } = req.body;
+
+    if (!roomId || !userId) {
+      res.status(400).json({ 
+        success: false, 
+        message: 'Missing required parameters: roomId and userId' 
+      });
+      return;
+    }
+
+    const room = this.roomService.getRoom(roomId);
+    if (!room) {
+      res.status(404).json({ 
+        success: false, 
+        message: 'Room not found' 
+      });
+      return;
+    }
+
+    const user = this.roomService.findUserInRoom(roomId, userId);
+    if (!user) {
+      res.status(404).json({ 
+        success: false, 
+        message: 'User not found in room' 
+      });
+      return;
+    }
+
+    // Remove user from room with intentional leave flag
+    const removedUser = this.roomService.removeUserFromRoom(roomId, userId, true);
+    
+    if (!removedUser) {
+      res.status(500).json({ 
+        success: false, 
+        message: 'Failed to remove user from room' 
+      });
+      return;
+    }
+
+    // Handle room owner leaving
+    if (user.role === 'room_owner') {
+      this.handleImmediateOwnershipTransfer(roomId, user, user);
+    } else {
+      // Check if room should be closed after regular user leaves
+      if (this.roomService.shouldCloseRoom(roomId)) {
+        this.io.to(roomId).emit('room_closed', { message: 'Room is empty and has been closed' });
+        this.roomService.deleteRoom(roomId);
+        
+        // Broadcast to all clients that the room was closed
+        this.io.emit('room_closed_broadcast', { roomId });
+      } else {
+        // Notify others about user leaving
+        this.io.to(roomId).emit('user_left', { user });
+        
+        // Send updated room state to all users to ensure UI consistency
+        const updatedRoomData = {
+          room: {
+            ...room,
+            users: this.roomService.getRoomUsers(roomId),
+            pendingMembers: this.roomService.getPendingMembers(roomId)
+          }
+        };
+        this.io.to(roomId).emit('room_state_updated', updatedRoomData);
+      }
+    }
+
+    res.json({ 
+      success: true, 
+      message: 'Successfully left room',
+      roomClosed: this.roomService.shouldCloseRoom(roomId)
+    });
+  }
+
   // Socket Event Handlers
   handleJoinRoom(socket: Socket, data: JoinRoomData): void {
     const { roomId, username, userId, role } = data;
