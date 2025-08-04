@@ -307,6 +307,7 @@ export class RoomHandlers {
     const hasIntentionallyLeft = this.roomService.hasUserIntentionallyLeft(userId, roomId);
     
     let user: User;
+    let userIntentionallyLeft = hasIntentionallyLeft;
     
     if (existingUser) {
       // User already exists in room, use their existing data (e.g., page refresh)
@@ -344,6 +345,9 @@ export class RoomHandlers {
         role: role || 'audience',
         isReady: (role || 'audience') === 'audience'
       };
+      
+      // Mark that this user intentionally left (for the approval logic below)
+      userIntentionallyLeft = true;
     } else {
       // Create new user
       user = {
@@ -407,8 +411,8 @@ export class RoomHandlers {
         }
       };
       this.io.to(roomId).emit('room_state_updated', updatedRoomData);
-    } else if (hasIntentionallyLeft || (role === 'band_member' && room.isPrivate)) {
-      // User has intentionally left or is requesting to join as band member in private room - needs approval
+    } else if ((userIntentionallyLeft && room.isPrivate) || (role === 'band_member' && room.isPrivate)) {
+      // User has intentionally left a private room or is requesting to join as band member in private room - needs approval
       this.roomService.addPendingMember(roomId, user);
       
       socket.emit('pending_approval', { message: 'Waiting for room owner approval' });
