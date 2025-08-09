@@ -1,7 +1,9 @@
 import express from 'express';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
-import { createServer } from 'http';
+import { createServer } from 'https';
+import fs from 'fs';
+import path from 'path';
 
 // Import our modular components
 import { corsMiddleware } from './middleware/cors';
@@ -15,7 +17,10 @@ import { SocketManager } from './socket/socketManager';
 dotenv.config();
 
 const app = express();
-const server = createServer(app);
+const server = createServer({
+  key: fs.readFileSync(path.join(__dirname, '../.selfsigned/key.pem')),
+  cert: fs.readFileSync(path.join(__dirname, '../.selfsigned/cert.pem')),
+}, app);
 const io = createSocketServer(server);
 
 // Initialize services
