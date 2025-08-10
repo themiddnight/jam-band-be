@@ -39,7 +39,10 @@ jobs:
     - name: Deploy to Railway
       if: github.ref == 'refs/heads/main'
       run: |
+        echo ${{ secrets.RAILWAY_TOKEN }} | railway login
+        railway link --project ${{ secrets.RAILWAY_PROJECT_ID }}
         railway up --service ${{ secrets.RAILWAY_SERVICE }}
       env:
         RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
         RAILWAY_SERVICE: ${{ secrets.RAILWAY_SERVICE }} 
