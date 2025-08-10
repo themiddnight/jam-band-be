@@ -55,6 +55,9 @@ export class SocketManager {
     socket.on('voice_mute_changed', (data) => this.roomHandlers.handleVoiceMuteChanged(socket, data));
     socket.on('request_voice_participants', (data) => this.roomHandlers.handleRequestVoiceParticipants(socket, data));
 
+    // Chat events
+    socket.on('chat_message', (data) => this.roomHandlers.handleChatMessage(socket, data));
+
     // Disconnect event
     socket.on('disconnect', () => this.roomHandlers.handleDisconnect(socket));
   }

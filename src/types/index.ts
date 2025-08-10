@@ -122,4 +122,17 @@ export interface VoiceParticipantInfo {
   userId: string;
   username: string;
   isMuted: boolean;
+}
+
+// Chat Message Types
+export interface ChatMessageData {
+  message: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  userId: string;
+  username: string;
+  message: string;
+  timestamp: number;
 } 

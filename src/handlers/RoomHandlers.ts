@@ -20,7 +20,9 @@ import {
   User,
   VoiceMuteChangedData,
   RequestVoiceParticipantsData,
-  VoiceParticipantInfo
+  VoiceParticipantInfo,
+  ChatMessageData,
+  ChatMessage
 } from '../types';
 
 export class RoomHandlers {
@@ -942,9 +944,44 @@ export class RoomHandlers {
   }
 
   handleRequestVoiceParticipants(socket: Socket, data: RequestVoiceParticipantsData): void {
-    if (!socket || !data?.roomId) return;
-    const map = this.getVoiceRoomMap(data.roomId);
-    const participants = Array.from(map.values());
+    const session = this.roomService.getUserSession(socket.id);
+    if (!session) {
+      console.log(`Socket ${socket.id} not in any room`);
+      return;
+    }
+
+    const roomId = session.roomId;
+    const voiceRoomMap = this.getVoiceRoomMap(roomId);
+    const participants = Array.from(voiceRoomMap.values());
+    
     socket.emit('voice_participants', { participants });
+  }
+
+  // Chat Message Handler
+  handleChatMessage(socket: Socket, data: ChatMessageData): void {
+    const session = this.roomService.getUserSession(socket.id);
+    if (!session) {
+      console.log(`Socket ${socket.id} not in any room`);
+      return;
+    }
+
+    const roomId = session.roomId;
+    const user = this.roomService.findUserInRoom(roomId, session.userId);
+    
+    if (!user) {
+      console.log(`User ${session.userId} not found in room ${roomId}`);
+      return;
+    }
+
+    const chatMessage: ChatMessage = {
+      id: uuidv4(),
+      userId: user.id,
+      username: user.username,
+      message: data.message,
+      timestamp: Date.now()
+    };
+
+    // Broadcast chat message to all users in the room
+    this.io.to(roomId).emit('chat_message', chatMessage);
   }
 } 
