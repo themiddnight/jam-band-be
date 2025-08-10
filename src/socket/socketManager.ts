@@ -46,6 +46,15 @@ export class SocketManager {
     // Ownership events
     socket.on('transfer_ownership', (data) => this.roomHandlers.handleTransferOwnership(socket, data));
 
+    // WebRTC Voice events
+    socket.on('voice_offer', (data) => this.roomHandlers.handleVoiceOffer(socket, data));
+    socket.on('voice_answer', (data) => this.roomHandlers.handleVoiceAnswer(socket, data));
+    socket.on('voice_ice_candidate', (data) => this.roomHandlers.handleVoiceIceCandidate(socket, data));
+    socket.on('join_voice', (data) => this.roomHandlers.handleJoinVoice(socket, data));
+    socket.on('leave_voice', (data) => this.roomHandlers.handleLeaveVoice(socket, data));
+    socket.on('voice_mute_changed', (data) => this.roomHandlers.handleVoiceMuteChanged(socket, data));
+    socket.on('request_voice_participants', (data) => this.roomHandlers.handleRequestVoiceParticipants(socket, data));
+
     // Disconnect event
     socket.on('disconnect', () => this.roomHandlers.handleDisconnect(socket));
   }

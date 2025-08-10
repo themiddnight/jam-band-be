@@ -12,7 +12,15 @@ import {
   ChangeInstrumentData,
   UpdateSynthParamsData,
   TransferOwnershipData,
-  User
+  VoiceOfferData,
+  VoiceAnswerData,
+  VoiceIceCandidateData,
+  JoinVoiceData,
+  LeaveVoiceData,
+  User,
+  VoiceMuteChangedData,
+  RequestVoiceParticipantsData,
+  VoiceParticipantInfo
 } from '../types';
 
 export class RoomHandlers {
@@ -20,6 +28,7 @@ export class RoomHandlers {
   private batchTimeouts = new Map<string, NodeJS.Timeout>();
   private readonly BATCH_INTERVAL = 16; // ~60fps
   private readonly MAX_QUEUE_SIZE = 50;
+  private voiceParticipants = new Map<string, Map<string, VoiceParticipantInfo>>(); // roomId -> userId -> info
   
   constructor(private roomService: RoomService, private io: Server) {}
 
@@ -52,6 +61,13 @@ export class RoomHandlers {
     });
 
     this.batchTimeouts.delete(roomId);
+  }
+
+  private getVoiceRoomMap(roomId: string): Map<string, VoiceParticipantInfo> {
+    if (!this.voiceParticipants.has(roomId)) {
+      this.voiceParticipants.set(roomId, new Map());
+    }
+    return this.voiceParticipants.get(roomId)!;
   }
 
   // Queue message for batched processing
@@ -849,5 +865,86 @@ export class RoomHandlers {
       }
       this.roomService.removeUserSession(socket.id);
     }
+  }
+
+  // WebRTC Voice Communication Handlers
+  handleVoiceOffer(socket: Socket, data: VoiceOfferData): void {
+    console.log(`[VOICE] Offer from ${socket.data?.userId} to ${data.targetUserId} in room ${data.roomId}`);
+    
+    // Forward the offer to the target user
+    socket.to(data.roomId).emit('voice_offer', {
+      offer: data.offer,
+      fromUserId: socket.data?.userId,
+      fromUsername: socket.data?.username || 'Unknown'
+    });
+    
+    console.log(`[VOICE] Forwarded offer to room ${data.roomId}`);
+  }
+
+  handleVoiceAnswer(socket: Socket, data: VoiceAnswerData): void {
+    console.log(`Voice answer from ${socket.data?.userId} to ${data.targetUserId}`);
+    
+    // Forward the answer to the target user
+    socket.to(data.roomId).emit('voice_answer', {
+      answer: data.answer,
+      fromUserId: socket.data?.userId
+    });
+  }
+
+  handleVoiceIceCandidate(socket: Socket, data: VoiceIceCandidateData): void {
+    // Forward ICE candidate to the target user
+    socket.to(data.roomId).emit('voice_ice_candidate', {
+      candidate: data.candidate,
+      fromUserId: socket.data?.userId
+    });
+  }
+
+  handleJoinVoice(socket: Socket, data: JoinVoiceData): void {
+    console.log(`[VOICE] User ${data.username} (${data.userId}) joined voice in room ${data.roomId}`);
+    const map = this.getVoiceRoomMap(data.roomId);
+    map.set(data.userId, { userId: data.userId, username: data.username, isMuted: false });
+    
+    // Notify other users in the room about the new voice participant
+    socket.to(data.roomId).emit('user_joined_voice', {
+      userId: data.userId,
+      username: data.username
+    });
+    
+    console.log(`[VOICE] Broadcasted user_joined_voice to room ${data.roomId}`);
+  }
+
+  handleLeaveVoice(socket: Socket, data: LeaveVoiceData): void {
+    console.log(`User ${socket.data?.userId} left voice in room ${data.roomId}`);
+    const map = this.getVoiceRoomMap(data.roomId);
+    map.delete(data.userId);
+    
+    // Notify other users that this user left voice chat
+    socket.to(data.roomId).emit('user_left_voice', {
+      userId: data.userId
+    });
+  }
+
+  handleVoiceMuteChanged(socket: Socket, data: VoiceMuteChangedData): void {
+    if (!socket || !data?.roomId || !data?.userId) return;
+    const map = this.getVoiceRoomMap(data.roomId);
+    const existing = map.get(data.userId);
+    if (existing) {
+      existing.isMuted = data.isMuted;
+    } else {
+      // If we don't have the participant yet, create a placeholder entry
+      map.set(data.userId, { userId: data.userId, username: 'Unknown', isMuted: data.isMuted });
+    }
+    // Broadcast the mute state change to the room (excluding sender)
+    socket.to(data.roomId).emit('voice_mute_changed', {
+      userId: data.userId,
+      isMuted: data.isMuted,
+    });
+  }
+
+  handleRequestVoiceParticipants(socket: Socket, data: RequestVoiceParticipantsData): void {
+    if (!socket || !data?.roomId) return;
+    const map = this.getVoiceRoomMap(data.roomId);
+    const participants = Array.from(map.values());
+    socket.emit('voice_participants', { participants });
   }
 } 

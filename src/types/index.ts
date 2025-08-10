@@ -76,4 +76,50 @@ export interface RoomListResponse {
   isPrivate: boolean;
   isHidden: boolean;
   createdAt: Date;
+}
+
+// WebRTC Voice Communication Types
+export interface VoiceOfferData {
+  offer: any; // RTCSessionDescriptionInit
+  targetUserId: string;
+  roomId: string;
+}
+
+export interface VoiceAnswerData {
+  answer: any; // RTCSessionDescriptionInit
+  targetUserId: string;
+  roomId: string;
+}
+
+export interface VoiceIceCandidateData {
+  candidate: any; // RTCIceCandidateInit
+  targetUserId: string;
+  roomId: string;
+}
+
+export interface JoinVoiceData {
+  roomId: string;
+  userId: string;
+  username: string;
+}
+
+export interface LeaveVoiceData {
+  roomId: string;
+  userId: string;
+}
+
+export interface VoiceMuteChangedData {
+  roomId: string;
+  userId: string;
+  isMuted: boolean;
+}
+
+export interface RequestVoiceParticipantsData {
+  roomId: string;
+}
+
+export interface VoiceParticipantInfo {
+  userId: string;
+  username: string;
+  isMuted: boolean;
 } 
