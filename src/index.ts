@@ -1,11 +1,12 @@
 import express from 'express';
 import helmet from 'helmet';
-import dotenv from 'dotenv';
-import { createServer } from 'https';
+import { createServer } from 'http';
+import { createServer as createHttpsServer } from 'https';
 import fs from 'fs';
 import path from 'path';
 
 // Import our modular components
+import { config } from './config/environment';
 import { corsMiddleware } from './middleware/cors';
 import { createSocketServer } from './config/socket';
 import { createRoutes } from './routes';
@@ -13,15 +14,43 @@ import { RoomService } from './services/RoomService';
 import { RoomHandlers } from './handlers/RoomHandlers';
 import { SocketManager } from './socket/socketManager';
 
-// Load environment variables
-dotenv.config();
-
 const app = express();
-const server = createServer({
-  key: fs.readFileSync(path.join(__dirname, '../.selfsigned/key.pem')),
-  cert: fs.readFileSync(path.join(__dirname, '../.selfsigned/cert.pem')),
-}, app);
-const io = createSocketServer(server);
+
+// Determine server type based on environment
+let server;
+let io;
+
+if (config.nodeEnv === 'development' && config.ssl.enabled) {
+  // Development mode - use HTTPS for WebRTC
+  try {
+    const keyPath = path.join(__dirname, '..', config.ssl.keyPath);
+    const certPath = path.join(__dirname, '..', config.ssl.certPath);
+    
+    if (fs.existsSync(keyPath) && fs.existsSync(certPath)) {
+      server = createHttpsServer({
+        key: fs.readFileSync(keyPath),
+        cert: fs.readFileSync(certPath),
+      }, app);
+      console.log('🔒 Development: Using HTTPS with self-signed certificates');
+    } else {
+      throw new Error('SSL certificates not found');
+    }
+  } catch (error) {
+    console.warn('⚠️  SSL certificates not found, falling back to HTTP');
+    console.warn('⚠️  WebRTC may not work properly in development');
+    server = createServer(app);
+  }
+} else {
+  // Production mode or HTTP only - use HTTP (Railway will handle SSL termination)
+  server = createServer(app);
+  if (config.nodeEnv === 'production') {
+    console.log('🌐 Production: Using HTTP (SSL handled by Railway)');
+  } else {
+    console.log('🔓 Development: Using HTTP mode');
+  }
+}
+
+io = createSocketServer(server);
 
 // Initialize services
 const roomService = new RoomService();
@@ -44,8 +73,17 @@ setInterval(() => {
   roomService.cleanupExpiredGraceTime();
 }, 30000); // Run every 30 seconds
 
-const PORT = process.env.PORT || 3001;
-
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+server.listen(config.port, () => {
+  const protocol = config.nodeEnv === 'development' && config.ssl.enabled ? 'https' : 'http';
+  console.log(`🚀 Server running on port ${config.port} in ${config.nodeEnv} mode`);
+  console.log(`📡 API available at: ${protocol}://localhost:${config.port}/api`);
+  console.log(`🔌 Socket.IO available at: ${protocol}://localhost:${config.port}`);
+  
+  if (config.nodeEnv === 'development' && config.ssl.enabled) {
+    console.log('🔒 Development: HTTPS enabled for WebRTC support');
+  } else if (config.nodeEnv === 'production') {
+    console.log('🌐 Production: HTTP mode (SSL handled by Railway)');
+  } else {
+    console.log('🔓 Development: HTTP mode');
+  }
 }); 

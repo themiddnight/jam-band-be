@@ -1,0 +1,49 @@
+# Dependencies
+node_modules
+npm-debug.log
+bun-debug.log
+
+# Build outputs
+dist
+build
+
+# Environment files
+.env
+.env.local
+.env.production
+.env.example
+
+# Development files
+.selfsigned
+firebase-debug.log
+.git
+.gitignore
+README.md
+DEPLOYMENT.md
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode
+.idea
+*.swp
+*.swo
+
+# Logs
+logs
+*.log
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage
+
+# Temporary folders
+tmp
+temp 
