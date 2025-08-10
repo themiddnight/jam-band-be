@@ -8,15 +8,14 @@ WORKDIR /app
 COPY package*.json ./
 COPY bun.lockb ./
 
-# Install dependencies
-RUN npm install -g bun
-RUN bun install --frozen-lockfile
+# Install dependencies using npm (more compatible with Alpine)
+RUN npm install
 
 # Copy source code
 COPY . .
 
 # Build the application
-RUN bun run build
+RUN npm run build
 
 # Production stage
 FROM node:20-alpine AS production
@@ -28,12 +27,10 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install only production dependencies
-RUN npm install -g bun
-RUN bun install --frozen-lockfile --production
+RUN npm install --omit=dev
 
 # Copy built application from builder stage
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
 
 # Create non-root user for security
 RUN addgroup -g 1001 -S nodejs
