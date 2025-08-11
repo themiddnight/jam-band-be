@@ -7,7 +7,7 @@ import path from 'path';
 
 // Import our modular components
 import { config } from './config/environment';
-import { corsMiddleware } from './middleware/cors';
+import { corsMiddleware, corsDebugMiddleware } from './middleware/cors';
 import { apiLimiter, cleanupExpiredRateLimits } from './middleware/rateLimit';
 import { 
   requestLogger, 
@@ -84,6 +84,7 @@ app.use(performanceMonitor);
 
 // Security middleware
 app.use(requestLogger);
+app.use(corsDebugMiddleware); // Add CORS debugging
 app.use(corsMiddleware);
 
 // Rate limiting for API endpoints
