@@ -24,7 +24,7 @@ const logColors = {
 // Add colors to Winston
 winston.addColors(logColors);
 
-// Create logs directory if it doesn't exist
+// Create logs directory if it doesn't exist (only in development)
 const logsDir = path.join(process.cwd(), 'logs');
 
 // Custom format for logs
@@ -53,49 +53,52 @@ export const logger = winston.createLogger({
   level: config.logging.level,
   format: logFormat,
   transports: [
-    // Console transport
+    // Console transport (always enabled)
     new winston.transports.Console({
       format: consoleFormat,
       level: config.nodeEnv === 'development' ? 'debug' : 'info',
     }),
     
-    // Error log file (daily rotation)
-    new DailyRotateFile({
-      filename: path.join(logsDir, 'error-%DATE%.log'),
-      datePattern: 'YYYY-MM-DD',
-      level: 'error',
-      maxSize: '20m',
-      maxFiles: '30d',
-      zippedArchive: true,
-    }),
-    
-    // Combined log file (daily rotation)
-    new DailyRotateFile({
-      filename: path.join(logsDir, 'combined-%DATE%.log'),
-      datePattern: 'YYYY-MM-DD',
-      maxSize: '20m',
-      maxFiles: '14d',
-      zippedArchive: true,
-    }),
-    
-    // HTTP requests log file (daily rotation)
-    new DailyRotateFile({
-      filename: path.join(logsDir, 'http-%DATE%.log'),
-      datePattern: 'YYYY-MM-DD',
-      level: 'http',
-      maxSize: '20m',
-      maxFiles: '7d',
-      zippedArchive: true,
-    }),
-    
-    // Security events log file (daily rotation)
-    new DailyRotateFile({
-      filename: path.join(logsDir, 'security-%DATE%.log'),
-      datePattern: 'YYYY-MM-DD',
-      maxSize: '20m',
-      maxFiles: '30d',
-      zippedArchive: true,
-    }),
+    // File transports only in development
+    ...(config.nodeEnv === 'development' ? [
+      // Error log file (daily rotation)
+      new DailyRotateFile({
+        filename: path.join(logsDir, 'error-%DATE%.log'),
+        datePattern: 'YYYY-MM-DD',
+        level: 'error',
+        maxSize: '20m',
+        maxFiles: '30d',
+        zippedArchive: true,
+      }),
+      
+      // Combined log file (daily rotation)
+      new DailyRotateFile({
+        filename: path.join(logsDir, 'combined-%DATE%.log'),
+        datePattern: 'YYYY-MM-DD',
+        maxSize: '20m',
+        maxFiles: '14d',
+        zippedArchive: true,
+      }),
+      
+      // HTTP requests log file (daily rotation)
+      new DailyRotateFile({
+        filename: path.join(logsDir, 'http-%DATE%.log'),
+        datePattern: 'YYYY-MM-DD',
+        level: 'http',
+        maxSize: '20m',
+        maxFiles: '7d',
+        zippedArchive: true,
+      }),
+      
+      // Security events log file (daily rotation)
+      new DailyRotateFile({
+        filename: path.join(logsDir, 'security-%DATE%.log'),
+        datePattern: 'YYYY-MM-DD',
+        maxSize: '20m',
+        maxFiles: '30d',
+        zippedArchive: true,
+      }),
+    ] : []),
   ],
 });
 

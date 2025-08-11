@@ -7,6 +7,12 @@ export const corsOptions = {
     console.log('🔒 CORS: Request origin:', origin);
     console.log('🔒 CORS: NODE_ENV:', config.nodeEnv);
     console.log('🔒 CORS: Strict mode:', config.cors.strictMode);
+    console.log('🔒 CORS: CORS_ORIGIN env var:', process.env.CORS_ORIGIN);
+    console.log('🔒 CORS: ALLOWED_ORIGINS env var:', process.env.ALLOWED_ORIGINS);
+    console.log('🔒 CORS: Config allowedOrigins:', config.cors.allowedOrigins);
+    
+    // Fallback: Always allow the known frontend origin
+    const knownFrontendOrigin = 'https://jam-band-fe.vercel.app';
     
     if (config.nodeEnv === 'production') {
       // Production mode - use environment-based allowed origins
@@ -14,7 +20,8 @@ export const corsOptions = {
       
       console.log('🔒 CORS: Production mode - allowed origins:', allowedOrigins);
       
-      if (!origin || allowedOrigins.includes(origin)) {
+      // Check if origin is in allowed origins or is the known frontend origin
+      if (!origin || allowedOrigins.includes(origin) || origin === knownFrontendOrigin) {
         console.log('✅ CORS: Origin allowed:', origin);
         callback(null, true);
       } else {
@@ -50,6 +57,30 @@ export const corsOptions = {
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   exposedHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset'],
   maxAge: 86400, // 24 hours
+  // Handle preflight requests
+  preflightContinue: false,
+  optionsSuccessStatus: 200
 };
 
-export const corsMiddleware = cors(corsOptions); 
+export const corsMiddleware = cors(corsOptions);
+
+// Additional CORS debugging middleware
+export const corsDebugMiddleware = (req: any, res: any, next: any) => {
+  console.log('🔍 CORS Debug: Request method:', req.method);
+  console.log('🔍 CORS Debug: Request origin:', req.get('Origin'));
+  console.log('🔍 CORS Debug: Request headers:', req.headers);
+  
+  // Handle preflight requests explicitly
+  if (req.method === 'OPTIONS') {
+    console.log('🔍 CORS Debug: Handling preflight request');
+    res.header('Access-Control-Allow-Origin', 'https://jam-band-fe.vercel.app');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Max-Age', '86400');
+    res.status(200).end();
+    return;
+  }
+  
+  next();
+}; 

@@ -2,8 +2,11 @@ import dotenv from 'dotenv';
 import path from 'path';
 
 // Load environment variables based on NODE_ENV
-const envFile = process.env.NODE_ENV === 'production' ? 'env.production' : '.env.local';
-dotenv.config({ path: envFile });
+// In Railway, environment variables are injected directly, so we only load local files in development
+if (process.env.NODE_ENV !== 'production') {
+  const envFile = '.env.local';
+  dotenv.config({ path: envFile });
+}
 
 export const config = {
   // Server configuration
@@ -21,10 +24,12 @@ export const config = {
   cors: {
     // Single origin (legacy support)
     origin: process.env.CORS_ORIGIN || '*',
-    // Multiple origins (new approach)
+    // Multiple origins (new approach) - prioritize ALLOWED_ORIGINS over CORS_ORIGIN
     allowedOrigins: process.env.ALLOWED_ORIGINS 
       ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
-      : ['http://localhost:5173', 'http://localhost:3000'],
+      : process.env.CORS_ORIGIN 
+        ? [process.env.CORS_ORIGIN]
+        : ['http://localhost:5173', 'http://localhost:3000'],
     // Development origins (always allowed in dev mode)
     developmentOrigins: process.env.DEVELOPMENT_ORIGINS
       ? process.env.DEVELOPMENT_ORIGINS.split(',').map(origin => origin.trim())

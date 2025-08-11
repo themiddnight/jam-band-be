@@ -227,8 +227,19 @@ export class RoomHandlers {
 
   // HTTP Handlers
   getHealthCheck(req: Request, res: Response): void {
-    const healthData = getHealthCheckData();
-    res.json(healthData);
+    try {
+      const healthData = getHealthCheckData();
+      res.json(healthData);
+    } catch (error) {
+      console.error('Health check error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      res.status(500).json({
+        status: 'error',
+        message: 'Health check failed',
+        error: process.env.NODE_ENV === 'development' ? errorMessage : 'Internal server error',
+        timestamp: new Date().toISOString()
+      });
+    }
   }
 
   getRoomList(req: Request, res: Response): void {

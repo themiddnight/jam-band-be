@@ -5,6 +5,17 @@ import { validateData, leaveRoomHttpSchema } from '../validation/schemas';
 export const createRoutes = (roomHandlers: RoomHandlers): Router => {
   const router = Router();
 
+  // Simple health check endpoint (no dependencies)
+  router.get('/health/simple', (req, res) => {
+    res.json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV || 'unknown',
+      corsOrigin: process.env.CORS_ORIGIN || 'not set',
+      allowedOrigins: process.env.ALLOWED_ORIGINS || 'not set'
+    });
+  });
+
   // Health check endpoint
   router.get('/health', (req, res) => roomHandlers.getHealthCheck(req, res));
 
