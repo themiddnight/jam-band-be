@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Room, User, UserSession } from '../types';
+import { CacheService } from './CacheService';
 
 export class RoomService {
   private rooms = new Map<string, Room>();
@@ -8,6 +9,7 @@ export class RoomService {
   private readonly GRACE_PERIOD_MS = 60000; // 60 seconds
   private intentionallyLeftUsers = new Map<string, { roomId: string; timestamp: number; userData: User }>();
   private readonly INTENTIONAL_LEAVE_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
+  private cacheService = CacheService.getInstance();
 
   // Room management
   createRoom(name: string, username: string, userId: string, isPrivate: boolean = false, isHidden: boolean = false): { room: Room; user: User; session: UserSession } {
@@ -33,17 +35,43 @@ export class RoomService {
 
     room.users.set(userId, user);
     this.rooms.set(roomId, room);
+    
+    // Cache the new room
+    this.cacheService.cacheRoom(roomId, room);
+    
+    // Invalidate room list cache
+    this.cacheService.invalidateRoomCaches();
 
     const session: UserSession = { roomId, userId };
     return { room, user, session };
   }
 
   getRoom(roomId: string): Room | undefined {
-    return this.rooms.get(roomId);
+    // Try cache first
+    const cachedRoom = this.cacheService.getCachedRoom(roomId);
+    if (cachedRoom) {
+      return cachedRoom;
+    }
+    
+    // Get from memory and cache
+    const room = this.rooms.get(roomId);
+    if (room) {
+      this.cacheService.cacheRoom(roomId, room);
+    }
+    
+    return room;
   }
 
   getAllRooms() {
-    return Array.from(this.rooms.values())
+    // Try cache first
+    const cacheKey = 'all_rooms_public';
+    const cachedRooms = this.cacheService.getCachedRoomList(cacheKey);
+    if (cachedRooms) {
+      return cachedRooms;
+    }
+    
+    // Get from memory and cache
+    const rooms = Array.from(this.rooms.values())
       .filter(room => !room.isHidden) // Don't show hidden rooms in public list
       .map(room => ({
         id: room.id,
@@ -54,10 +82,22 @@ export class RoomService {
         isHidden: room.isHidden,
         createdAt: room.createdAt
       }));
+    
+    // Cache for 1 minute since room list changes frequently
+    this.cacheService.cacheRoomList(cacheKey, rooms, 60);
+    
+    return rooms;
   }
 
   deleteRoom(roomId: string): boolean {
-    return this.rooms.delete(roomId);
+    const deleted = this.rooms.delete(roomId);
+    if (deleted) {
+      // Clear room cache
+      this.cacheService.invalidateRoom(roomId);
+      // Invalidate room list cache
+      this.cacheService.invalidateRoomCaches();
+    }
+    return deleted;
   }
 
   // User management

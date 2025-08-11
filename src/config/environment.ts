@@ -19,8 +19,19 @@ export const config = {
   
   // CORS configuration
   cors: {
+    // Single origin (legacy support)
     origin: process.env.CORS_ORIGIN || '*',
+    // Multiple origins (new approach)
+    allowedOrigins: process.env.ALLOWED_ORIGINS 
+      ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
+      : ['http://localhost:5173', 'http://localhost:3000'],
+    // Development origins (always allowed in dev mode)
+    developmentOrigins: process.env.DEVELOPMENT_ORIGINS
+      ? process.env.DEVELOPMENT_ORIGINS.split(',').map(origin => origin.trim())
+      : ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:8080'],
     credentials: process.env.CORS_CREDENTIALS === 'true',
+    // CORS policy configuration
+    strictMode: process.env.CORS_STRICT_MODE === 'true',
   },
   
   // WebRTC configuration
@@ -49,6 +60,18 @@ export const config = {
   // Logging configuration
   logging: {
     level: process.env.LOG_LEVEL || 'info',
+  },
+  
+  // Performance configuration
+  performance: {
+    enableCompression: process.env.ENABLE_COMPRESSION !== 'false', // Default true
+    enableCaching: process.env.ENABLE_CACHING !== 'false', // Default true
+    cacheTTL: parseInt(process.env.CACHE_TTL || '300'),
+    maxConnections: parseInt(process.env.MAX_CONNECTIONS || '1000'),
+    enableGarbageCollection: process.env.ENABLE_GC === 'true',
+    connectionTimeout: parseInt(process.env.CONNECTION_TIMEOUT || '1800000'), // 30 minutes
+    cleanupInterval: parseInt(process.env.CLEANUP_INTERVAL || '300000'), // 5 minutes
+    disableSynthRateLimit: process.env.DISABLE_SYNTH_RATE_LIMIT === 'true', // Disable rate limiting for synth params
   },
 } as const;
 

@@ -122,6 +122,8 @@ export interface VoiceParticipantInfo {
   userId: string;
   username: string;
   isMuted: boolean;
+  lastHeartbeat?: number;
+  connectionStates?: Record<string, { connectionState: string; iceConnectionState: string }>;
 }
 
 // Chat Message Types
