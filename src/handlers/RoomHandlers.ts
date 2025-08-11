@@ -3,6 +3,7 @@ import { Socket } from 'socket.io';
 import { Server } from 'socket.io';
 import { v4 as uuidv4 } from 'uuid';
 import { RoomService } from '../services/RoomService';
+import { getHealthCheckData } from '../middleware/monitoring';
 import { 
   JoinRoomData, 
   CreateRoomData, 
@@ -226,7 +227,8 @@ export class RoomHandlers {
 
   // HTTP Handlers
   getHealthCheck(req: Request, res: Response): void {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+    const healthData = getHealthCheckData();
+    res.json(healthData);
   }
 
   getRoomList(req: Request, res: Response): void {
@@ -955,6 +957,93 @@ export class RoomHandlers {
     const participants = Array.from(voiceRoomMap.values());
     
     socket.emit('voice_participants', { participants });
+  }
+
+  // WebRTC Connection Health Monitoring
+  handleVoiceHeartbeat(socket: Socket, data: { roomId: string; userId: string; connectionStates: Record<string, { connectionState: string; iceConnectionState: string }> }): void {
+    const session = this.roomService.getUserSession(socket.id);
+    if (!session || session.roomId !== data.roomId) {
+      console.log(`Invalid heartbeat from socket ${socket.id}`);
+      return;
+    }
+
+    const roomId = data.roomId;
+    const userId = data.userId;
+    
+    console.log(`[VOICE HEARTBEAT] Received from ${userId} in room ${roomId}:`, data.connectionStates);
+    
+    // Update last seen timestamp for this user
+    const voiceRoomMap = this.getVoiceRoomMap(roomId);
+    const participant = voiceRoomMap.get(userId);
+    if (participant) {
+      participant.lastHeartbeat = Date.now();
+      participant.connectionStates = data.connectionStates;
+    }
+
+    // Check for failed connections and notify other participants
+    Object.entries(data.connectionStates).forEach(([targetUserId, state]) => {
+      if (state.connectionState === 'failed' || state.iceConnectionState === 'failed') {
+        console.warn(`[VOICE HEALTH] Connection failure detected: ${userId} -> ${targetUserId}`);
+        
+        // Notify the target user that they should attempt reconnection
+        const targetSocketId = this.roomService.findSocketByUserId(targetUserId);
+        if (targetSocketId) {
+          const targetSocket = this.io.sockets.sockets.get(targetSocketId);
+          if (targetSocket) {
+            targetSocket.emit('voice_connection_failed', {
+              fromUserId: userId,
+              roomId: roomId,
+            });
+          }
+        }
+      }
+    });
+  }
+
+  handleVoiceConnectionFailed(socket: Socket, data: { roomId: string; targetUserId: string }): void {
+    const session = this.roomService.getUserSession(socket.id);
+    if (!session || session.roomId !== data.roomId) {
+      console.log(`Invalid connection failed report from socket ${socket.id}`);
+      return;
+    }
+
+    console.log(`[VOICE RECOVERY] Connection recovery requested: ${session.userId} -> ${data.targetUserId}`);
+    
+    // Notify both users to attempt reconnection
+    socket.to(data.roomId).emit('voice_reconnection_requested', {
+      fromUserId: session.userId,
+      targetUserId: data.targetUserId,
+      roomId: data.roomId,
+    });
+  }
+
+  // Periodic cleanup of stale voice connections
+  cleanupStaleVoiceConnections(): void {
+    const now = Date.now();
+    const STALE_THRESHOLD = 60000; // 60 seconds
+
+    for (const [roomId, voiceMap] of this.voiceParticipants.entries()) { // Changed from this.voiceRooms to this.voiceParticipants
+      const staleUsers: string[] = [];
+      
+      for (const [userId, participant] of voiceMap.entries()) {
+        const lastHeartbeat = participant.lastHeartbeat || 0;
+        if (now - lastHeartbeat > STALE_THRESHOLD) {
+          console.log(`[VOICE CLEANUP] Removing stale voice participant: ${userId} from room ${roomId}`);
+          staleUsers.push(userId);
+        }
+      }
+
+      // Remove stale users and notify room
+      staleUsers.forEach(userId => {
+        voiceMap.delete(userId);
+        this.io.to(roomId).emit('user_left_voice', { userId });
+      });
+
+      // Remove empty voice rooms
+      if (voiceMap.size === 0) {
+        this.voiceParticipants.delete(roomId); // Changed from this.voiceRooms to this.voiceParticipants
+      }
+    }
   }
 
   // Chat Message Handler
