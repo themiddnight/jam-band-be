@@ -640,14 +640,16 @@ export class RoomHandlers {
     const user = room.users.get(session.userId);
     if (!user) return;
 
-    // Use optimized emit for better performance - synth params can be batched
+    // Synth params now bypass validation for performance
+
+    // Use optimized emit for better performance - synth params need immediate transmission
     this.optimizedEmit(socket, session.roomId, 'synth_params_changed', {
       userId: session.userId,
       username: user.username,
       instrument: user.currentInstrument || '',
       category: user.currentCategory || '',
       params: data.params
-    }, false); // Synth params can be batched for better performance
+    }, true); // Synth params need immediate transmission for real-time audio
   }
 
   handleRequestSynthParams(socket: Socket): void {

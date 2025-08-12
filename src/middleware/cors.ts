@@ -7,41 +7,33 @@ export const corsOptions = {
     console.log('🔒 CORS: Request origin:', origin);
     console.log('🔒 CORS: NODE_ENV:', config.nodeEnv);
     console.log('🔒 CORS: Strict mode:', config.cors.strictMode);
-    console.log('🔒 CORS: CORS_ORIGIN env var:', process.env.CORS_ORIGIN);
-    console.log('🔒 CORS: ALLOWED_ORIGINS env var:', process.env.ALLOWED_ORIGINS);
-    console.log('🔒 CORS: Config allowedOrigins:', config.cors.allowedOrigins);
-    
-    // Fallback: Always allow the known frontend origin
-    const knownFrontendOrigin = 'https://jam-band-fe.vercel.app';
+    console.log('🔒 CORS: FRONTEND_URL env var:', process.env.FRONTEND_URL);
+    console.log('🔒 CORS: Config frontendUrl:', config.cors.frontendUrl);
     
     if (config.nodeEnv === 'production') {
-      // Production mode - use environment-based allowed origins
-      const allowedOrigins = config.cors.allowedOrigins;
-      
-      console.log('🔒 CORS: Production mode - allowed origins:', allowedOrigins);
-      
-      // Check if origin is in allowed origins or is the known frontend origin
-      if (!origin || allowedOrigins.includes(origin) || origin === knownFrontendOrigin) {
-        console.log('✅ CORS: Origin allowed:', origin);
+      // Production mode - only allow the configured frontend URL
+      if (!origin || origin === config.cors.frontendUrl) {
+        console.log('✅ CORS: Production origin allowed:', origin);
         callback(null, true);
       } else {
-        console.log('❌ CORS: Origin blocked:', origin);
-        console.log('❌ CORS: Allowed origins:', allowedOrigins);
+        console.log('❌ CORS: Production origin blocked:', origin);
+        console.log('❌ CORS: Expected origin:', config.cors.frontendUrl);
         callback(new Error('Not allowed by CORS'));
       }
     } else {
-      // Development mode - use environment-based development origins or allow all
+      // Development mode - allow frontend URL and local development origins
+      const allowedOrigins = [config.cors.frontendUrl, ...config.cors.developmentOrigins];
+      
       if (config.cors.strictMode) {
-        // Strict development mode - only allow specified development origins
-        const devOrigins = config.cors.developmentOrigins;
-        console.log('🔓 CORS: Strict development mode - allowed origins:', devOrigins);
+        // Strict development mode - only allow specified origins
+        console.log('🔓 CORS: Strict development mode - allowed origins:', allowedOrigins);
         
-        if (!origin || devOrigins.includes(origin)) {
+        if (!origin || allowedOrigins.includes(origin)) {
           console.log('✅ CORS: Development origin allowed:', origin);
           callback(null, true);
         } else {
           console.log('❌ CORS: Development origin blocked:', origin);
-          console.log('❌ CORS: Allowed development origins:', devOrigins);
+          console.log('❌ CORS: Allowed development origins:', allowedOrigins);
           callback(new Error('Not allowed by CORS in strict development mode'));
         }
       } else {
@@ -64,23 +56,12 @@ export const corsOptions = {
 
 export const corsMiddleware = cors(corsOptions);
 
-// Additional CORS debugging middleware
+// Simple CORS debugging middleware (no preflight handling)
 export const corsDebugMiddleware = (req: any, res: any, next: any) => {
   console.log('🔍 CORS Debug: Request method:', req.method);
   console.log('🔍 CORS Debug: Request origin:', req.get('Origin'));
   console.log('🔍 CORS Debug: Request headers:', req.headers);
   
-  // Handle preflight requests explicitly
-  if (req.method === 'OPTIONS') {
-    console.log('🔍 CORS Debug: Handling preflight request');
-    res.header('Access-Control-Allow-Origin', 'https://jam-band-fe.vercel.app');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Max-Age', '86400');
-    res.status(200).end();
-    return;
-  }
-  
+  // Let the main CORS middleware handle everything
   next();
 }; 

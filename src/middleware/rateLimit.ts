@@ -39,9 +39,9 @@ export interface RateLimitConfig {
 
 // Music-friendly rate limits
 export const socketRateLimits: Record<string, RateLimitConfig> = {
-  // Note events - allow high frequency for music performance
+  // Note events - allow high frequency for music performance (increased for fast chords)
   'play_note': {
-    maxEvents: 1000, // 1000 notes per minute per user
+    maxEvents: 2400, // 2400 notes per minute per user (40 per second - allows fast chord progressions)
     windowMs: 60 * 1000, // 1 minute
     eventType: 'note'
   },
@@ -82,7 +82,7 @@ export const socketRateLimits: Record<string, RateLimitConfig> = {
     eventType: 'general'
   },
   'change_instrument': {
-    maxEvents: 60, // 60 instrument changes per minute per user
+    maxEvents: 120, // 120 instrument changes per minute per user (increased for quick switching)
     windowMs: 60 * 1000, // 1 minute
     eventType: 'general'
   },
