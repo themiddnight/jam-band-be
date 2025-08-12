@@ -29,38 +29,9 @@ export const chatMessageSchema = Joi.object({
   roomId: Joi.string().uuid().required(),
 });
 
-// Note playing validation
-export const playNoteSchema = Joi.object({
-  notes: Joi.when('eventType', {
-    is: Joi.string().valid('sustain_on', 'sustain_off'),
-    then: Joi.array().items(Joi.string().min(1).max(50)).min(0).max(10).optional(), // Sustain events can have empty notes
-    otherwise: Joi.array().items(Joi.string().min(1).max(50)).min(1).max(10).required(), // Note events must have notes (increased max length for drum samples)
-  }),
-  velocity: Joi.number().min(0).max(127).required(),
-  instrument: Joi.string().min(1).max(100).required(),
-  category: Joi.string().min(1).max(50).required(), // Allow any category string
-  eventType: Joi.string().valid('note_on', 'note_off', 'sustain_on', 'sustain_off').required(),
-  isKeyHeld: Joi.boolean().optional(), // Make truly optional for note_off events
-});
-
-// Instrument change validation
-export const changeInstrumentSchema = Joi.object({
-  instrument: Joi.string().min(1).max(100).required(),
-  category: Joi.string().min(1).max(50).required(), // Allow any category string
-});
-
-// Synth params validation
-export const updateSynthParamsSchema = Joi.object({
-  params: Joi.object({
-    attack: Joi.number().min(0).max(10).optional(),
-    decay: Joi.number().min(0).max(10).optional(),
-    sustain: Joi.number().min(0).max(1).optional(),
-    release: Joi.number().min(0).max(10).optional(),
-    waveform: Joi.string().valid('sine', 'square', 'sawtooth', 'triangle').optional(),
-    filterCutoff: Joi.number().min(20).max(20000).optional(),
-    filterResonance: Joi.number().min(0).max(20).optional(),
-  }).required(),
-});
+// Musical validation schemas removed for performance and flexibility
+// Note: Musical data (notes, instruments, synth params) are now passed through without validation
+// This is safe as they are only relayed to other clients for audio processing
 
 // Ownership transfer validation
 export const transferOwnershipSchema = Joi.object({

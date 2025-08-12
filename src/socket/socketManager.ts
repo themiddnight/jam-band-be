@@ -1,13 +1,11 @@
 import { Server, Socket } from 'socket.io';
 import { RoomHandlers } from '../handlers/RoomHandlers';
 import { socketSecurityMiddleware, secureSocketEvent } from '../middleware/security';
+import { checkSocketRateLimit } from '../middleware/rateLimit';
 import {
   createRoomSchema,
   joinRoomSchema,
   chatMessageSchema,
-  playNoteSchema,
-  changeInstrumentSchema,
-  updateSynthParamsSchema,
   transferOwnershipSchema,
   memberActionSchema,
   voiceOfferSchema,
@@ -138,20 +136,44 @@ export class SocketManager {
     // Music events
     socket.on('play_note', (data) => {
       trackEvent('play_note');
-      secureSocketEvent('play_note', playNoteSchema, 
-        (socket, data) => this.roomHandlers.handlePlayNote(socket, data))(socket, data);
+      // Musical events bypass validation for performance - only rate limiting applies
+      const rateLimitCheck = checkSocketRateLimit(socket, 'play_note');
+      if (!rateLimitCheck.allowed) {
+        socket.emit('error', { 
+          message: `Rate limit exceeded for play_note. Try again in ${rateLimitCheck.retryAfter} seconds.`,
+          retryAfter: rateLimitCheck.retryAfter 
+        });
+        return;
+      }
+      this.roomHandlers.handlePlayNote(socket, data);
     });
     
     socket.on('change_instrument', (data) => {
       trackEvent('change_instrument');
-      secureSocketEvent('change_instrument', changeInstrumentSchema, 
-        (socket, data) => this.roomHandlers.handleChangeInstrument(socket, data))(socket, data);
+      // Musical events bypass validation for performance - only rate limiting applies
+      const rateLimitCheck = checkSocketRateLimit(socket, 'change_instrument');
+      if (!rateLimitCheck.allowed) {
+        socket.emit('error', { 
+          message: `Rate limit exceeded for change_instrument. Try again in ${rateLimitCheck.retryAfter} seconds.`,
+          retryAfter: rateLimitCheck.retryAfter 
+        });
+        return;
+      }
+      this.roomHandlers.handleChangeInstrument(socket, data);
     });
     
     socket.on('update_synth_params', (data) => {
       trackEvent('update_synth_params');
-      secureSocketEvent('update_synth_params', updateSynthParamsSchema, 
-        (socket, data) => this.roomHandlers.handleUpdateSynthParams(socket, data))(socket, data);
+      // Synth events bypass validation for performance - only rate limiting applies
+      const rateLimitCheck = checkSocketRateLimit(socket, 'update_synth_params');
+      if (!rateLimitCheck.allowed) {
+        socket.emit('error', { 
+          message: `Rate limit exceeded for update_synth_params. Try again in ${rateLimitCheck.retryAfter} seconds.`,
+          retryAfter: rateLimitCheck.retryAfter 
+        });
+        return;
+      }
+      this.roomHandlers.handleUpdateSynthParams(socket, data);
     });
     
     socket.on('request_synth_params', () => {

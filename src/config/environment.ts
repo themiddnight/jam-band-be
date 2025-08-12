@@ -20,20 +20,12 @@ export const config = {
     certPath: process.env.SSL_CERT_PATH || '.selfsigned/cert.pem',
   },
   
-  // CORS configuration
+  // CORS configuration - simplified to use single FRONTEND_URL
   cors: {
-    // Single origin (legacy support)
-    origin: process.env.CORS_ORIGIN || '*',
-    // Multiple origins (new approach) - prioritize ALLOWED_ORIGINS over CORS_ORIGIN
-    allowedOrigins: process.env.ALLOWED_ORIGINS 
-      ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
-      : process.env.CORS_ORIGIN 
-        ? [process.env.CORS_ORIGIN]
-        : ['http://localhost:5173', 'http://localhost:3000'],
-    // Development origins (always allowed in dev mode)
-    developmentOrigins: process.env.DEVELOPMENT_ORIGINS
-      ? process.env.DEVELOPMENT_ORIGINS.split(',').map(origin => origin.trim())
-      : ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:8080'],
+    // Single frontend URL for CORS
+    frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
+    // Development fallbacks for local development
+    developmentOrigins: ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:8080'],
     credentials: process.env.CORS_CREDENTIALS === 'true',
     // CORS policy configuration
     strictMode: process.env.CORS_STRICT_MODE === 'true',

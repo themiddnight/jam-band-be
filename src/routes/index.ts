@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { RoomHandlers } from '../handlers/RoomHandlers';
 import { validateData, leaveRoomHttpSchema } from '../validation/schemas';
+import { config } from '../config/environment';
 
 export const createRoutes = (roomHandlers: RoomHandlers): Router => {
   const router = Router();
@@ -11,8 +12,8 @@ export const createRoutes = (roomHandlers: RoomHandlers): Router => {
       status: 'ok',
       timestamp: new Date().toISOString(),
       environment: process.env.NODE_ENV || 'unknown',
-      corsOrigin: process.env.CORS_ORIGIN || 'not set',
-      allowedOrigins: process.env.ALLOWED_ORIGINS || 'not set'
+      frontendUrl: config.cors.frontendUrl,
+      corsStrictMode: config.cors.strictMode
     });
   });
 
