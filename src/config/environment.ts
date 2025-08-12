@@ -61,14 +61,12 @@ export const config = {
   
   // Performance configuration
   performance: {
-    enableCompression: process.env.ENABLE_COMPRESSION !== 'false', // Default true
-    enableCaching: process.env.ENABLE_CACHING !== 'false', // Default true
-    cacheTTL: parseInt(process.env.CACHE_TTL || '300'),
-    maxConnections: parseInt(process.env.MAX_CONNECTIONS || '1000'),
-    enableGarbageCollection: process.env.ENABLE_GC === 'true',
-    connectionTimeout: parseInt(process.env.CONNECTION_TIMEOUT || '1800000'), // 30 minutes
-    cleanupInterval: parseInt(process.env.CLEANUP_INTERVAL || '300000'), // 5 minutes
+    // Performance tuning options
+    maxConcurrentConnections: parseInt(process.env.MAX_CONCURRENT_CONNECTIONS || '1000'),
+    connectionTimeout: parseInt(process.env.CONNECTION_TIMEOUT || '30000'),
+    heartbeatInterval: parseInt(process.env.HEARTBEAT_INTERVAL || '30000'),
     disableSynthRateLimit: process.env.DISABLE_SYNTH_RATE_LIMIT === 'true', // Disable rate limiting for synth params
+    disableVoiceRateLimit: process.env.DISABLE_VOICE_RATE_LIMIT === 'true', // Disable rate limiting for voice events
   },
 } as const;
 

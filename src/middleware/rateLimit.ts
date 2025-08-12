@@ -53,19 +53,19 @@ export const socketRateLimits: Record<string, RateLimitConfig> = {
     eventType: 'chat'
   },
   
-  // Voice events - moderate limit
+  // Voice events - increased limits for better reliability and reconnection
   'voice_offer': {
-    maxEvents: 20, // 20 offers per minute per user
+    maxEvents: parseInt(process.env.VOICE_OFFER_RATE_LIMIT || '60'), // Configurable via environment
     windowMs: 60 * 1000, // 1 minute
     eventType: 'voice'
   },
   'voice_answer': {
-    maxEvents: 20, // 20 answers per minute per user
+    maxEvents: parseInt(process.env.VOICE_ANSWER_RATE_LIMIT || '60'), // Configurable via environment
     windowMs: 60 * 1000, // 1 minute
     eventType: 'voice'
   },
   'voice_ice_candidate': {
-    maxEvents: 100, // 100 ICE candidates per minute per user
+    maxEvents: parseInt(process.env.VOICE_ICE_RATE_LIMIT || '200'), // Configurable via environment
     windowMs: 60 * 1000, // 1 minute
     eventType: 'voice'
   },
@@ -105,6 +105,37 @@ export const checkSocketRateLimit = (socket: Socket, eventName: string): { allow
     return { allowed: true };
   }
   
+  // Special bypass for voice events - can be disabled for development/testing
+  if (eventName.startsWith('voice_') && config.performance.disableVoiceRateLimit) {
+    return { allowed: true };
+  }
+  
+  // Special handling for voice events during recovery scenarios
+  if (eventName.startsWith('voice_')) {
+    const userId = socket.data?.userId || socket.id;
+    const now = Date.now();
+    
+    // Check if this is a recovery attempt (user recently had connection issues)
+    const userLimits = socketRateLimitStore.get(userId);
+    if (userLimits) {
+      const voiceEvents = ['voice_offer', 'voice_answer', 'voice_ice_candidate'];
+      const hasRecentVoiceIssues = voiceEvents.some(event => {
+        const limit = userLimits.get(event);
+        const rateLimitConfig = socketRateLimits[event];
+        if (limit && rateLimitConfig && now - limit.resetTime < 30000) { // Within 30 seconds
+          return limit.count >= rateLimitConfig.maxEvents * 0.8; // If they were close to limit
+        }
+        return false;
+      });
+      
+      // If user had recent voice issues, allow a few more attempts
+      if (hasRecentVoiceIssues) {
+        console.log(`🎤 Rate limit: Allowing voice recovery for user ${userId}`);
+        return { allowed: true };
+      }
+    }
+  }
+  
   const rateLimitConfig = socketRateLimits[eventName];
   if (!rateLimitConfig) {
     // No rate limit configured for this event
@@ -138,7 +169,18 @@ export const checkSocketRateLimit = (socket: Socket, eventName: string): { allow
   if (eventLimit.count >= rateLimitConfig.maxEvents) {
     const retryAfter = Math.ceil((eventLimit.resetTime - now) / 1000);
     
-    // Log rate limit violation
+    // Log rate limit violation with enhanced details for voice events
+    if (eventName.startsWith('voice_')) {
+      console.warn(`🎤 Voice rate limit exceeded for user ${userId}:`, {
+        eventName,
+        currentCount: eventLimit.count,
+        limit: rateLimitConfig.maxEvents,
+        windowMs: rateLimitConfig.windowMs,
+        retryAfter,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
     loggingService.logRateLimitViolation(userId, eventName, rateLimitConfig.maxEvents, rateLimitConfig.windowMs);
     
     return { allowed: false, retryAfter };
