@@ -137,31 +137,7 @@ setInterval(() => {
   loggingService.cleanupOldLogs();
 }, 60 * 60 * 1000); // Run every hour
 
-// Memory optimization: Force garbage collection in development
-if (config.nodeEnv === 'development' && config.performance.enableGarbageCollection) {
-  setInterval(() => {
-    if (global.gc) {
-      const memBefore = process.memoryUsage();
-      global.gc();
-      const memAfter = process.memoryUsage();
-      
-      loggingService.logPerformanceMetric('garbage_collection', Date.now(), {
-        memoryBefore: {
-          heapUsed: Math.round(memBefore.heapUsed / 1024 / 1024),
-          heapTotal: Math.round(memBefore.heapTotal / 1024 / 1024),
-          rss: Math.round(memBefore.rss / 1024 / 1024)
-        },
-        memoryAfter: {
-          heapUsed: Math.round(memAfter.heapUsed / 1024 / 1024),
-          heapTotal: Math.round(memAfter.heapTotal / 1024 / 1024),
-          rss: Math.round(memAfter.rss / 1024 / 1024)
-        },
-        freed: Math.round((memBefore.heapUsed - memAfter.heapUsed) / 1024 / 1024),
-        timestamp: new Date().toISOString()
-      });
-    }
-  }, 5 * 60 * 1000); // Every 5 minutes
-}
+
 
 server.listen(config.port, () => {
   const protocol = config.nodeEnv === 'development' && config.ssl.enabled ? 'https' : 'http';
