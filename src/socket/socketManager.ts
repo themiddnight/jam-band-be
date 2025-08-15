@@ -250,6 +250,19 @@ export class SocketManager {
         (socket, data) => this.roomHandlers.handleChatMessage(socket, data))(socket, data);
     });
 
+    // Ping measurement for latency monitoring
+    socket.on('ping_measurement', (data) => {
+      trackEvent('ping_measurement');
+      // Simple ping-pong response for latency measurement
+      if (data && data.pingId && data.timestamp) {
+        socket.emit('ping_response', {
+          pingId: data.pingId,
+          timestamp: data.timestamp,
+          serverTimestamp: Date.now()
+        });
+      }
+    });
+
     // Disconnect event
     socket.on('disconnect', () => {
       // Clean up connection tracking

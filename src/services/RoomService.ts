@@ -254,24 +254,42 @@ export class RoomService {
   transferOwnership(roomId: string, newOwnerId: string, oldOwner?: User): { newOwner: User; oldOwner: User } | undefined {
     const room = this.rooms.get(roomId);
     if (!room) return undefined;
+    // Try to find the requested new owner; if not present, fall back to the first
+    // eligible user in the room (excluding the old owner if possible).
+    let newOwner = room.users.get(newOwnerId);
 
-    const newOwner = room.users.get(newOwnerId);
-    
-    if (!newOwner) return undefined;
-
-    // If oldOwner is provided, use it; otherwise try to find it in the room
-    let actualOldOwner = oldOwner;
-    if (!actualOldOwner) {
-      actualOldOwner = room.users.get(room.owner);
-      if (!actualOldOwner) return undefined;
+    if (!newOwner) {
+      // Select first available user that is not the current owner (if any)
+      for (const user of room.users.values()) {
+        if (user.id !== room.owner) {
+          newOwner = user;
+          break;
+        }
+      }
+      // If still not found and there is at least one user, pick the first
+      if (!newOwner && room.users.size > 0) {
+        newOwner = Array.from(room.users.values())[0];
+      }
     }
 
-    room.owner = newOwnerId;
+    if (!newOwner) return undefined;
+
+    // If oldOwner is provided, use it; otherwise try to find it in the room (may have been removed)
+    let actualOldOwner = oldOwner;
+    if (!actualOldOwner) {
+      actualOldOwner = room.users.get(room.owner) || ({ id: room.owner, username: '', role: 'audience' } as User);
+      // Note: actualOldOwner may be a stub if the old owner was removed already
+    }
+
+    // Perform ownership update
+    room.owner = newOwner.id;
     newOwner.role = 'room_owner';
-    
-    // Only update oldOwner role if it's still in the room
-    if (room.users.has(actualOldOwner.id)) {
-      actualOldOwner.role = 'band_member';
+
+    // If the old owner is still present in the room, demote them to band_member
+    if (actualOldOwner && room.users.has(actualOldOwner.id)) {
+      const foundOld = room.users.get(actualOldOwner.id)!;
+      foundOld.role = 'band_member';
+      actualOldOwner = foundOld;
     }
 
     return { newOwner, oldOwner: actualOldOwner };

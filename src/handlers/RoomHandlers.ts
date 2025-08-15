@@ -442,12 +442,12 @@ export class RoomHandlers {
         }
       };
       this.io.to(roomId).emit('room_state_updated', updatedRoomData);
-    } else if ((userIntentionallyLeft && room.isPrivate) || (role === 'band_member' && room.isPrivate)) {
-      // User has intentionally left a private room or is requesting to join as band member in private room - needs approval
+    } else if (role === 'band_member' && room.isPrivate) {
+      // Requesting to join as band member in a private room - needs owner approval
       this.roomService.addPendingMember(roomId, user);
-      
+
       socket.emit('pending_approval', { message: 'Waiting for room owner approval' });
-      
+
       // Notify room owner
       const ownerSocketId = this.roomService.findSocketByUserId(room.owner);
       if (ownerSocketId) {

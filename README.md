@@ -1,132 +1,149 @@
-# Jam Band Backend
+# Jam Band — Backend
 
-A TypeScript Express.js backend service for the Jam Band application.
+A TypeScript Express.js backend for the Jam Band application. It provides REST endpoints, WebSocket/Socket.IO handlers for real-time room features, and WebRTC signaling support for voice.
 
-## Getting Started
+## Quick overview
 
-### Prerequisites
+- Language: TypeScript
+- Framework: Express (HTTP) + Socket-based handlers for real-time features
+- Purpose: Room management, real-time chat/voice signaling, and basic user/connection orchestration
 
-- Node.js (v18 or higher)
+## Requirements
+
+- Node.js v18+ (or Bun-compatible runtime where supported)
 - npm or yarn
 
-### Installation
+## Getting started (local development)
 
-1. Install dependencies:
+1. Install dependencies
+
 ```bash
 npm install
 ```
 
-2. Copy the environment file:
+2. Copy the environment example and edit values
+
 ```bash
-cp .env.example .env
+cp env.local.example .env.local
+# or: cp env.local.example .env
 ```
 
-3. Start the development server:
+3. Start the dev server (hot reload)
+
 ```bash
 npm run dev
 ```
 
-The server will start on `http://localhost:3001`
+By default the server listens on http://localhost:3001 (see `PORT` env var).
 
-### Available Scripts
+## Available scripts
 
-- `npm run dev` - Start development server with hot reload
-- `npm run build` - Build the project for production
-- `npm run start` - Start the production server
-- `npm run clean` - Remove build artifacts
-- `npm run type-check` - Check TypeScript types without building
+- `npm run dev` — Start development server with hot reload
+- `npm run build` — Build the project for production
+- `npm run start` — Start the production server (after build)
+- `npm run clean` — Remove build artifacts
+- `npm run type-check` — Run TypeScript type checks
 
-### API Endpoints
+Check `package.json` for exact script definitions.
 
-- `GET /` - Welcome message
-- `GET /health` - Health check endpoint
+## Environment variables
 
-## Project Structure
+Important variables (see `env.local.example`):
+
+- `PORT` — Server port (default: 3001)
+- `NODE_ENV` — `development` or `production`
+- `DISABLE_VOICE_RATE_LIMIT` — Set to `true` to disable voice rate limiting in dev/testing
+- `VOICE_OFFER_RATE_LIMIT`, `VOICE_ANSWER_RATE_LIMIT`, `VOICE_ICE_RATE_LIMIT` — Numeric limits per minute per user
+
+Always store production secrets securely and do not commit `.env` to source control.
+
+## API endpoints
+
+The backend exposes a small HTTP surface in addition to real-time socket handlers. Common endpoints:
+
+- `GET /` — Welcome message
+- `GET /health` — Health check
+
+Socket and signaling events are implemented under `src/handlers` and `src/socket` (see code for full event names and payload shapes).
+
+## WebRTC / Voice rate limiting
+
+To protect signaling and voice traffic the app applies per-user rate limits:
+
+- voice_offer: default 60/min (≈1/sec)
+- voice_answer: default 60/min (≈1/sec)
+- voice_ice_candidate: default 200/min (≈3.3/sec)
+
+Recovery and safety:
+
+- Exponential backoff for reconnection attempts (2s, 4s, 8s)
+- Temporary extra attempts for users who recently hit limits
+- Development bypass via `DISABLE_VOICE_RATE_LIMIT=true`
+
+Adjust limits carefully — raising them can increase server and network load.
+
+## WebRTC configuration
+
+Default STUN servers configured:
+
+- stun:stun.l.google.com:19302
+- stun:stun1.l.google.com:19302
+- stun:stun2.l.google.com:19302
+
+For production, add TURN servers for reliable connectivity behind restrictive NATs/firewalls.
+
+## Troubleshooting
+
+- "Rate limit exceeded" — wait or lower client request frequency; for dev set `DISABLE_VOICE_RATE_LIMIT=true`.
+- Audio not heard by audience — check client audio settings, browser permissions, and server logs for signaling errors.
+- Frequent disconnects — check network/firewall, and review logs in `logs/` for errors and stack traces.
+
+## Project layout (top-level)
 
 ```
 src/
-├── index.ts          # Main application entry point
-└── ...               # Additional features will be added here
+├── index.ts            # App bootstrap (HTTP + socket)
+├── config/             # Environment and socket configuration
+├── handlers/           # Socket event handlers (e.g. RoomHandlers)
+├── middleware/         # Express middleware
+├── routes/             # HTTP routes
+├── security/           # Security helpers
+├── services/           # Business logic and services
+├── socket/             # Socket server wiring
+├── types/              # TypeScript types and interfaces
+└── validation/         # Request/payload validation
 ```
 
-## Environment Variables
+## Logs
 
-- `PORT` - Server port (default: 3001)
-- `NODE_ENV` - Environment mode (development/production) 
+Runtime logs are written to the `logs/` folder. Check `error-*.log` and `combined-*.log` for recent errors and access logs.
 
-## Voice Rate Limiting and WebRTC Troubleshooting
+## Deployment notes
 
-### Voice Rate Limits
+- Use environment variables to configure runtime behavior.
+- Ensure TLS/SSL (see `.ssl/` in repo) for production endpoints or sit behind a TLS-terminating proxy/load balancer.
+- Add TURN servers for WebRTC in production.
 
-The application implements rate limiting for WebRTC voice events to prevent abuse and ensure system stability:
+## Contributing
 
-- **voice_offer**: 60 per minute per user (1 per second)
-- **voice_answer**: 60 per minute per user (1 per second)  
-- **voice_ice_candidate**: 200 per minute per user (3.3 per second)
+1. Create a feature branch from `main`.
+2. Run tests and linters locally (if present).
+3. Open a PR with a short description and link to any related issue.
 
-### Rate Limit Recovery
+## License
 
-The system includes intelligent recovery mechanisms:
-- Users who recently hit rate limits get additional attempts for voice recovery
-- Exponential backoff is used for reconnection attempts (2s, 4s, 8s delays)
-- Special bypass options for development/testing
+This project uses the repository license (check `LICENSE` if present).
 
-### Troubleshooting Voice Connection Issues
+## Contact / Support
 
-#### Common Issues:
+If you hit issues, open an issue in the repository with logs and reproduction steps.
 
-1. **"Rate limit exceeded" errors**
-   - Wait for the retry timer to expire
-   - Check if multiple users are rapidly connecting/disconnecting
-   - Consider increasing limits for high-traffic scenarios
+---
 
-2. **Audience members can't hear room members**
-   - Ensure audience members have enabled audio reception
-   - Check browser console for WebRTC connection errors
-   - Verify microphone permissions are granted
+Small, focused README intended to help new contributors and operators get started quickly. If you'd like I can also:
 
-3. **Voice connections drop frequently**
-   - Check network stability and firewall settings
-   - Monitor WebRTC connection health logs
-   - Consider adjusting connection timeout values
+- add a short `docker-compose` example for local dev
+- provide a minimal Postman collection or OpenAPI spec for the HTTP endpoints
+- extract environment variables into a clearer `env.local.example` with descriptions
 
-#### Development/Testing:
-
-To disable voice rate limiting during development, add to your `.env.local`:
-```
-DISABLE_VOICE_RATE_LIMIT=true
-```
-
-#### Customizing Voice Rate Limits:
-
-You can adjust voice rate limits based on your specific needs:
-
-```bash
-# Voice offers per minute per user (default: 60)
-VOICE_OFFER_RATE_LIMIT=60
-
-# Voice answers per minute per user (default: 60)  
-VOICE_ANSWER_RATE_LIMIT=60
-
-# ICE candidates per minute per user (default: 200)
-VOICE_ICE_RATE_LIMIT=200
-```
-
-**Note**: Increasing these limits may impact system performance under high load. Monitor system resources when adjusting these values.
-
-#### Monitoring:
-
-Voice rate limit violations are logged with detailed information:
-- User ID and event type
-- Current count vs. limit
-- Retry timing information
-- Timestamp for debugging
-
-### WebRTC Configuration
-
-The system uses Google's public STUN servers for NAT traversal:
-- stun:stun.l.google.com:19302
-- stun:stun1.l.google.com:19302  
-- stun:stun2.l.google.com:19302
-
-For production deployments, consider adding TURN servers for better connectivity in restrictive network environments. 
+Tell me which of those you'd like next.
