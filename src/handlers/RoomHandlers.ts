@@ -3,6 +3,7 @@ import { Socket } from 'socket.io';
 import { Server } from 'socket.io';
 import { v4 as uuidv4 } from 'uuid';
 import { RoomService } from '../services/RoomService';
+import { MetronomeService } from '../services/MetronomeService';
 import { getHealthCheckData } from '../middleware/monitoring';
 import { 
   JoinRoomData, 
@@ -23,7 +24,9 @@ import {
   RequestVoiceParticipantsData,
   VoiceParticipantInfo,
   ChatMessageData,
-  ChatMessage
+  ChatMessage,
+  UpdateMetronomeData,
+  MetronomeTickData
 } from '../types';
 
 export class RoomHandlers {
@@ -32,8 +35,11 @@ export class RoomHandlers {
   private readonly BATCH_INTERVAL = 16; // ~60fps
   private readonly MAX_QUEUE_SIZE = 50;
   private voiceParticipants = new Map<string, Map<string, VoiceParticipantInfo>>(); // roomId -> userId -> info
+  private metronomeService: MetronomeService;
   
-  constructor(private roomService: RoomService, private io: Server) {}
+  constructor(private roomService: RoomService, private io: Server) {
+    this.metronomeService = MetronomeService.getInstance(io, roomService);
+  }
 
   // Batch message processing for better performance
   private processBatch(roomId: string): void {
@@ -154,6 +160,7 @@ export class RoomHandlers {
     // Check if room should be closed (no users left)
     if (this.roomService.shouldCloseRoom(roomId)) {
       this.io.to(roomId).emit('room_closed', { message: 'Room is empty and has been closed' });
+      this.metronomeService.cleanupRoom(roomId);
       this.roomService.deleteRoom(roomId);
       
       // Broadcast to all clients that the room was closed
@@ -195,6 +202,7 @@ export class RoomHandlers {
     // Check if room should be closed (no users left)
     if (this.roomService.shouldCloseRoom(roomId)) {
       this.io.to(roomId).emit('room_closed', { message: 'Room is empty and has been closed' });
+      this.metronomeService.cleanupRoom(roomId);
       this.roomService.deleteRoom(roomId);
       
       // Broadcast to all clients that the room was closed
@@ -295,6 +303,7 @@ export class RoomHandlers {
       // Check if room should be closed after regular user leaves
       if (this.roomService.shouldCloseRoom(roomId)) {
         this.io.to(roomId).emit('room_closed', { message: 'Room is empty and has been closed' });
+        this.metronomeService.cleanupRoom(roomId);
         this.roomService.deleteRoom(roomId);
         
         // Broadcast to all clients that the room was closed
@@ -759,6 +768,7 @@ export class RoomHandlers {
       // Check if room should be closed after regular user leaves
       if (this.roomService.shouldCloseRoom(session.roomId)) {
         this.io.to(session.roomId).emit('room_closed', { message: 'Room is empty and has been closed' });
+        this.metronomeService.cleanupRoom(session.roomId);
         this.roomService.deleteRoom(session.roomId);
         
         // Broadcast to all clients that the room was closed
@@ -800,6 +810,9 @@ export class RoomHandlers {
     socket.join(room.id);
     socket.data = session;
     this.roomService.setUserSession(socket.id, session);
+
+    // Start metronome for the new room
+    this.metronomeService.initializeRoomMetronome(room.id);
 
     socket.emit('room_created', { 
       room: {
@@ -859,6 +872,7 @@ export class RoomHandlers {
             // Check if room should be closed after user disconnects
             if (this.roomService.shouldCloseRoom(session.roomId)) {
               this.io.to(session.roomId).emit('room_closed', { message: 'Room is empty and has been closed' });
+              this.metronomeService.cleanupRoom(session.roomId);
               this.roomService.deleteRoom(session.roomId);
               
               // Broadcast to all clients that the room was closed
@@ -884,61 +898,229 @@ export class RoomHandlers {
     }
   }
 
-  // WebRTC Voice Communication Handlers
+  // WebRTC Voice Communication Handlers - Full Mesh Network Support
   handleVoiceOffer(socket: Socket, data: VoiceOfferData): void {
-    console.log(`[VOICE] Offer from ${socket.data?.userId} to ${data.targetUserId} in room ${data.roomId}`);
+    const session = this.roomService.getUserSession(socket.id);
+    if (!session || session.roomId !== data.roomId) {
+      console.warn(`[VOICE] Invalid offer: socket ${socket.id} not in room ${data.roomId}`);
+      return;
+    }
+
+    const user = this.roomService.findUserInRoom(session.roomId, session.userId);
+    const username = user?.username || 'Unknown';
+
+    console.log(`[MESH] Offer from ${session.userId} to ${data.targetUserId} in room ${data.roomId}`);
     
-    // Forward the offer to the target user
-    socket.to(data.roomId).emit('voice_offer', {
-      offer: data.offer,
-      fromUserId: socket.data?.userId,
-      fromUsername: socket.data?.username || 'Unknown'
-    });
-    
-    console.log(`[VOICE] Forwarded offer to room ${data.roomId}`);
+    // In a full mesh network, forward the offer directly to the specific target user
+    // Find the target user's socket
+    const targetSocketId = this.roomService.findSocketByUserId(data.targetUserId);
+    if (targetSocketId) {
+      const targetSocket = this.io.sockets.sockets.get(targetSocketId);
+      if (targetSocket) {
+        targetSocket.emit('voice_offer', {
+          offer: data.offer,
+          fromUserId: session.userId,
+          fromUsername: username,
+          roomId: data.roomId
+        });
+        console.log(`[MESH] Direct offer forwarded: ${session.userId} -> ${data.targetUserId}`);
+      } else {
+        console.warn(`[MESH] Target socket not found: ${data.targetUserId}`);
+      }
+    } else {
+      // Fallback to room broadcast if direct delivery fails
+      socket.to(data.roomId).emit('voice_offer', {
+        offer: data.offer,
+        fromUserId: session.userId,
+        fromUsername: username,
+        targetUserId: data.targetUserId,
+        roomId: data.roomId
+      });
+      console.log(`[MESH] Fallback room broadcast offer: ${session.userId} -> ${data.targetUserId}`);
+    }
   }
 
   handleVoiceAnswer(socket: Socket, data: VoiceAnswerData): void {
-    console.log(`Voice answer from ${socket.data?.userId} to ${data.targetUserId}`);
+    const session = this.roomService.getUserSession(socket.id);
+    if (!session || session.roomId !== data.roomId) {
+      console.warn(`[VOICE] Invalid answer: socket ${socket.id} not in room ${data.roomId}`);
+      return;
+    }
+
+    console.log(`[MESH] Answer from ${session.userId} to ${data.targetUserId} in room ${data.roomId}`);
     
-    // Forward the answer to the target user
-    socket.to(data.roomId).emit('voice_answer', {
-      answer: data.answer,
-      fromUserId: socket.data?.userId
-    });
+    // Direct delivery to specific target user for mesh networking
+    const targetSocketId = this.roomService.findSocketByUserId(data.targetUserId);
+    if (targetSocketId) {
+      const targetSocket = this.io.sockets.sockets.get(targetSocketId);
+      if (targetSocket) {
+        targetSocket.emit('voice_answer', {
+          answer: data.answer,
+          fromUserId: session.userId,
+          roomId: data.roomId
+        });
+        console.log(`[MESH] Direct answer forwarded: ${session.userId} -> ${data.targetUserId}`);
+      } else {
+        console.warn(`[MESH] Target socket not found for answer: ${data.targetUserId}`);
+      }
+    } else {
+      // Fallback to room broadcast
+      socket.to(data.roomId).emit('voice_answer', {
+        answer: data.answer,
+        fromUserId: session.userId,
+        targetUserId: data.targetUserId,
+        roomId: data.roomId
+      });
+      console.log(`[MESH] Fallback room broadcast answer: ${session.userId} -> ${data.targetUserId}`);
+    }
   }
 
   handleVoiceIceCandidate(socket: Socket, data: VoiceIceCandidateData): void {
-    // Forward ICE candidate to the target user
-    socket.to(data.roomId).emit('voice_ice_candidate', {
-      candidate: data.candidate,
-      fromUserId: socket.data?.userId
-    });
+    const session = this.roomService.getUserSession(socket.id);
+    if (!session || session.roomId !== data.roomId) {
+      return;
+    }
+
+    // Direct ICE candidate delivery for mesh networking efficiency
+    const targetSocketId = this.roomService.findSocketByUserId(data.targetUserId);
+    if (targetSocketId) {
+      const targetSocket = this.io.sockets.sockets.get(targetSocketId);
+      if (targetSocket) {
+        targetSocket.emit('voice_ice_candidate', {
+          candidate: data.candidate,
+          fromUserId: session.userId,
+          roomId: data.roomId
+        });
+      }
+    } else {
+      // Fallback to room broadcast
+      socket.to(data.roomId).emit('voice_ice_candidate', {
+        candidate: data.candidate,
+        fromUserId: session.userId,
+        targetUserId: data.targetUserId,
+        roomId: data.roomId
+      });
+    }
   }
 
   handleJoinVoice(socket: Socket, data: JoinVoiceData): void {
-    console.log(`[VOICE] User ${data.username} (${data.userId}) joined voice in room ${data.roomId}`);
-    const map = this.getVoiceRoomMap(data.roomId);
-    map.set(data.userId, { userId: data.userId, username: data.username, isMuted: false });
+    const session = this.roomService.getUserSession(socket.id);
+    if (!session || session.roomId !== data.roomId) {
+      console.warn(`[VOICE] Invalid join voice: socket ${socket.id} not in room ${data.roomId}`);
+      return;
+    }
+
+    console.log(`[MESH] User ${data.username} (${data.userId}) joined voice in room ${data.roomId}`);
+    
+    const voiceRoomMap = this.getVoiceRoomMap(data.roomId);
+    const existingParticipants = Array.from(voiceRoomMap.entries());
+    
+    // Add new user to voice participants
+    voiceRoomMap.set(data.userId, { 
+      userId: data.userId, 
+      username: data.username, 
+      isMuted: false,
+      lastHeartbeat: Date.now() 
+    });
     
     // Notify other users in the room about the new voice participant
     socket.to(data.roomId).emit('user_joined_voice', {
       userId: data.userId,
       username: data.username
     });
+
+    // For full mesh networking: Immediately send the complete participant list
+    // to the new user so they can establish connections with all existing users
+    socket.emit('voice_participants', { 
+      participants: Array.from(voiceRoomMap.values()).map(p => ({
+        userId: p.userId,
+        username: p.username,
+        isMuted: p.isMuted
+      }))
+    });
+
+    // Also notify all existing participants about the updated participant list
+    // This ensures everyone has the complete mesh network information
+    socket.to(data.roomId).emit('voice_participants', { 
+      participants: Array.from(voiceRoomMap.values()).map(p => ({
+        userId: p.userId,
+        username: p.username,
+        isMuted: p.isMuted
+      }))
+    });
     
-    console.log(`[VOICE] Broadcasted user_joined_voice to room ${data.roomId}`);
+    console.log(`[MESH] Voice participant added to room ${data.roomId}. Total participants: ${voiceRoomMap.size}`);
+    console.log(`[MESH] Existing participants notified:`, existingParticipants.map(([id, info]) => `${info.username}(${id})`));
+  }
+
+  // Mesh connection coordination - ensures proper full mesh establishment
+  handleRequestMeshConnections(socket: Socket, data: { roomId: string; userId: string }): void {
+    const session = this.roomService.getUserSession(socket.id);
+    if (!session || session.roomId !== data.roomId) {
+      console.warn(`[MESH] Invalid mesh request: socket ${socket.id} not in room ${data.roomId}`);
+      return;
+    }
+
+    const voiceRoomMap = this.getVoiceRoomMap(data.roomId);
+    const allParticipants = Array.from(voiceRoomMap.values());
+    const otherParticipants = allParticipants.filter(p => p.userId !== data.userId);
+
+    console.log(`[MESH] Connection request from ${data.userId}. Other participants:`, 
+      otherParticipants.map(p => p.userId));
+
+    // For full mesh: respond with all other participants this user should connect to
+    socket.emit('mesh_participants', {
+      participants: otherParticipants.map(p => ({
+        userId: p.userId,
+        username: p.username,
+        isMuted: p.isMuted,
+        // Deterministic connection initiation based on lexicographical comparison
+        shouldInitiate: data.userId.localeCompare(p.userId) < 0
+      }))
+    });
+
+    // Notify each existing participant about the new user they should connect to
+    otherParticipants.forEach(participant => {
+      const participantSocketId = this.roomService.findSocketByUserId(participant.userId);
+      if (participantSocketId) {
+        const participantSocket = this.io.sockets.sockets.get(participantSocketId);
+        if (participantSocket) {
+          participantSocket.emit('new_mesh_peer', {
+            userId: data.userId,
+            username: voiceRoomMap.get(data.userId)?.username || 'Unknown',
+            shouldInitiate: participant.userId.localeCompare(data.userId) < 0
+          });
+        }
+      }
+    });
   }
 
   handleLeaveVoice(socket: Socket, data: LeaveVoiceData): void {
-    console.log(`User ${socket.data?.userId} left voice in room ${data.roomId}`);
-    const map = this.getVoiceRoomMap(data.roomId);
-    map.delete(data.userId);
+    const session = this.roomService.getUserSession(socket.id);
+    if (!session) {
+      console.warn(`[VOICE] Invalid leave voice: socket ${socket.id} has no session`);
+      return;
+    }
+
+    console.log(`[MESH] User ${session.userId} left voice in room ${data.roomId}`);
+    const voiceRoomMap = this.getVoiceRoomMap(data.roomId);
+    voiceRoomMap.delete(data.userId);
     
     // Notify other users that this user left voice chat
     socket.to(data.roomId).emit('user_left_voice', {
       userId: data.userId
     });
+
+    // Update the participant list for remaining users to maintain mesh integrity
+    socket.to(data.roomId).emit('voice_participants', { 
+      participants: Array.from(voiceRoomMap.values()).map(p => ({
+        userId: p.userId,
+        username: p.username,
+        isMuted: p.isMuted
+      }))
+    });
+
+    console.log(`[MESH] Voice participant removed from room ${data.roomId}. Remaining participants: ${voiceRoomMap.size}`);
   }
 
   handleVoiceMuteChanged(socket: Socket, data: VoiceMuteChangedData): void {
@@ -1085,5 +1267,43 @@ export class RoomHandlers {
 
     // Broadcast chat message to all users in the room
     this.io.to(roomId).emit('chat_message', chatMessage);
+  }
+
+  // Metronome handlers
+  handleUpdateMetronome(socket: Socket, data: UpdateMetronomeData): void {
+    const session = this.roomService.getUserSession(socket.id);
+    if (!session) return;
+
+    const room = this.roomService.getRoom(session.roomId);
+    if (!room) return;
+
+    const user = room.users.get(session.userId);
+    if (!user) return;
+
+    // Only room owner and band members can control metronome
+    if (user.role !== 'room_owner' && user.role !== 'band_member') return;
+
+    const updatedRoom = this.roomService.updateMetronomeBPM(session.roomId, data.bpm);
+    if (!updatedRoom) return;
+
+    // Update tempo in metronome service
+    this.metronomeService.updateMetronomeTempo(session.roomId, data.bpm);
+
+    // Broadcast metronome state to all users in the room
+    this.io.to(session.roomId).emit('metronome_updated', {
+      bpm: updatedRoom.metronome.bpm,
+      lastTickTimestamp: updatedRoom.metronome.lastTickTimestamp
+    });
+  }
+
+  handleRequestMetronomeState(socket: Socket): void {
+    const session = this.roomService.getUserSession(socket.id);
+    if (!session) return;
+
+    const metronomeState = this.roomService.getMetronomeState(session.roomId);
+    if (!metronomeState) return;
+
+    // Send current metronome state to the requesting user
+    socket.emit('metronome_state', metronomeState);
   }
 } 

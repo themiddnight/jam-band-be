@@ -1,4 +1,5 @@
 import Joi from 'joi';
+import { METRONOME_CONSTANTS } from '../constants';
 
 // Base user validation
 const userBaseSchema = Joi.object({
@@ -81,6 +82,11 @@ export const voiceMuteChangedSchema = Joi.object({
 
 export const requestVoiceParticipantsSchema = Joi.object({
   roomId: Joi.string().uuid().required(),
+});
+
+// Metronome validation schemas
+export const updateMetronomeSchema = Joi.object({
+  bpm: Joi.number().min(METRONOME_CONSTANTS.MIN_BPM).max(METRONOME_CONSTANTS.MAX_BPM).required(),
 });
 
 // Generic validation function with better error handling
