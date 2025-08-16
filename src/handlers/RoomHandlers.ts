@@ -3,6 +3,7 @@ import { Socket } from 'socket.io';
 import { Server } from 'socket.io';
 import { v4 as uuidv4 } from 'uuid';
 import { RoomService } from '../services/RoomService';
+import { MetronomeService } from '../services/MetronomeService';
 import { getHealthCheckData } from '../middleware/monitoring';
 import { 
   JoinRoomData, 
@@ -23,7 +24,9 @@ import {
   RequestVoiceParticipantsData,
   VoiceParticipantInfo,
   ChatMessageData,
-  ChatMessage
+  ChatMessage,
+  UpdateMetronomeData,
+  MetronomeTickData
 } from '../types';
 
 export class RoomHandlers {
@@ -32,8 +35,11 @@ export class RoomHandlers {
   private readonly BATCH_INTERVAL = 16; // ~60fps
   private readonly MAX_QUEUE_SIZE = 50;
   private voiceParticipants = new Map<string, Map<string, VoiceParticipantInfo>>(); // roomId -> userId -> info
+  private metronomeService: MetronomeService;
   
-  constructor(private roomService: RoomService, private io: Server) {}
+  constructor(private roomService: RoomService, private io: Server) {
+    this.metronomeService = MetronomeService.getInstance(io, roomService);
+  }
 
   // Batch message processing for better performance
   private processBatch(roomId: string): void {
@@ -154,6 +160,7 @@ export class RoomHandlers {
     // Check if room should be closed (no users left)
     if (this.roomService.shouldCloseRoom(roomId)) {
       this.io.to(roomId).emit('room_closed', { message: 'Room is empty and has been closed' });
+      this.metronomeService.cleanupRoom(roomId);
       this.roomService.deleteRoom(roomId);
       
       // Broadcast to all clients that the room was closed
@@ -195,6 +202,7 @@ export class RoomHandlers {
     // Check if room should be closed (no users left)
     if (this.roomService.shouldCloseRoom(roomId)) {
       this.io.to(roomId).emit('room_closed', { message: 'Room is empty and has been closed' });
+      this.metronomeService.cleanupRoom(roomId);
       this.roomService.deleteRoom(roomId);
       
       // Broadcast to all clients that the room was closed
@@ -295,6 +303,7 @@ export class RoomHandlers {
       // Check if room should be closed after regular user leaves
       if (this.roomService.shouldCloseRoom(roomId)) {
         this.io.to(roomId).emit('room_closed', { message: 'Room is empty and has been closed' });
+        this.metronomeService.cleanupRoom(roomId);
         this.roomService.deleteRoom(roomId);
         
         // Broadcast to all clients that the room was closed
@@ -759,6 +768,7 @@ export class RoomHandlers {
       // Check if room should be closed after regular user leaves
       if (this.roomService.shouldCloseRoom(session.roomId)) {
         this.io.to(session.roomId).emit('room_closed', { message: 'Room is empty and has been closed' });
+        this.metronomeService.cleanupRoom(session.roomId);
         this.roomService.deleteRoom(session.roomId);
         
         // Broadcast to all clients that the room was closed
@@ -800,6 +810,9 @@ export class RoomHandlers {
     socket.join(room.id);
     socket.data = session;
     this.roomService.setUserSession(socket.id, session);
+
+    // Start metronome for the new room
+    this.metronomeService.initializeRoomMetronome(room.id);
 
     socket.emit('room_created', { 
       room: {
@@ -859,6 +872,7 @@ export class RoomHandlers {
             // Check if room should be closed after user disconnects
             if (this.roomService.shouldCloseRoom(session.roomId)) {
               this.io.to(session.roomId).emit('room_closed', { message: 'Room is empty and has been closed' });
+              this.metronomeService.cleanupRoom(session.roomId);
               this.roomService.deleteRoom(session.roomId);
               
               // Broadcast to all clients that the room was closed
@@ -1253,5 +1267,43 @@ export class RoomHandlers {
 
     // Broadcast chat message to all users in the room
     this.io.to(roomId).emit('chat_message', chatMessage);
+  }
+
+  // Metronome handlers
+  handleUpdateMetronome(socket: Socket, data: UpdateMetronomeData): void {
+    const session = this.roomService.getUserSession(socket.id);
+    if (!session) return;
+
+    const room = this.roomService.getRoom(session.roomId);
+    if (!room) return;
+
+    const user = room.users.get(session.userId);
+    if (!user) return;
+
+    // Only room owner and band members can control metronome
+    if (user.role !== 'room_owner' && user.role !== 'band_member') return;
+
+    const updatedRoom = this.roomService.updateMetronomeBPM(session.roomId, data.bpm);
+    if (!updatedRoom) return;
+
+    // Update tempo in metronome service
+    this.metronomeService.updateMetronomeTempo(session.roomId, data.bpm);
+
+    // Broadcast metronome state to all users in the room
+    this.io.to(session.roomId).emit('metronome_updated', {
+      bpm: updatedRoom.metronome.bpm,
+      lastTickTimestamp: updatedRoom.metronome.lastTickTimestamp
+    });
+  }
+
+  handleRequestMetronomeState(socket: Socket): void {
+    const session = this.roomService.getUserSession(socket.id);
+    if (!session) return;
+
+    const metronomeState = this.roomService.getMetronomeState(session.roomId);
+    if (!metronomeState) return;
+
+    // Send current metronome state to the requesting user
+    socket.emit('metronome_state', metronomeState);
   }
 } 

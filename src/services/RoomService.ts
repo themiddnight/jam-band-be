@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Room, User, UserSession } from '../types';
 import { CacheService } from './CacheService';
+import { METRONOME_CONSTANTS } from '../constants';
 
 export class RoomService {
   private rooms = new Map<string, Room>();
@@ -23,7 +24,11 @@ export class RoomService {
       pendingMembers: new Map(),
       isPrivate,
       isHidden,
-      createdAt: new Date()
+      createdAt: new Date(),
+      metronome: {
+        bpm: METRONOME_CONSTANTS.DEFAULT_BPM,
+        lastTickTimestamp: Date.now()
+      }
     };
 
     const user: User = {
@@ -414,5 +419,29 @@ export class RoomService {
       this.rooms.delete(roomId);
       console.log(`Deleted expired room: ${roomId}`);
     });
+  }
+
+  // Metronome management
+  updateMetronomeBPM(roomId: string, bpm: number): Room | null {
+    const room = this.getRoom(roomId);
+    if (!room) return null;
+
+    room.metronome.bpm = Math.max(METRONOME_CONSTANTS.MIN_BPM, Math.min(METRONOME_CONSTANTS.MAX_BPM, bpm)); // Clamp between 1-1000 BPM
+    room.metronome.lastTickTimestamp = Date.now();
+    
+    // Update cache
+    this.cacheService.cacheRoom(roomId, room);
+    
+    return room;
+  }
+
+  getMetronomeState(roomId: string): { bpm: number; lastTickTimestamp: number } | null {
+    const room = this.getRoom(roomId);
+    if (!room) return null;
+
+    return {
+      bpm: room.metronome.bpm,
+      lastTickTimestamp: room.metronome.lastTickTimestamp
+    };
   }
 } 

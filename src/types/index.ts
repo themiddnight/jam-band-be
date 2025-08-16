@@ -16,6 +16,7 @@ export interface Room {
   isPrivate: boolean;
   isHidden: boolean;
   createdAt: Date;
+  metronome: MetronomeState;
 }
 
 export interface UserSession {
@@ -137,4 +138,19 @@ export interface ChatMessage {
   username: string;
   message: string;
   timestamp: number;
+}
+
+// Metronome Types
+export interface MetronomeState {
+  bpm: number;
+  lastTickTimestamp: number;
+}
+
+export interface UpdateMetronomeData {
+  bpm: number;
+}
+
+export interface MetronomeTickData {
+  timestamp: number;
+  bpm: number;
 } 

@@ -14,7 +14,8 @@ import {
   voiceJoinSchema,
   voiceLeaveSchema,
   voiceMuteChangedSchema,
-  requestVoiceParticipantsSchema
+  requestVoiceParticipantsSchema,
+  updateMetronomeSchema
 } from '../validation/schemas';
 
 export class SocketManager {
@@ -255,6 +256,18 @@ export class SocketManager {
       trackEvent('chat_message');
       secureSocketEvent('chat_message', chatMessageSchema, 
         (socket, data) => this.roomHandlers.handleChatMessage(socket, data))(socket, data);
+    });
+
+    // Metronome events
+    socket.on('update_metronome', (data) => {
+      trackEvent('update_metronome');
+      secureSocketEvent('update_metronome', updateMetronomeSchema, 
+        (socket, data) => this.roomHandlers.handleUpdateMetronome(socket, data))(socket, data);
+    });
+
+    socket.on('request_metronome_state', () => {
+      trackEvent('request_metronome_state');
+      this.roomHandlers.handleRequestMetronomeState(socket);
     });
 
     // Ping measurement for latency monitoring
