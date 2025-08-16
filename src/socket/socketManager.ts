@@ -232,6 +232,13 @@ export class SocketManager {
         (socket, data) => this.roomHandlers.handleRequestVoiceParticipants(socket, data))(socket, data);
     });
 
+    // Full Mesh Network Coordination
+    socket.on('request_mesh_connections', (data) => {
+      trackEvent('request_mesh_connections');
+      // Allow requests for mesh connection coordination without strict validation for flexibility
+      this.roomHandlers.handleRequestMeshConnections(socket, data);
+    });
+
     // WebRTC Health Monitoring events
     socket.on('voice_heartbeat', (data) => {
       trackEvent('voice_heartbeat');
