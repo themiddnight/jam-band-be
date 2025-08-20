@@ -124,8 +124,8 @@ export class RoomHandlers {
 
   // Optimized emit function that uses namespace-specific broadcasting
   private optimizedEmit(socket: Socket, roomId: string, event: string, data: any, immediate: boolean = false): void {
-    // Get the room namespace for proper isolation
-    const roomNamespace = this.namespaceManager.getRoomNamespace(roomId);
+    // Get or create the room namespace for proper isolation
+    const roomNamespace = this.getOrCreateRoomNamespace(roomId);
     if (!roomNamespace) {
       console.warn('Room namespace not found for room:', roomId);
       return;
@@ -139,6 +139,25 @@ export class RoomHandlers {
       // Other events are batched for better performance
       this.queueMessage(roomId, event, data);
     }
+  }
+
+  /**
+   * Helper method to get or create room namespace
+   * This ensures the namespace exists before we try to use it
+   */
+  private getOrCreateRoomNamespace(roomId: string): Namespace | null {
+    let roomNamespace = this.namespaceManager.getRoomNamespace(roomId);
+    if (!roomNamespace) {
+      // Create the room namespace if it doesn't exist
+      console.log('🔧 Creating room namespace for roomId:', roomId);
+      try {
+        roomNamespace = this.namespaceManager.createRoomNamespace(roomId);
+      } catch (error) {
+        console.error('❌ Failed to create room namespace for roomId:', roomId, error);
+        return null;
+      }
+    }
+    return roomNamespace;
   }
 
   // Private method to handle room owner leaving
@@ -184,8 +203,8 @@ export class RoomHandlers {
 
   // Handle immediate ownership transfer for intentional leaves
   private handleImmediateOwnershipTransfer(roomId: string, leavingUser: any, oldOwner: any): void {
-    // Get the room namespace for proper isolation
-    const roomNamespace = this.namespaceManager.getRoomNamespace(roomId);
+    // Get or create the room namespace for proper isolation
+    const roomNamespace = this.getOrCreateRoomNamespace(roomId);
     if (!roomNamespace) {
       console.warn('Room namespace not found for ownership transfer:', roomId);
       return;
@@ -238,8 +257,8 @@ export class RoomHandlers {
     const room = this.roomService.getRoom(roomId);
     if (!room) return;
 
-    // Get the room namespace for proper isolation
-    const roomNamespace = this.namespaceManager.getRoomNamespace(roomId);
+    // Get or create the room namespace for proper isolation
+    const roomNamespace = this.getOrCreateRoomNamespace(roomId);
     if (!roomNamespace) {
       console.warn('Room namespace not found for delayed ownership transfer:', roomId);
       return;
@@ -414,8 +433,8 @@ export class RoomHandlers {
     } else {
       // Check if room should be closed after regular user leaves
       if (this.roomService.shouldCloseRoom(roomId)) {
-        // Get the room namespace for proper isolation
-        const roomNamespace = this.namespaceManager.getRoomNamespace(roomId);
+        // Get or create the room namespace for proper isolation
+        const roomNamespace = this.getOrCreateRoomNamespace(roomId);
         if (roomNamespace) {
           roomNamespace.emit('room_closed', { message: 'Room is empty and has been closed' });
         }
@@ -427,8 +446,8 @@ export class RoomHandlers {
         // Broadcast to all clients that the room was closed (via main namespace)
         this.io.emit('room_closed_broadcast', { roomId });
       } else {
-        // Get the room namespace for proper isolation
-        const roomNamespace = this.namespaceManager.getRoomNamespace(roomId);
+        // Get or create the room namespace for proper isolation
+        const roomNamespace = this.getOrCreateRoomNamespace(roomId);
         if (roomNamespace) {
           // Notify others about user leaving
           roomNamespace.emit('user_left', { user });
@@ -533,8 +552,8 @@ export class RoomHandlers {
       // User already exists in room, join them directly (e.g., page refresh)
       socket.join(roomId);
 
-      // Get the room namespace for proper isolation
-      const roomNamespace = this.namespaceManager.getRoomNamespace(roomId);
+      // Get or create the room namespace for proper isolation
+      const roomNamespace = this.getOrCreateRoomNamespace(roomId);
       if (roomNamespace) {
         // Notify others in room about the rejoin
         socket.to(roomId).emit('user_joined', { user });
@@ -561,8 +580,8 @@ export class RoomHandlers {
 
       socket.join(roomId);
 
-      // Get the room namespace for proper isolation
-      const roomNamespace = this.namespaceManager.getRoomNamespace(roomId);
+      // Get or create the room namespace for proper isolation
+      const roomNamespace = this.getOrCreateRoomNamespace(roomId);
       if (roomNamespace) {
         // Notify others in room about the rejoin
         socket.to(roomId).emit('user_joined', { user });
@@ -602,10 +621,10 @@ export class RoomHandlers {
         username: user.username
       });
 
-      // Get the room namespace for proper isolation
-      const roomNamespace = this.namespaceManager.getRoomNamespace(roomId);
+      // Get or create the room namespace for proper isolation
+      const roomNamespace = this.getOrCreateRoomNamespace(roomId);
       if (roomNamespace) {
-        console.log('📡 Room namespace found:', {
+        console.log('📡 Room namespace ready:', {
           namespaceName: roomNamespace.name,
           connectedSockets: roomNamespace.sockets.size
         });
@@ -628,7 +647,7 @@ export class RoomHandlers {
         };
         roomNamespace.emit('room_state_updated', updatedRoomData);
       } else {
-        console.log('❌ No room namespace found for roomId:', roomId);
+        console.error('❌ Failed to create room namespace for roomId:', roomId);
       }
     }
   }
@@ -669,8 +688,8 @@ export class RoomHandlers {
       }
     }
 
-    // Get the room namespace for proper isolation
-    const roomNamespace = this.namespaceManager.getRoomNamespace(session.roomId);
+    // Get or create the room namespace for proper isolation
+    const roomNamespace = this.getOrCreateRoomNamespace(session.roomId);
     if (roomNamespace) {
       // Notify all users in room about the new member (including the approver)
       roomNamespace.emit('user_joined', { user: approvedUser });
@@ -717,8 +736,8 @@ export class RoomHandlers {
       }
     }
 
-    // Get the room namespace for proper isolation
-    const roomNamespace = this.namespaceManager.getRoomNamespace(session.roomId);
+    // Get or create the room namespace for proper isolation
+    const roomNamespace = this.getOrCreateRoomNamespace(session.roomId);
     if (roomNamespace) {
       // Send updated room state to all users in the room (excluding the rejected user)
       const updatedRoomData = {
@@ -778,8 +797,8 @@ export class RoomHandlers {
       category: data.category
     }, true); // Instrument changes are important and sent immediately
 
-    // Get the room namespace for proper isolation
-    const roomNamespace = this.namespaceManager.getRoomNamespace(session.roomId);
+    // Get or create the room namespace for proper isolation
+    const roomNamespace = this.getOrCreateRoomNamespace(session.roomId);
     if (roomNamespace) {
       // Send updated room state to all users to ensure UI consistency
       const updatedRoomData = {
@@ -852,8 +871,8 @@ export class RoomHandlers {
     const result = this.roomService.transferOwnership(session.roomId, data.newOwnerId);
     if (!result) return;
 
-    // Get the room namespace for proper isolation
-    const roomNamespace = this.namespaceManager.getRoomNamespace(session.roomId);
+    // Get or create the room namespace for proper isolation
+    const roomNamespace = this.getOrCreateRoomNamespace(session.roomId);
     if (roomNamespace) {
       // Notify all users in room
       roomNamespace.emit('ownership_transferred', {
@@ -894,8 +913,8 @@ export class RoomHandlers {
     if (pendingUser) {
       this.roomService.rejectMember(session.roomId, session.userId);
 
-      // Get the room namespace for proper isolation
-      const roomNamespace = this.namespaceManager.getRoomNamespace(session.roomId);
+      // Get or create the room namespace for proper isolation
+      const roomNamespace = this.getOrCreateRoomNamespace(session.roomId);
       if (roomNamespace) {
         // Send updated room state to all users in the room to remove the pending member
         const updatedRoomData = {
@@ -929,8 +948,8 @@ export class RoomHandlers {
 
       // Check if room should be closed after regular user leaves
       if (this.roomService.shouldCloseRoom(session.roomId)) {
-        // Get the room namespace for proper isolation
-        const roomNamespace = this.namespaceManager.getRoomNamespace(session.roomId);
+        // Get or create the room namespace for proper isolation
+        const roomNamespace = this.getOrCreateRoomNamespace(session.roomId);
         if (roomNamespace) {
           roomNamespace.emit('room_closed', { message: 'Room is empty and has been closed' });
         }
@@ -942,8 +961,8 @@ export class RoomHandlers {
         // Broadcast to all clients that the room was closed (via main namespace)
         this.io.emit('room_closed_broadcast', { roomId: session.roomId });
       } else {
-        // Get the room namespace for proper isolation
-        const roomNamespace = this.namespaceManager.getRoomNamespace(session.roomId);
+        // Get or create the room namespace for proper isolation
+        const roomNamespace = this.getOrCreateRoomNamespace(session.roomId);
         if (roomNamespace) {
           // Notify others about user leaving
           socket.to(session.roomId).emit('user_left', { user });
@@ -1033,8 +1052,8 @@ export class RoomHandlers {
               pendingMembers: this.roomService.getPendingMembers(session.roomId)
             }
           };
-          // Get the room namespace for proper isolation
-          const roomNamespace = this.namespaceManager.getRoomNamespace(session.roomId);
+          // Get or create the room namespace for proper isolation
+          const roomNamespace = this.getOrCreateRoomNamespace(session.roomId);
           if (roomNamespace) {
             roomNamespace.emit('room_state_updated', updatedRoomData);
           }
@@ -1053,8 +1072,8 @@ export class RoomHandlers {
 
             // Check if room should be closed after user disconnects
             if (this.roomService.shouldCloseRoom(session.roomId)) {
-              // Get the room namespace for proper isolation
-              const roomNamespace = this.namespaceManager.getRoomNamespace(session.roomId);
+              // Get or create the room namespace for proper isolation
+              const roomNamespace = this.getOrCreateRoomNamespace(session.roomId);
               if (roomNamespace) {
                 roomNamespace.emit('room_closed', { message: 'Room is empty and has been closed' });
               }
@@ -1066,8 +1085,8 @@ export class RoomHandlers {
               // Broadcast to all clients that the room was closed (via main namespace)
               this.io.emit('room_closed_broadcast', { roomId: session.roomId });
             } else {
-              // Get the room namespace for proper isolation
-              const roomNamespace = this.namespaceManager.getRoomNamespace(session.roomId);
+              // Get or create the room namespace for proper isolation
+              const roomNamespace = this.getOrCreateRoomNamespace(session.roomId);
               if (roomNamespace) {
                 // Notify others about user disconnection
                 socket.to(session.roomId).emit('user_left', { user });
@@ -1489,8 +1508,8 @@ export class RoomHandlers {
     // Update tempo in metronome service
     this.metronomeService.updateMetronomeTempo(session.roomId, data.bpm);
 
-    // Get the room namespace for proper isolation
-    const roomNamespace = this.namespaceManager.getRoomNamespace(session.roomId);
+    // Get or create the room namespace for proper isolation
+    const roomNamespace = this.getOrCreateRoomNamespace(session.roomId);
     if (roomNamespace) {
       // Broadcast metronome state to all users in the room
       roomNamespace.emit('metronome_updated', {
@@ -1599,8 +1618,8 @@ export class RoomHandlers {
 
     this.roomService.updateUserInstrument(session.roomId, session.userId, data.instrument, data.category);
 
-    // Broadcast to namespace instead of global broadcast
-    socket.to(namespace.name).emit('instrument_changed', {
+    // Broadcast to other clients in the same namespace (exclude sender)
+    socket.broadcast.emit('instrument_changed', {
       userId: session.userId,
       username: user.username,
       instrument: data.instrument,
@@ -1654,8 +1673,8 @@ export class RoomHandlers {
     }
 
     console.log('🎛️ Broadcasting synth_params_changed to namespace:', namespace.name);
-    // Broadcast to namespace instead of global room
-    socket.to(namespace.name).emit('synth_params_changed', {
+    // Broadcast to other clients in the same namespace (exclude sender)
+    socket.broadcast.emit('synth_params_changed', {
       userId: session.userId,
       username: user.username,
       instrument: user.currentInstrument || '',

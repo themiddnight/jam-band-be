@@ -56,9 +56,12 @@ if (fs.existsSync(keyPath) || fs.existsSync(certPath)) {
 }
 
 try {
-  const subj = '/CN=localhost';
+  // Get the IP address from environment or use localhost as fallback
+  const hostname = process.env.SSL_HOSTNAME || process.env.FRONTEND_URL?.replace(/^https?:\/\//, '').replace(/:\d+$/, '') || 'localhost';
+  const subj = `/CN=${hostname}`;
   const cmd = `openssl req -x509 -nodes -newkey rsa:2048 -days 365 -keyout ${quote(keyPath)} -out ${quote(certPath)} -subj \"${subj}\"`;
   console.log('\nRunning OpenSSL to generate key and certificate...');
+  console.log('Using hostname:', hostname);
   sh(cmd);
 
   // Tighten permissions on the key

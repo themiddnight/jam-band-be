@@ -24,7 +24,7 @@ import { createSocketServer } from './config/socket';
 import { createRoutes } from './routes';
 import { RoomService } from './services/RoomService';
 import { RoomHandlers } from './handlers/RoomHandlers';
-import { SocketManager } from './socket/socketManager';
+
 import { NamespaceManager } from './services/NamespaceManager';
 import { RoomSessionManager } from './services/RoomSessionManager';
 import { NamespaceEventHandlers } from './handlers/NamespaceEventHandlers';
@@ -43,8 +43,8 @@ let io;
 if (config.nodeEnv === 'development' && config.ssl.enabled) {
   // Development mode - use HTTPS for WebRTC
   try {
-    const keyPath = path.join(__dirname, '..', config.ssl.keyPath);
-    const certPath = path.join(__dirname, '..', config.ssl.certPath);
+    const keyPath = path.join(process.cwd(), config.ssl.keyPath);
+    const certPath = path.join(process.cwd(), config.ssl.certPath);
 
     if (fs.existsSync(keyPath) && fs.existsSync(certPath)) {
       server = createHttpsServer({
@@ -86,7 +86,6 @@ const connectionOptimization = ConnectionOptimizationService.getInstance(io, per
 
 const roomHandlers = new RoomHandlers(roomService, io, namespaceManager, roomSessionManager);
 const namespaceEventHandlers = new NamespaceEventHandlers(roomHandlers, roomSessionManager);
-const socketManager = new SocketManager(io, roomHandlers);
 
 // Set up namespace event handlers
 namespaceManager.setEventHandlers(namespaceEventHandlers);
@@ -154,8 +153,7 @@ app.use('/api/performance', createPerformanceRoutes(
 // Error monitoring middleware (must be last)
 app.use(errorMonitor);
 
-// Initialize socket manager
-socketManager.initialize();
+
 
 // Log application startup
 loggingService.logInfo('Application starting up', {

@@ -461,6 +461,18 @@ export class NamespaceEventHandlers {
     socket.on('request_metronome_state', () => {
       this.roomHandlers.handleRequestMetronomeStateNamespace(socket, namespace);
     });
+
+    // Ping measurement events for latency monitoring in rooms
+    socket.on('ping_measurement', (data) => {
+      // Simple ping-pong response for latency measurement
+      if (data && data.pingId && data.timestamp) {
+        socket.emit('ping_response', {
+          pingId: data.pingId,
+          timestamp: data.timestamp,
+          serverTimestamp: Date.now()
+        });
+      }
+    });
   }
 
   /**
@@ -522,6 +534,18 @@ export class NamespaceEventHandlers {
     socket.on('cancel_approval_request', (data) => {
       secureSocketEvent('cancel_approval_request', approvalCancelSchema, 
         (socket, data) => this.roomHandlers.handleApprovalCancel(socket, data, namespace))(socket, data);
+    });
+
+    // Ping measurement events for latency monitoring during approval
+    socket.on('ping_measurement', (data) => {
+      // Simple ping-pong response for latency measurement
+      if (data && data.pingId && data.timestamp) {
+        socket.emit('ping_response', {
+          pingId: data.pingId,
+          timestamp: data.timestamp,
+          serverTimestamp: Date.now()
+        });
+      }
     });
   }
 
