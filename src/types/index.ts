@@ -153,4 +153,38 @@ export interface UpdateMetronomeData {
 export interface MetronomeTickData {
   timestamp: number;
   bpm: number;
+}
+
+// Approval Namespace Types
+export interface ApprovalRequestData {
+  roomId: string;
+  userId: string;
+  username: string;
+  role: 'band_member' | 'audience';
+}
+
+export interface ApprovalResponseData {
+  userId: string;
+  approved: boolean;
+  message?: string;
+}
+
+export interface ApprovalCancelData {
+  userId: string;
+  roomId: string;
+}
+
+export interface ApprovalTimeoutData {
+  userId: string;
+  roomId: string;
+  message: string;
+}
+
+export interface ApprovalSession {
+  roomId: string;
+  userId: string;
+  username: string;
+  role: 'band_member' | 'audience';
+  requestedAt: Date;
+  timeoutId?: NodeJS.Timeout;
 } 
