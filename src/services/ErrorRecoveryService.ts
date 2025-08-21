@@ -62,7 +62,8 @@ export class BackendErrorRecoveryService {
 
     // Check for error flooding
     if (this.isErrorFlooding(context)) {
-      loggingService.logWarning('Error flooding detected', {
+      loggingService.logSystemHealth('error-recovery', 'warning', {
+        message: 'Error flooding detected',
         errorType: context.errorType,
         count: this.getErrorCount(context.errorType)
       });
@@ -123,7 +124,10 @@ export class BackendErrorRecoveryService {
     const keysToDelete: string[] = [];
 
     for (const [key] of this.errorCounts) {
-      const [, windowStr] = key.split('-');
+      const parts = key.split('-');
+      if (parts.length < 2 || !parts[1]) continue;
+      
+      const windowStr = parts[1];
       const window = parseInt(windowStr, 10);
       
       // Remove counts older than 5 minutes
@@ -279,7 +283,8 @@ export class BackendErrorRecoveryService {
           break;
 
         default:
-          loggingService.logWarning('Unknown recovery action', {
+          loggingService.logSystemHealth('error-recovery', 'warning', {
+            message: 'Unknown recovery action',
             action: action.action,
             errorType: context.errorType
           });

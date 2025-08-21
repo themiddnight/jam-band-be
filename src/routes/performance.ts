@@ -54,8 +54,8 @@ export function createPerformanceRoutes(
     try {
       const allRoomMetrics = performanceMonitoring.getAllRoomMetrics();
       const roomMetricsArray = Array.from(allRoomMetrics.entries()).map(([roomId, metrics]) => ({
-        roomId,
         ...metrics,
+        roomId,
         eventCounts: Object.fromEntries(metrics.eventCounts),
         slowEventsCount: metrics.slowEvents.length
       }));
@@ -89,6 +89,14 @@ export function createPerformanceRoutes(
   router.get('/rooms/:roomId', (req: Request, res: Response) => {
     try {
       const { roomId } = req.params;
+      
+      if (!roomId) {
+        return res.status(400).json({
+          success: false,
+          error: 'Room ID is required'
+        });
+      }
+      
       const roomMetrics = performanceMonitoring.getRoomMetrics(roomId);
 
       if (!roomMetrics) {
@@ -101,8 +109,8 @@ export function createPerformanceRoutes(
       res.json({
         success: true,
         data: {
-          roomId,
           ...roomMetrics,
+          roomId,
           eventCounts: Object.fromEntries(roomMetrics.eventCounts),
           slowEvents: roomMetrics.slowEvents.slice(-10), // Last 10 slow events
           timestamp: new Date().toISOString()
@@ -115,6 +123,8 @@ export function createPerformanceRoutes(
         messageCount: roomMetrics.messageCount
       });
 
+      return;
+
     } catch (error) {
       loggingService.logError(error as Error, { 
         context: 'room_specific_performance_endpoint',
@@ -124,6 +134,7 @@ export function createPerformanceRoutes(
         success: false,
         error: 'Failed to retrieve room performance metrics'
       });
+      return;
     }
   });
 
@@ -138,8 +149,8 @@ export function createPerformanceRoutes(
       
       // Convert health checks to array format
       const healthChecksArray = Array.from(allHealthChecks.entries()).map(([socketId, health]) => ({
-        socketId,
-        ...health
+        ...health,
+        socketId
       }));
 
       res.json({
