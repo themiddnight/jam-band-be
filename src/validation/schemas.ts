@@ -111,4 +111,23 @@ export const validateData = <T>(schema: Joi.ObjectSchema, data: any): { error?: 
 // HTTP route validation
 export const leaveRoomHttpSchema = Joi.object({
   userId: Joi.string().min(1).max(100).required(),
+});
+
+// Approval validation schemas
+export const approvalRequestSchema = Joi.object({
+  roomId: Joi.string().uuid().required(),
+  userId: Joi.string().min(1).max(100).required(),
+  username: Joi.string().min(1).max(50).required(),
+  role: Joi.string().valid('audience', 'band_member').required(),
+});
+
+export const approvalResponseSchema = Joi.object({
+  userId: Joi.string().min(1).max(100).required(),
+  approved: Joi.boolean().required(),
+  message: Joi.string().max(200).optional(),
+});
+
+export const approvalCancelSchema = Joi.object({
+  userId: Joi.string().min(1).max(100).required(),
+  roomId: Joi.string().uuid().required(),
 }); 

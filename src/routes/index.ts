@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { RoomHandlers } from '../handlers/RoomHandlers';
-import { validateData, leaveRoomHttpSchema } from '../validation/schemas';
+import { validateData, leaveRoomHttpSchema, createRoomSchema } from '../validation/schemas';
 import { config } from '../config/environment';
 
 export const createRoutes = (roomHandlers: RoomHandlers): Router => {
@@ -22,6 +22,26 @@ export const createRoutes = (roomHandlers: RoomHandlers): Router => {
 
   // Get room list
   router.get('/rooms', (req, res) => roomHandlers.getRoomList(req, res));
+
+  // Create room endpoint with validation
+  router.post('/rooms', (req, res) => {
+    // Validate request body
+    const validationResult = validateData(createRoomSchema, req.body);
+    if (validationResult.error) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid request data',
+        details: validationResult.error
+      });
+    }
+
+    // Update request body with validated data
+    if (validationResult.value) {
+      req.body = validationResult.value;
+    }
+
+    return roomHandlers.handleCreateRoomHttp(req, res);
+  });
 
   // Leave room endpoint with validation
   router.post('/rooms/:roomId/leave', (req, res) => {

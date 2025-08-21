@@ -1,16 +1,20 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Room, User, UserSession } from '../types';
 import { CacheService } from './CacheService';
+import { RoomSessionManager } from './RoomSessionManager';
+import { namespaceGracePeriodManager } from './NamespaceGracePeriodManager';
 import { METRONOME_CONSTANTS } from '../constants';
 
 export class RoomService {
   private rooms = new Map<string, Room>();
-  private userSessions = new Map<string, UserSession>();
-  private gracePeriodUsers = new Map<string, { roomId: string; timestamp: number; isIntendedLeave: boolean; userData: User }>();
-  private readonly GRACE_PERIOD_MS = 60000; // 60 seconds
   private intentionallyLeftUsers = new Map<string, { roomId: string; timestamp: number; userData: User }>();
   private readonly INTENTIONAL_LEAVE_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
   private cacheService = CacheService.getInstance();
+  private roomSessionManager: RoomSessionManager;
+
+  constructor(roomSessionManager: RoomSessionManager) {
+    this.roomSessionManager = roomSessionManager;
+  }
 
   // Room management
   createRoom(name: string, username: string, userId: string, isPrivate: boolean = false, isHidden: boolean = false): { room: Room; user: User; session: UserSession } {
@@ -182,40 +186,58 @@ export class RoomService {
         userData: user
       });
     } else {
-      // Add to grace period if not intended leave (e.g., page refresh, network issues)
-      this.gracePeriodUsers.set(userId, {
-        roomId,
-        timestamp: Date.now(),
-        isIntendedLeave: false,
-        userData: user // Store the complete user data including role
-      });
+      // Add to namespace-aware grace period if not intended leave (e.g., page refresh, network issues)
+      // Requirements: 6.5 - Namespace-aware grace period management (isolated per room)
+      namespaceGracePeriodManager.addToGracePeriod(
+        userId, 
+        roomId, 
+        `/room/${roomId}`, 
+        user, 
+        false
+      );
+      
+
     }
 
     return user;
   }
 
-  // Grace period management
+  // Grace period management - now namespace-aware
+  // Requirements: 6.5 - Namespace-aware grace period management (isolated per room)
   getGracePeriodMs(): number {
-    return this.GRACE_PERIOD_MS;
+    return namespaceGracePeriodManager.getGracePeriodMs();
   }
 
   isUserInGracePeriod(userId: string, roomId: string): boolean {
-    const graceEntry = this.gracePeriodUsers.get(userId);
-    if (!graceEntry) return false;
-
-    if (graceEntry.roomId !== roomId) return false;
-
-    const now = Date.now();
-    if (now - graceEntry.timestamp > this.GRACE_PERIOD_MS) {
-      this.gracePeriodUsers.delete(userId);
-      return false;
-    }
-
-    return true;
+    // Use namespace-aware grace period manager
+    const isInNamespaceGracePeriod = namespaceGracePeriodManager.isUserInGracePeriod(userId, roomId);
+    
+    return isInNamespaceGracePeriod;
   }
 
-  removeFromGracePeriod(userId: string): void {
-    this.gracePeriodUsers.delete(userId);
+  removeFromGracePeriod(userId: string, roomId?: string): void {
+    // Remove from namespace-aware grace period
+    if (roomId) {
+      namespaceGracePeriodManager.removeFromGracePeriod(userId, roomId);
+    }
+    
+
+  }
+
+  /**
+   * Get grace period entry with user data for restoration
+   * Requirements: 6.7 - State restoration (user role, instrument, settings) after reconnection
+   */
+  getGracePeriodUserData(userId: string, roomId: string): User | null {
+    // Try namespace-aware grace period first
+    const namespaceEntry = namespaceGracePeriodManager.getGracePeriodEntry(userId, roomId);
+    if (namespaceEntry) {
+      return namespaceEntry.userData;
+    }
+
+
+
+    return null;
   }
 
   // Intentional leave management
@@ -239,12 +261,10 @@ export class RoomService {
   }
 
   cleanupExpiredGracePeriod(): void {
-    const now = Date.now();
-    for (const [userId, entry] of this.gracePeriodUsers.entries()) {
-      if (now - entry.timestamp > this.GRACE_PERIOD_MS) {
-        this.gracePeriodUsers.delete(userId);
-      }
-    }
+    // Clean up namespace-aware grace periods (handled automatically by the manager)
+    namespaceGracePeriodManager.cleanupExpiredGracePeriods();
+    
+
   }
 
   cleanupExpiredIntentionalLeaves(): void {
@@ -322,22 +342,36 @@ export class RoomService {
     return Array.from(room.users.values())[0];
   }
 
-  // Session management
+  // Session management - delegated to RoomSessionManager
   setUserSession(socketId: string, session: UserSession): void {
-    this.userSessions.set(socketId, session);
+    this.roomSessionManager.setRoomSession(session.roomId, socketId, session);
   }
 
   getUserSession(socketId: string): UserSession | undefined {
-    return this.userSessions.get(socketId);
+    const namespaceSession = this.roomSessionManager.getRoomSession(socketId);
+    if (!namespaceSession) {
+      return undefined;
+    }
+    return {
+      roomId: namespaceSession.roomId,
+      userId: namespaceSession.userId
+    };
   }
 
   removeUserSession(socketId: string): boolean {
-    return this.userSessions.delete(socketId);
+    return this.roomSessionManager.removeSession(socketId);
   }
 
-  findSocketByUserId(userId: string): string | undefined {
-    for (const [socketId, session] of this.userSessions.entries()) {
-      if (session.userId === userId) {
+  findSocketByUserId(userId: string, roomId?: string): string | undefined {
+    // If roomId is provided, search in that specific room
+    if (roomId) {
+      return this.roomSessionManager.findSocketByUserId(roomId, userId);
+    }
+    
+    // Otherwise, search across all rooms (for backward compatibility)
+    for (const [currentRoomId] of this.rooms.entries()) {
+      const socketId = this.roomSessionManager.findSocketByUserId(currentRoomId, userId);
+      if (socketId) {
         return socketId;
       }
     }
@@ -345,11 +379,7 @@ export class RoomService {
   }
 
   removeOldSessionsForUser(userId: string, currentSocketId: string): void {
-    for (const [socketId, session] of this.userSessions.entries()) {
-      if (session.userId === userId && socketId !== currentSocketId) {
-        this.userSessions.delete(socketId);
-      }
-    }
+    this.roomSessionManager.removeOldSessionsForUser(userId, currentSocketId);
   }
 
   // Room state management
