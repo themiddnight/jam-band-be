@@ -588,7 +588,7 @@ export class RoomHandlers {
         socket.emit('room_joined', {
           room,
           users: this.roomService.getRoomUsers(roomId),
-          pendingMembers: this.roomService.getPendingMembers(roomId),
+          pendingMembers: this.roomService.getPendingMembers(roomId)
         });
 
         // Send updated room state to all users to ensure UI consistency
@@ -789,7 +789,15 @@ export class RoomHandlers {
 
     this.roomService.updateUserInstrument(session.roomId, session.userId, data.instrument, data.category);
 
-    // Use optimized emit for better performance
+    // First, send stop all notes event to immediately stop all notes for this user
+    this.optimizedEmit(socket, session.roomId, 'stop_all_notes', {
+      userId: session.userId,
+      username: user.username,
+      instrument: data.instrument,
+      category: data.category
+    }, true); // Stop all notes events are critical and sent immediately
+
+    // Then, send instrument changed event
     this.optimizedEmit(socket, session.roomId, 'instrument_changed', {
       userId: session.userId,
       username: user.username,
@@ -810,6 +818,25 @@ export class RoomHandlers {
       };
       roomNamespace.emit('room_state_updated', updatedRoomData);
     }
+  }
+
+  handleStopAllNotes(socket: Socket, data: { instrument: string; category: string }): void {
+    const session = this.roomSessionManager.getRoomSession(socket.id);
+    if (!session) return;
+
+    const room = this.roomService.getRoom(session.roomId);
+    if (!room) return;
+
+    const user = room.users.get(session.userId);
+    if (!user) return;
+
+    // Send stop all notes event to all users in the room
+    this.optimizedEmit(socket, session.roomId, 'stop_all_notes', {
+      userId: session.userId,
+      username: user.username,
+      instrument: data.instrument,
+      category: data.category
+    }, true); // Stop all notes events are critical and sent immediately
   }
 
   handleUpdateSynthParams(socket: Socket, data: UpdateSynthParamsData): void {
@@ -1224,7 +1251,7 @@ export class RoomHandlers {
     console.log(`[MESH] User ${data.username} (${data.userId}) joined voice in room ${data.roomId}`);
 
     const voiceRoomMap = this.getVoiceRoomMap(data.roomId);
-    const existingParticipants = Array.from(voiceRoomMap.entries());
+    const existingParticipants = Array.from(voiceRoomMap.values());
 
     // Add new user to voice participants
     voiceRoomMap.set(data.userId, {
@@ -1261,7 +1288,7 @@ export class RoomHandlers {
     });
 
     console.log(`[MESH] Voice participant added to room ${data.roomId}. Total participants: ${voiceRoomMap.size}`);
-    console.log(`[MESH] Existing participants notified:`, existingParticipants.map(([id, info]) => `${info.username}(${id})`));
+    console.log(`[MESH] Existing participants notified:`, existingParticipants.map(p => `${p.username}(${p.userId})`));
   }
 
   // Mesh connection coordination - ensures proper full mesh establishment
@@ -1273,15 +1300,15 @@ export class RoomHandlers {
     }
 
     const voiceRoomMap = this.getVoiceRoomMap(data.roomId);
-    const allParticipants = Array.from(voiceRoomMap.values());
-    const otherParticipants = allParticipants.filter(p => p.userId !== data.userId);
+    const allParticipants = Array.from(voiceRoomMap.entries());
+    const otherParticipants = allParticipants.filter(([id, p]) => p.userId !== data.userId);
 
     console.log(`[MESH] Connection request from ${data.userId}. Other participants:`,
-      otherParticipants.map(p => p.userId));
+      otherParticipants.map(([id, p]) => p.userId));
 
     // For full mesh: respond with all other participants this user should connect to
     socket.emit('mesh_participants', {
-      participants: otherParticipants.map(p => ({
+      participants: otherParticipants.map(([id, p]) => ({
         userId: p.userId,
         username: p.username,
         isMuted: p.isMuted,
@@ -1291,7 +1318,7 @@ export class RoomHandlers {
     });
 
     // Notify each existing participant about the new user they should connect to
-    otherParticipants.forEach(participant => {
+    otherParticipants.forEach(([id, participant]) => {
       const participantSocketId = this.roomSessionManager.findSocketByUserId(session.roomId, participant.userId);
       if (participantSocketId) {
         const participantSocket = this.io.sockets.sockets.get(participantSocketId);
@@ -1618,30 +1645,35 @@ export class RoomHandlers {
 
     this.roomService.updateUserInstrument(session.roomId, session.userId, data.instrument, data.category);
 
-    // Broadcast to other clients in the same namespace (exclude sender)
-    socket.broadcast.emit('instrument_changed', {
+    // First, send stop all notes event to immediately stop all notes for this user
+    this.optimizedEmit(socket, session.roomId, 'stop_all_notes', {
       userId: session.userId,
       username: user.username,
       instrument: data.instrument,
       category: data.category
-    });
-    
-    console.log(`🎵 Broadcasting instrument_changed to namespace ${namespace.name}:`, {
-      userId: session.userId,
-      username: user.username,
-      instrument: data.instrument,
-      category: data.category
-    });
+    }, true); // Stop all notes events are critical and sent immediately
 
-    // Send updated room state to all users in namespace
-    const updatedRoomData = {
-      room: {
-        ...room,
-        users: this.roomService.getRoomUsers(session.roomId),
-        pendingMembers: this.roomService.getPendingMembers(session.roomId)
-      }
-    };
-    namespace.emit('room_state_updated', updatedRoomData);
+    // Then, send instrument changed event
+    this.optimizedEmit(socket, session.roomId, 'instrument_changed', {
+      userId: session.userId,
+      username: user.username,
+      instrument: data.instrument,
+      category: data.category
+    }, true); // Instrument changes are important and sent immediately
+
+    // Get or create the room namespace for proper isolation
+    const roomNamespace = this.getOrCreateRoomNamespace(session.roomId);
+    if (roomNamespace) {
+      // Send updated room state to all users to ensure UI consistency
+      const updatedRoomData = {
+        room: {
+          ...room,
+          users: this.roomService.getRoomUsers(session.roomId),
+          pendingMembers: this.roomService.getPendingMembers(session.roomId)
+        }
+      };
+      roomNamespace.emit('room_state_updated', updatedRoomData);
+    }
   }
 
   /**
@@ -2598,5 +2630,23 @@ export class RoomHandlers {
     return this.approvalSessionManager;
   }
 
+  handleStopAllNotesNamespace(socket: Socket, data: { instrument: string; category: string }, namespace: Namespace): void {
+    const session = this.roomSessionManager.getRoomSession(socket.id);
+    if (!session) return;
+
+    const room = this.roomService.getRoom(session.roomId);
+    if (!room) return;
+
+    const user = room.users.get(session.userId);
+    if (!user) return;
+
+    // Send stop all notes event to all users in the room
+    this.optimizedEmit(socket, session.roomId, 'stop_all_notes', {
+      userId: session.userId,
+      username: user.username,
+      instrument: data.instrument,
+      category: data.category
+    }, true); // Stop all notes events are critical and sent immediately
+  }
 
 } 

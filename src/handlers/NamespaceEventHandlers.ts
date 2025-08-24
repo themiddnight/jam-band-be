@@ -364,6 +364,18 @@ export class NamespaceEventHandlers {
       this.roomHandlers.handleChangeInstrumentNamespace(socket, data, namespace);
     });
     
+    socket.on('stop_all_notes', (data) => {
+      const rateLimitCheck = checkSocketRateLimit(socket, 'stop_all_notes');
+      if (!rateLimitCheck.allowed) {
+        socket.emit('error', { 
+          message: `Rate limit exceeded for stop_all_notes. Try again in ${rateLimitCheck.retryAfter} seconds.`,
+          retryAfter: rateLimitCheck.retryAfter 
+        });
+        return;
+      }
+      this.roomHandlers.handleStopAllNotesNamespace(socket, data, namespace);
+    });
+    
     socket.on('update_synth_params', (data) => {
       console.log('🎛️ Namespace received update_synth_params event:', {
         socketId: socket.id,
