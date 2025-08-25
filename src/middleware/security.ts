@@ -119,7 +119,7 @@ export const secureSocketEvent = (
           const webrtcValidation = validateWebRTCRequest(socket, webrtcEventType, data);
           if (!webrtcValidation.isValid) {
             // Use different log levels based on error type
-            const logLevel = webrtcValidation.error === 'User not authenticated' ? 'debug' : 'warn';
+            const logLevel = webrtcValidation.error === 'User not authenticated' ? 'info' : 'warn';
             
             loggingService.logSecurityEvent('WebRTC validation failed', {
               socketId: socket.id,
