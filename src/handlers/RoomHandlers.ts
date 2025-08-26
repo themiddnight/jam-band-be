@@ -557,6 +557,12 @@ export class RoomHandlers {
       if (roomNamespace) {
         // Notify others in room about the rejoin
         socket.to(roomId).emit('user_joined', { user });
+
+        // Auto-request synth parameters from existing synth users for the rejoining user
+        console.log(`🎛️ [EXISTING] About to call autoRequestSynthParamsForNewUser for existing user ${user.username} (${user.id}) in room ${roomId}`);
+        this.autoRequestSynthParamsForNewUser(socket, roomId, user.id);
+        this.autoRequestSynthParamsForNewUserNamespace(roomNamespace, roomId, user.id);
+
         socket.emit('room_joined', {
           room,
           users: this.roomService.getRoomUsers(roomId),
@@ -585,6 +591,12 @@ export class RoomHandlers {
       if (roomNamespace) {
         // Notify others in room about the rejoin
         socket.to(roomId).emit('user_joined', { user });
+
+        // Auto-request synth parameters from existing synth users for the grace period user
+        console.log(`🎛️ [GRACE] About to call autoRequestSynthParamsForNewUser for grace period user ${user.username} (${user.id}) in room ${roomId}`);
+        this.autoRequestSynthParamsForNewUser(socket, roomId, user.id);
+        this.autoRequestSynthParamsForNewUserNamespace(roomNamespace, roomId, user.id);
+
         socket.emit('room_joined', {
           room,
           users: this.roomService.getRoomUsers(roomId),
@@ -631,6 +643,14 @@ export class RoomHandlers {
 
         // Notify others in room
         socket.to(roomId).emit('user_joined', { user });
+
+        // Auto-request synth parameters from existing synth users for the new user
+        console.log(`🎛️ [MAIN] About to call autoRequestSynthParamsForNewUser for user ${user.username} (${user.id}) in room ${roomId}`);
+        this.autoRequestSynthParamsForNewUser(socket, roomId, user.id);
+        
+        // Also request via namespace for better reliability
+        this.autoRequestSynthParamsForNewUserNamespace(roomNamespace, roomId, user.id);
+
         socket.emit('room_joined', {
           room,
           users: this.roomService.getRoomUsers(roomId),
@@ -693,6 +713,11 @@ export class RoomHandlers {
     if (roomNamespace) {
       // Notify all users in room about the new member (including the approver)
       roomNamespace.emit('user_joined', { user: approvedUser });
+
+      // Auto-request synth parameters from existing synth users for the approved user
+      console.log(`🎛️ [APPROVED] About to call autoRequestSynthParamsForNewUser for approved user ${approvedUser.username} (${approvedUser.id}) in room ${session.roomId}`);
+      this.autoRequestSynthParamsForNewUser(socket, session.roomId, approvedUser.id);
+      this.autoRequestSynthParamsForNewUserNamespace(roomNamespace, session.roomId, approvedUser.id);
 
       // Send updated room state to all users to ensure UI consistency
       const updatedRoomData = {
@@ -886,6 +911,116 @@ export class RoomHandlers {
             requestingUserId: session.userId,
             requestingUsername: requestingUser.username
           });
+        }
+      }
+    });
+  }
+
+  // Auto-request synth parameters for new users joining the room
+  private autoRequestSynthParamsForNewUser(socket: Socket, roomId: string, newUserId: string): void {
+    console.log(`🎛️ [DEBUG] Auto-request synth params called for new user: ${newUserId} in room: ${roomId}`);
+    
+    const room = this.roomService.getRoom(roomId);
+    if (!room) {
+      console.log(`🎛️ [DEBUG] No room found for roomId: ${roomId}`);
+      return;
+    }
+
+    const newUser = room.users.get(newUserId);
+    if (!newUser) {
+      console.log(`🎛️ [DEBUG] No new user found for userId: ${newUserId}`);
+      return;
+    }
+
+    // Debug: Log all users in the room and their categories
+    console.log(`🎛️ [DEBUG] All users in room ${roomId}:`);
+    Array.from(room.users.values()).forEach(user => {
+      console.log(`  - ${user.username} (${user.id}): category="${user.currentCategory}", instrument="${user.currentInstrument}"`);
+    });
+
+    // Find all users with synthesizers in the room (excluding the new user)
+    const synthUsers = Array.from(room.users.values()).filter(user =>
+      user.currentCategory === 'synthesizer' && user.id !== newUserId
+    );
+
+    console.log(`🎛️ Auto-requesting synth params for new user ${newUser.username} from ${synthUsers.length} synth users`);
+
+    // Notify existing synth users to send their parameters to the new user
+    synthUsers.forEach(synthUser => {
+      const synthUserSocketId = this.roomSessionManager.findSocketByUserId(roomId, synthUser.id);
+      if (synthUserSocketId) {
+        const synthUserSocket = this.io.sockets.sockets.get(synthUserSocketId);
+        if (synthUserSocket) {
+          console.log(`🎛️ Requesting synth params from ${synthUser.username} for new user ${newUser.username}`);
+          synthUserSocket.emit('auto_send_synth_params_to_new_user', {
+            newUserId: newUserId,
+            newUsername: newUser.username
+          });
+        } else {
+          console.log(`🎛️ [DEBUG] No socket found for synth user ${synthUser.username}`);
+        }
+      } else {
+        console.log(`🎛️ [DEBUG] No socket ID found for synth user ${synthUser.username}`);
+      }
+    });
+  }
+
+  // Auto-request synth parameters for new users joining the room (namespace version)
+  private autoRequestSynthParamsForNewUserNamespace(namespace: Namespace, roomId: string, newUserId: string): void {
+    console.log(`🎛️ [DEBUG] [Namespace] Auto-request synth params called for new user: ${newUserId} in room: ${roomId}`);
+    
+    const room = this.roomService.getRoom(roomId);
+    if (!room) {
+      console.log(`🎛️ [DEBUG] [Namespace] No room found for roomId: ${roomId}`);
+      return;
+    }
+
+    const newUser = room.users.get(newUserId);
+    if (!newUser) {
+      console.log(`🎛️ [DEBUG] [Namespace] No new user found for userId: ${newUserId}`);
+      return;
+    }
+
+    // Debug: Log all users in the room and their categories
+    console.log(`🎛️ [DEBUG] [Namespace] All users in room ${roomId}:`);
+    Array.from(room.users.values()).forEach(user => {
+      console.log(`  - ${user.username} (${user.id}): category="${user.currentCategory}", instrument="${user.currentInstrument}"`);
+    });
+
+    // Find all users with synthesizers in the room (excluding the new user)
+    const synthUsers = Array.from(room.users.values()).filter(user =>
+      user.currentCategory === 'synthesizer' && user.id !== newUserId
+    );
+
+    console.log(`🎛️ [Namespace] Auto-requesting synth params for new user ${newUser.username} from ${synthUsers.length} synth users`);
+
+    if (synthUsers.length === 0) {
+      console.log(`🎛️ [Namespace] No synthesizer users found to request params from`);
+      return;
+    }
+
+    // Notify existing synth users to send their parameters to the new user
+    synthUsers.forEach(synthUser => {
+      // Find the socket in the namespace for this synth user
+      for (const [socketId, socket] of namespace.sockets) {
+        const session = this.roomSessionManager.getRoomSession(socketId);
+        if (session && session.userId === synthUser.id) {
+          console.log(`🎛️ [Namespace] Requesting synth params from ${synthUser.username} for new user ${newUser.username}`);
+          
+          // Send both events to ensure reliability
+          socket.emit('auto_send_synth_params_to_new_user', {
+            newUserId: newUserId,
+            newUsername: newUser.username
+          });
+          
+          // Also send a direct request for current synth params
+          socket.emit('request_current_synth_params_for_new_user', {
+            newUserId: newUserId,
+            newUsername: newUser.username,
+            synthUserId: synthUser.id,
+            synthUsername: synthUser.username
+          });
+          break;
         }
       }
     });
@@ -1753,6 +1888,57 @@ export class RoomHandlers {
   }
 
   /**
+   * Handle auto-send synth params to new user through namespace
+   */
+  handleAutoSendSynthParamsToNewUserNamespace(socket: Socket, data: { newUserId: string; newUsername: string }, namespace: Namespace): void {
+    const session = this.roomSessionManager.getRoomSession(socket.id);
+    if (!session) return;
+
+    const room = this.roomService.getRoom(session.roomId);
+    if (!room) return;
+
+    const synthUser = room.users.get(session.userId);
+    if (!synthUser || synthUser.currentCategory !== 'synthesizer') return;
+
+    console.log(`🎛️ [Namespace] Auto-sending synth params from ${synthUser.username} to new user ${data.newUsername}`);
+
+    // Emit to the specific new user to request their synth params and apply ours
+    socket.emit('send_current_synth_params_to_new_user', {
+      newUserId: data.newUserId,
+      newUsername: data.newUsername
+    });
+  }
+
+  /**
+   * Handle direct request for current synth params for new user
+   */
+  handleRequestCurrentSynthParamsForNewUserNamespace(socket: Socket, data: { 
+    newUserId: string; 
+    newUsername: string; 
+    synthUserId: string; 
+    synthUsername: string; 
+  }, namespace: Namespace): void {
+    const session = this.roomSessionManager.getRoomSession(socket.id);
+    if (!session) return;
+
+    const room = this.roomService.getRoom(session.roomId);
+    if (!room) return;
+
+    const synthUser = room.users.get(session.userId);
+    if (!synthUser || synthUser.currentCategory !== 'synthesizer' || synthUser.id !== data.synthUserId) return;
+
+    console.log(`🎛️ [Namespace] Direct request for synth params from ${synthUser.username} to new user ${data.newUsername}`);
+
+    // Emit back to the requesting user to send their current synth params
+    socket.emit('send_synth_params_to_new_user_now', {
+      newUserId: data.newUserId,
+      newUsername: data.newUsername,
+      synthUserId: data.synthUserId,
+      synthUsername: data.synthUsername
+    });
+  }
+
+  /**
    * Handle transfer ownership through namespace - Requirements: 7.1
    */
   handleTransferOwnershipNamespace(socket: Socket, data: TransferOwnershipData, namespace: Namespace): void {
@@ -1823,6 +2009,9 @@ export class RoomHandlers {
 
     // Notify all users in room namespace about the new member
     namespace.emit('user_joined', { user: approvedUser });
+
+    // Auto-request synth parameters from existing synth users for the new user
+    this.autoRequestSynthParamsForNewUserNamespace(namespace, session.roomId, approvedUser.id);
 
     // Send updated room state to all users in namespace
     const updatedRoomData = {

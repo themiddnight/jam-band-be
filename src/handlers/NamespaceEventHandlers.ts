@@ -402,6 +402,28 @@ export class NamespaceEventHandlers {
         () => this.roomHandlers.handleRequestSynthParamsNamespace(socket, namespace))(socket, undefined);
     });
 
+    socket.on('auto_send_synth_params_to_new_user', (data) => {
+      console.log('🎛️ Namespace received auto_send_synth_params_to_new_user event:', {
+        socketId: socket.id,
+        namespaceName: namespace.name,
+        data
+      });
+      
+      secureSocketEvent('auto_send_synth_params_to_new_user', undefined, 
+        () => this.roomHandlers.handleAutoSendSynthParamsToNewUserNamespace(socket, data, namespace))(socket, data);
+    });
+
+    socket.on('request_current_synth_params_for_new_user', (data) => {
+      console.log('🎛️ Namespace received request_current_synth_params_for_new_user event:', {
+        socketId: socket.id,
+        namespaceName: namespace.name,
+        data
+      });
+      
+      secureSocketEvent('request_current_synth_params_for_new_user', undefined, 
+        () => this.roomHandlers.handleRequestCurrentSynthParamsForNewUserNamespace(socket, data, namespace))(socket, data);
+    });
+
     // Ownership events
     socket.on('transfer_ownership', (data) => {
       secureSocketEvent('transfer_ownership', transferOwnershipSchema, 
