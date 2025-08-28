@@ -82,15 +82,22 @@ export class RoomService {
     // Get from memory and cache
     const rooms = Array.from(this.rooms.values())
       .filter(room => !room.isHidden) // Don't show hidden rooms in public list
-      .map(room => ({
-        id: room.id,
-        name: room.name,
-        userCount: room.users.size,
-        owner: room.owner,
-        isPrivate: room.isPrivate,
-        isHidden: room.isHidden,
-        createdAt: room.createdAt
-      }));
+      .map(room => {
+        // Include users in grace period in the count to prevent ghost rooms
+        const gracePeriodUsers = namespaceGracePeriodManager.getRoomGracePeriodUsers(room.id);
+        const totalUserCount = room.users.size + gracePeriodUsers.length;
+        
+        return {
+          id: room.id,
+          name: room.name,
+          userCount: totalUserCount,
+          owner: room.owner,
+          isPrivate: room.isPrivate,
+          isHidden: room.isHidden,
+          createdAt: room.createdAt
+        };
+      })
+      .filter(room => room.userCount > 0); // Filter out rooms with no users (including grace period)
     
     // Cache for 1 minute since room list changes frequently
     this.cacheService.cacheRoomList(cacheKey, rooms, 60);
@@ -260,11 +267,19 @@ export class RoomService {
     this.intentionallyLeftUsers.delete(userId);
   }
 
-  cleanupExpiredGracePeriod(): void {
-    // Clean up namespace-aware grace periods (handled automatically by the manager)
-    namespaceGracePeriodManager.cleanupExpiredGracePeriods();
+  cleanupExpiredGracePeriod(): { roomsToDelete: string[] } {
+    // Clean up namespace-aware grace periods and get rooms that may need cleanup
+    const roomsNeedingCleanup = namespaceGracePeriodManager.cleanupExpiredGracePeriods();
     
-
+    // Check which rooms should actually be deleted after grace period cleanup
+    const roomsToDelete: string[] = [];
+    for (const roomId of roomsNeedingCleanup) {
+      if (this.shouldCloseRoom(roomId)) {
+        roomsToDelete.push(roomId);
+      }
+    }
+    
+    return { roomsToDelete };
   }
 
   cleanupExpiredIntentionalLeaves(): void {
@@ -320,17 +335,21 @@ export class RoomService {
     return { newOwner, oldOwner: actualOldOwner };
   }
 
-  // Check if room should be closed (no owner or band members left)
+  // Check if room should be closed (no users left at all)
   shouldCloseRoom(roomId: string): boolean {
     const room = this.rooms.get(roomId);
     if (!room) return true;
     
-    // Check if there are any room_owner or band_member users
-    const hasActiveMembers = Array.from(room.users.values()).some(user => 
-      user.role === 'room_owner' || user.role === 'band_member'
-    );
+    // Check if there are ANY users currently in room (any role)
+    const hasActiveUsers = room.users.size > 0;
     
-    return !hasActiveMembers;
+    // Also check users in grace period who might return (any role)
+    const gracePeriodUsers = namespaceGracePeriodManager.getRoomGracePeriodUsers(roomId);
+    const hasGracePeriodUsers = gracePeriodUsers.length > 0;
+    
+    // Room should only be closed if there are NO users at all (active OR in grace period)
+    // This ensures immediate cleanup when all users leave or all grace periods expire
+    return !hasActiveUsers && !hasGracePeriodUsers;
   }
 
   // Get any user in the room for ownership transfer
@@ -419,20 +438,17 @@ export class RoomService {
       .filter(u => u.role === 'band_member');
   }
 
-  // Cleanup expired grace time entries
-  cleanupExpiredGraceTime(): void {
-    // Clean up expired grace period entries
-    this.cleanupExpiredGracePeriod();
+  // Cleanup expired grace time entries and handle room cleanup
+  cleanupExpiredGraceTime(): string[] {
+    // Clean up expired grace period entries and get rooms to delete
+    const { roomsToDelete: gracePeriodRoomsToDelete } = this.cleanupExpiredGracePeriod();
     
     // Clean up expired intentional leave entries
     this.cleanupExpiredIntentionalLeaves();
     
-    // Example cleanup logic (can be expanded based on requirements):
-    // - Remove rooms that have been empty for too long
-    // - Clean up old user sessions
-    
+    // Additional cleanup: Remove rooms that have been empty for too long
     const now = new Date();
-    const roomsToDelete: string[] = [];
+    const additionalRoomsToDelete: string[] = [];
     
     for (const [roomId, room] of this.rooms.entries()) {
       // Delete rooms that have no owner/band members for more than 1 hour
@@ -440,15 +456,20 @@ export class RoomService {
       const oneHour = 60 * 60 * 1000;
       
       if (this.shouldCloseRoom(roomId) && timeSinceCreation > oneHour) {
-        roomsToDelete.push(roomId);
+        additionalRoomsToDelete.push(roomId);
       }
     }
     
-    // Delete expired rooms
-    roomsToDelete.forEach(roomId => {
-      this.rooms.delete(roomId);
-      console.log(`Deleted expired room: ${roomId}`);
+    // Combine all rooms to delete
+    const allRoomsToDelete = [...gracePeriodRoomsToDelete, ...additionalRoomsToDelete];
+    
+    // Delete rooms and return list for external cleanup (namespaces, etc.)
+    allRoomsToDelete.forEach(roomId => {
+      this.deleteRoom(roomId);
+      console.log(`Deleted expired/empty room: ${roomId}`);
     });
+    
+    return allRoomsToDelete;
   }
 
   // Metronome management

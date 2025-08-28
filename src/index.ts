@@ -165,7 +165,15 @@ loggingService.logInfo('Application starting up', {
 
 // Periodic cleanup tasks
 setInterval(() => {
-  roomService.cleanupExpiredGraceTime();
+  const deletedRooms = roomService.cleanupExpiredGraceTime();
+  // Clean up namespaces for deleted rooms
+  deletedRooms.forEach(roomId => {
+    namespaceManager.cleanupRoomNamespace(roomId);
+    namespaceManager.cleanupApprovalNamespace(roomId);
+    // Broadcast to all clients that the room was closed
+    io.emit('room_closed_broadcast', { roomId });
+    loggingService.logInfo('Cleaned up expired room after grace period expiration', { roomId });
+  });
 }, 30000); // Run every 30 seconds
 
 // Clean up expired rate limit entries

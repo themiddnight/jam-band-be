@@ -189,10 +189,12 @@ export class NamespaceGracePeriodManager {
 
   /**
    * Clean up expired grace period entries across all rooms
+   * Returns a list of rooms that may need cleanup after grace period expiration
    */
-  cleanupExpiredGracePeriods(): void {
+  cleanupExpiredGracePeriods(): string[] {
     const now = Date.now();
     let totalCleaned = 0;
+    const roomsNeedingCleanup: string[] = [];
 
     for (const [roomId, roomGracePeriods] of this.roomGracePeriods.entries()) {
       const expiredUsers: string[] = [];
@@ -203,10 +205,15 @@ export class NamespaceGracePeriodManager {
         }
       }
 
-      expiredUsers.forEach(userId => {
-        roomGracePeriods.delete(userId);
-        totalCleaned++;
-      });
+      if (expiredUsers.length > 0) {
+        expiredUsers.forEach(userId => {
+          roomGracePeriods.delete(userId);
+          totalCleaned++;
+        });
+
+        // Mark room for potential cleanup since grace periods expired
+        roomsNeedingCleanup.push(roomId);
+      }
 
       if (roomGracePeriods.size === 0) {
         this.roomGracePeriods.delete(roomId);
@@ -216,9 +223,12 @@ export class NamespaceGracePeriodManager {
     if (totalCleaned > 0) {
       loggingService.logInfo('Cleaned up expired grace period entries', {
         totalCleaned,
-        activeRooms: this.roomGracePeriods.size
+        activeRooms: this.roomGracePeriods.size,
+        roomsNeedingCleanup: roomsNeedingCleanup.length
       });
     }
+
+    return roomsNeedingCleanup;
   }
 
   /**
