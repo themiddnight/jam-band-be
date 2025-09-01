@@ -6,7 +6,8 @@ import { RoomSessionManager } from '../../../../services/RoomSessionManager';
 import { loggingService } from '../../../../services/LoggingService';
 import {
   User,
-  ApprovalResponseData
+  ApprovalResponseData,
+  TransferOwnershipData
 } from '../../../../types';
 
 /**
@@ -363,5 +364,96 @@ export class RoomMembershipHandler {
   getPendingMemberCount(roomId: string): number {
     const room = this.roomService.getRoom(roomId);
     return room ? room.pendingMembers.size : 0;
+  }
+
+  /**
+   * Handle ownership transfer - transfers room ownership to another member
+   * Requirements: 4.1, 4.6
+   */
+  handleTransferOwnership(socket: Socket, data: TransferOwnershipData): void {
+    const session = this.roomSessionManager.getRoomSession(socket.id);
+    if (!session) {
+      socket.emit('ownership_error', { message: 'You are not in a room' });
+      return;
+    }
+
+    const result = this.roomService.transferOwnership(session.roomId, data.newOwnerId);
+    if (!result) {
+      socket.emit('ownership_error', { message: 'Failed to transfer ownership' });
+      return;
+    }
+
+    // Get room namespace for broadcasting
+    const roomNamespace = this.namespaceManager.getRoomNamespace(session.roomId);
+    if (roomNamespace) {
+      // Notify all users in room
+      roomNamespace.emit('ownership_transferred', {
+        newOwner: result.newOwner,
+        oldOwner: result.oldOwner
+      });
+
+      // Send updated room state to all users to ensure UI consistency
+      const room = this.roomService.getRoom(session.roomId);
+      if (room) {
+        const updatedRoomData = {
+          room: {
+            ...room,
+            users: this.roomService.getRoomUsers(session.roomId),
+            pendingMembers: this.roomService.getPendingMembers(session.roomId)
+          }
+        };
+        roomNamespace.emit('room_state_updated', updatedRoomData);
+      }
+    }
+
+    loggingService.logInfo('Ownership transferred', {
+      roomId: session.roomId,
+      oldOwnerId: result.oldOwner.id,
+      newOwnerId: result.newOwner.id
+    });
+  }
+
+  /**
+   * Handle ownership transfer through namespace - namespace-aware version
+   * Requirements: 4.1, 4.6
+   */
+  handleTransferOwnershipNamespace(socket: Socket, data: TransferOwnershipData, namespace: Namespace): void {
+    const session = this.roomSessionManager.getRoomSession(socket.id);
+    if (!session) {
+      socket.emit('ownership_error', { message: 'You are not in a room' });
+      return;
+    }
+
+    const result = this.roomService.transferOwnership(session.roomId, data.newOwnerId);
+    if (!result) {
+      socket.emit('ownership_error', { message: 'Failed to transfer ownership' });
+      return;
+    }
+
+    // Notify all users in namespace
+    namespace.emit('ownership_transferred', {
+      newOwner: result.newOwner,
+      oldOwner: result.oldOwner
+    });
+
+    // Send updated room state to all users in namespace
+    const room = this.roomService.getRoom(session.roomId);
+    if (room) {
+      const updatedRoomData = {
+        room: {
+          ...room,
+          users: this.roomService.getRoomUsers(session.roomId),
+          pendingMembers: this.roomService.getPendingMembers(session.roomId)
+        }
+      };
+      namespace.emit('room_state_updated', updatedRoomData);
+    }
+
+    loggingService.logInfo('Ownership transferred via namespace', {
+      roomId: session.roomId,
+      oldOwnerId: result.oldOwner.id,
+      newOwnerId: result.newOwner.id,
+      namespaceName: namespace.name
+    });
   }
 }

@@ -23,7 +23,7 @@ export class MockInstrumentService {
   }
 
   private setupEventHandlers(): void {
-    this.eventBus.subscribe(UserJoinedRoom, this.handleUserJoinedRoom.bind(this));
+    this.eventBus.subscribe('UserJoinedRoom', this.handleUserJoinedRoom.bind(this));
   }
 
   private async handleUserJoinedRoom(event: UserJoinedRoom): Promise<void> {
@@ -73,7 +73,7 @@ export class MockAudioBusService {
   }
 
   private setupEventHandlers(): void {
-    this.eventBus.subscribe(UserJoinedRoom, this.handleUserJoinedRoom.bind(this));
+    this.eventBus.subscribe('UserJoinedRoom', this.handleUserJoinedRoom.bind(this));
   }
 
   private async handleUserJoinedRoom(event: UserJoinedRoom): Promise<void> {
@@ -127,7 +127,7 @@ export class MockVoiceConnectionService {
   }
 
   private setupEventHandlers(): void {
-    this.eventBus.subscribe(UserJoinedRoom, this.handleUserJoinedRoom.bind(this));
+    this.eventBus.subscribe('UserJoinedRoom', this.handleUserJoinedRoom.bind(this));
   }
 
   private async handleUserJoinedRoom(event: UserJoinedRoom): Promise<void> {

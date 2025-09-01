@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { RoomHandlers } from '../handlers/RoomHandlers';
-import { RoomLifecycleHandler } from '../handlers/RoomLifecycleHandler';
+import { RoomLifecycleHandler } from '../domains/room-management/infrastructure/handlers/RoomLifecycleHandler';
 import { validateData, leaveRoomHttpSchema, createRoomSchema } from '../validation/schemas';
 import { config } from '../config/environment';
 

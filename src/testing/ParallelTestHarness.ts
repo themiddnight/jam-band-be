@@ -188,7 +188,7 @@ export class ParallelTestHarness extends EventEmitter {
     }
 
     return {
-      passed: result.isEqual && performanceRatio <= 1.1 && memoryRatio <= 1.1,
+      passed: result.isEqual && !result.error && performanceRatio <= 1.1 && memoryRatio <= 1.1,
       differences,
       performanceRatio,
       memoryRatio

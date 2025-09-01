@@ -5,7 +5,7 @@ import { RoomService } from '../../../../services/RoomService';
 import { MetronomeService } from '../../../../services/MetronomeService';
 import { NamespaceManager } from '../../../../services/NamespaceManager';
 import { RoomSessionManager } from '../../../../services/RoomSessionManager';
-import { loggingService } from '../../../../services/LoggingService';
+import { AudioRoutingHandler } from '../../../audio-processing/infrastructure/handlers/AudioRoutingHandler';
 import { RoomId, UserId } from '../../../../shared/domain/models/ValueObjects';
 import {
   JoinRoomData,
@@ -13,6 +13,9 @@ import {
   User,
   UserSession
 } from '../../../../types';
+import { EventBus } from '../../../../shared/domain/events/EventBus';
+import { RoomCreated, MemberJoined, MemberLeft } from '../../../../shared/domain/events/RoomEvents';
+import { UserJoinedRoom } from '../../../../shared/domain/events/UserOnboardingEvents';
 
 /**
  * RoomLifecycleHandler - Handles room creation, joining, and leaving operations
@@ -26,7 +29,9 @@ export class RoomLifecycleHandler {
     private roomService: RoomService,
     private io: Server,
     private namespaceManager: NamespaceManager,
-    private roomSessionManager: RoomSessionManager
+    private roomSessionManager: RoomSessionManager,
+    private audioRoutingHandler?: AudioRoutingHandler,
+    private eventBus?: EventBus
   ) {
     this.metronomeService = new MetronomeService(io, roomService);
   }
@@ -240,66 +245,38 @@ export class RoomLifecycleHandler {
 
   /**
    * Auto-request synth parameters from existing synth users for a new user
+   * Delegates to AudioRoutingHandler for proper audio domain handling
    */
   private autoRequestSynthParamsForNewUser(socket: Socket, roomId: string | RoomId, newUserId: string | UserId): void {
-    const roomIdTyped = this.ensureRoomId(roomId);
-    const newUserIdTyped = this.ensureUserId(newUserId);
-    const roomIdString = this.roomIdToString(roomIdTyped);
-    const newUserIdString = this.userIdToString(newUserIdTyped);
-
-    const room = this.roomService.getRoom(roomIdString);
-    if (!room) return;
-
-    // Find all users with synth instruments
-    const synthUsers = Array.from(room.users.values()).filter(user => 
-      user.currentCategory === 'synth' && user.id !== newUserIdString
-    );
-
-    console.log(`🎛️ Found ${synthUsers.length} synth users in room ${roomIdTyped.toString()} for new user ${newUserIdTyped.toString()}`);
-
-    // Request synth params from each synth user
-    synthUsers.forEach(synthUser => {
-      console.log(`🎛️ Requesting synth params from ${synthUser.username} (${synthUser.id}) for new user ${newUserIdTyped.toString()}`);
-      socket.to(roomIdString).emit('request_synth_params', {
-        requesterId: newUserIdString,
-        targetUserId: synthUser.id
-      });
-    });
+    const roomIdString = this.roomIdToString(this.ensureRoomId(roomId));
+    const newUserIdString = this.userIdToString(this.ensureUserId(newUserId));
+    
+    // Delegate to AudioRoutingHandler which handles all audio-related functionality
+    // If audioRoutingHandler is not provided (e.g., in tests), skip this functionality
+    if (this.audioRoutingHandler) {
+      this.audioRoutingHandler.autoRequestSynthParamsForNewUser(socket, roomIdString, newUserIdString);
+    }
   }
 
   /**
    * Auto-request synth parameters via namespace for better reliability
+   * Delegates to AudioRoutingHandler for proper audio domain handling
    */
   private autoRequestSynthParamsForNewUserNamespace(roomNamespace: Namespace, roomId: string | RoomId, newUserId: string | UserId): void {
-    const roomIdTyped = this.ensureRoomId(roomId);
-    const newUserIdTyped = this.ensureUserId(newUserId);
-    const roomIdString = this.roomIdToString(roomIdTyped);
-    const newUserIdString = this.userIdToString(newUserIdTyped);
-
-    const room = this.roomService.getRoom(roomIdString);
-    if (!room) return;
-
-    // Find all users with synth instruments
-    const synthUsers = Array.from(room.users.values()).filter(user => 
-      user.currentCategory === 'synth' && user.id !== newUserIdString
-    );
-
-    console.log(`🎛️ [NAMESPACE] Found ${synthUsers.length} synth users in room ${roomIdTyped.toString()} for new user ${newUserIdTyped.toString()}`);
-
-    // Request synth params from each synth user via namespace
-    synthUsers.forEach(synthUser => {
-      console.log(`🎛️ [NAMESPACE] Requesting synth params from ${synthUser.username} (${synthUser.id}) for new user ${newUserIdTyped.toString()}`);
-      roomNamespace.emit('request_synth_params', {
-        requesterId: newUserIdString,
-        targetUserId: synthUser.id
-      });
-    });
+    const roomIdString = this.roomIdToString(this.ensureRoomId(roomId));
+    const newUserIdString = this.userIdToString(this.ensureUserId(newUserId));
+    
+    // Delegate to AudioRoutingHandler which handles all audio-related functionality
+    // If audioRoutingHandler is not provided (e.g., in tests), skip this functionality
+    if (this.audioRoutingHandler) {
+      this.audioRoutingHandler.autoRequestSynthParamsForNewUserNamespace(roomNamespace, roomIdString, newUserIdString);
+    }
   }
 
   /**
    * Handle room creation via HTTP
    */
-  handleCreateRoomHttp(req: Request, res: Response): void {
+  async handleCreateRoomHttp(req: Request, res: Response): Promise<void> {
     // Import validation at the top of the file if not already imported
     const { validateData, createRoomSchema } = require('../../../../validation/schemas');
 
@@ -317,26 +294,43 @@ export class RoomLifecycleHandler {
     const { name, username, userId, isPrivate = false, isHidden = false } = validationResult.value;
 
     try {
+      // Convert to strongly-typed IDs for internal processing
+      const userIdTyped = this.ensureUserId(userId);
+      
       const { room, user } = this.roomService.createRoom(
         name,
         username,
-        userId,
+        this.userIdToString(userIdTyped), // Convert back to string for legacy service
         isPrivate,
         isHidden
       );
 
+      // Convert room.id to RoomId for type safety
+      const roomIdTyped = this.ensureRoomId(room.id);
+
       // Create room namespace and start metronome for the new room
-      const roomNamespace = this.namespaceManager.createRoomNamespace(room.id);
-      this.metronomeService.initializeRoomMetronome(room.id, roomNamespace);
+      const roomNamespace = this.namespaceManager.createRoomNamespace(this.roomIdToString(roomIdTyped));
+      this.metronomeService.initializeRoomMetronome(this.roomIdToString(roomIdTyped), roomNamespace);
 
       // Create approval namespace for private rooms
       if (room.isPrivate) {
-        this.namespaceManager.createApprovalNamespace(room.id);
+        this.namespaceManager.createApprovalNamespace(this.roomIdToString(roomIdTyped));
+      }
+
+      // Publish domain event for room creation
+      if (this.eventBus) {
+        const roomCreatedEvent = new RoomCreated(
+          roomIdTyped.toString(),
+          this.userIdToString(userIdTyped),
+          room.name,
+          room.isPrivate
+        );
+        await this.eventBus.publish(roomCreatedEvent);
       }
 
       // Broadcast to all clients that a new room was created (via main namespace)
       this.io.emit('room_created_broadcast', {
-        id: room.id,
+        id: roomIdTyped.toString(),
         name: room.name,
         userCount: room.users.size,
         owner: room.owner,
@@ -349,8 +343,8 @@ export class RoomLifecycleHandler {
         success: true,
         room: {
           ...room,
-          users: this.roomService.getRoomUsers(room.id),
-          pendingMembers: this.roomService.getPendingMembers(room.id)
+          users: this.roomService.getRoomUsers(this.roomIdToString(roomIdTyped)),
+          pendingMembers: this.roomService.getPendingMembers(this.roomIdToString(roomIdTyped))
         },
         user
       });
@@ -366,45 +360,63 @@ export class RoomLifecycleHandler {
   /**
    * Handle room creation via Socket
    */
-  handleCreateRoom(socket: Socket, data: CreateRoomData): void {
+  async handleCreateRoom(socket: Socket, data: CreateRoomData): Promise<void> {
     // Check if socket already has a session (prevent multiple room creation)
     if (socket.data?.roomId) {
       return;
     }
 
+    // Convert to strongly-typed IDs for internal processing
+    const userIdTyped = this.ensureUserId(data.userId);
+
     const { room, user, session } = this.roomService.createRoom(
       data.name,
       data.username,
-      data.userId,
+      this.userIdToString(userIdTyped), // Convert back to string for legacy service
       data.isPrivate,
       data.isHidden
     );
 
-    socket.join(room.id);
+    // Convert room.id to RoomId for type safety
+    const roomIdTyped = this.ensureRoomId(room.id);
+    const roomIdString = this.roomIdToString(roomIdTyped);
+
+    socket.join(roomIdString);
     socket.data = session;
-    this.roomSessionManager.setRoomSession(room.id, socket.id, session);
+    this.roomSessionManager.setRoomSession(roomIdString, socket.id, session);
 
     // Create room namespace and start metronome for the new room
-    const roomNamespace = this.namespaceManager.createRoomNamespace(room.id);
-    this.metronomeService.initializeRoomMetronome(room.id, roomNamespace);
+    const roomNamespace = this.namespaceManager.createRoomNamespace(roomIdString);
+    this.metronomeService.initializeRoomMetronome(roomIdString, roomNamespace);
 
     // Create approval namespace for private rooms
     if (room.isPrivate) {
-      this.namespaceManager.createApprovalNamespace(room.id);
+      this.namespaceManager.createApprovalNamespace(roomIdString);
     }
 
     socket.emit('room_created', {
       room: {
         ...room,
-        users: this.roomService.getRoomUsers(room.id),
-        pendingMembers: this.roomService.getPendingMembers(room.id)
+        users: this.roomService.getRoomUsers(roomIdString),
+        pendingMembers: this.roomService.getPendingMembers(roomIdString)
       },
       user
     });
 
+    // Publish domain event for room creation
+    if (this.eventBus) {
+      const roomCreatedEvent = new RoomCreated(
+        roomIdString,
+        this.userIdToString(userIdTyped),
+        room.name,
+        room.isPrivate
+      );
+      await this.eventBus.publish(roomCreatedEvent);
+    }
+
     // Broadcast to all clients that a new room was created
     socket.broadcast.emit('room_created_broadcast', {
-      id: room.id,
+      id: roomIdTyped.toString(),
       name: room.name,
       userCount: room.users.size,
       owner: room.owner,
@@ -417,43 +429,48 @@ export class RoomLifecycleHandler {
   /**
    * Handle joining a room via Socket
    */
-  handleJoinRoom(socket: Socket, data: JoinRoomData): void {
+  async handleJoinRoom(socket: Socket, data: JoinRoomData): Promise<void> {
     const { roomId, username, userId, role } = data;
 
-    const room = this.roomService.getRoom(roomId);
+    // Convert to strongly-typed IDs for internal processing
+    const roomIdTyped = this.ensureRoomId(roomId);
+    const userIdTyped = this.ensureUserId(userId);
+    const roomIdString = this.roomIdToString(roomIdTyped);
+    const userIdString = this.userIdToString(userIdTyped);
+
+    const room = this.roomService.getRoom(roomIdString);
     if (!room) {
       socket.emit('error', { message: 'Room not found' });
       return;
     }
 
     // Check if user already exists in the room, is in grace period, or has intentionally left
-    const existingUser = this.roomService.findUserInRoom(roomId, userId);
-    const isInGracePeriod = this.roomService.isUserInGracePeriod(userId, roomId);
-    const hasIntentionallyLeft = this.roomService.hasUserIntentionallyLeft(userId, roomId);
+    const existingUser = this.roomService.findUserInRoom(roomIdString, userIdString);
+    const isInGracePeriod = this.roomService.isUserInGracePeriod(userIdString, roomIdString);
+    const hasIntentionallyLeft = this.roomService.hasUserIntentionallyLeft(userIdString, roomIdString);
 
     let user: User;
-    let userIntentionallyLeft = hasIntentionallyLeft;
 
     if (existingUser) {
       // User already exists in room, use their existing data (e.g., page refresh)
       user = existingUser;
       // Remove from grace period if they were there
-      this.roomService.removeFromGracePeriod(userId, roomId);
+      this.roomService.removeFromGracePeriod(userIdString, roomIdString);
     } else if (isInGracePeriod) {
       // User is in grace period, restore them to the room
       // Requirements: 6.7 - State restoration (user role, instrument, settings) after reconnection
-      const gracePeriodUserData = this.roomService.getGracePeriodUserData(userId, roomId);
+      const gracePeriodUserData = this.roomService.getGracePeriodUserData(userIdString, roomIdString);
       if (gracePeriodUserData) {
         // Restore user with their original role and data
         user = {
           ...gracePeriodUserData,
           username, // Update username in case it changed
         };
-        this.roomService.removeFromGracePeriod(userId, roomId);
+        this.roomService.removeFromGracePeriod(userIdString, roomIdString);
       } else {
         // Grace period expired, create new user
         user = {
-          id: userId,
+          id: userIdString,
           username,
           role: role || 'audience',
           isReady: (role || 'audience') === 'audience'
@@ -462,22 +479,21 @@ export class RoomLifecycleHandler {
     } else if (hasIntentionallyLeft) {
       // User has intentionally left this room - they need approval to rejoin
       // Remove them from the intentional leave list since they're trying to rejoin
-      this.roomService.removeFromIntentionallyLeft(userId);
+      this.roomService.removeFromIntentionallyLeft(userIdString);
 
       // Create new user that will need approval
       user = {
-        id: userId,
+        id: userIdString,
         username,
         role: role || 'audience',
         isReady: (role || 'audience') === 'audience'
       };
 
-      // Mark that this user intentionally left (for the approval logic below)
-      userIntentionallyLeft = true;
+      // Note: This user intentionally left and is trying to rejoin
     } else {
       // Create new user
       user = {
-        id: userId,
+        id: userIdString,
         username,
         role: role || 'audience',
         isReady: (role || 'audience') === 'audience'
@@ -485,74 +501,74 @@ export class RoomLifecycleHandler {
     }
 
     // Set up session
-    const session: UserSession = { roomId, userId };
+    const session: UserSession = { roomId: roomIdString, userId: userIdString };
     socket.data = session;
-    this.roomSessionManager.setRoomSession(roomId, socket.id, session);
+    this.roomSessionManager.setRoomSession(roomIdString, socket.id, session);
 
     // Remove old sessions for this user
-    this.roomSessionManager.removeOldSessionsForUser(userId, socket.id);
+    this.roomSessionManager.removeOldSessionsForUser(userIdString, socket.id);
 
     if (existingUser) {
       // User already exists in room, join them directly (e.g., page refresh)
-      socket.join(roomId);
+      socket.join(roomIdString);
 
       // Get or create the room namespace for proper isolation
-      const roomNamespace = this.getOrCreateRoomNamespace(roomId);
+      const roomNamespace = this.getOrCreateRoomNamespace(roomIdTyped);
       if (roomNamespace) {
         // Notify others in room about the rejoin
-        socket.to(roomId).emit('user_joined', { user });
+        socket.to(roomIdString).emit('user_joined', { user });
 
         // Auto-request synth parameters from existing synth users for the rejoining user
-        console.log(`🎛️ [EXISTING] About to call autoRequestSynthParamsForNewUser for existing user ${user.username} (${user.id}) in room ${roomId}`);
-        this.autoRequestSynthParamsForNewUser(socket, roomId, user.id);
-        this.autoRequestSynthParamsForNewUserNamespace(roomNamespace, roomId, user.id);
+        console.log(`🎛️ [EXISTING] About to call autoRequestSynthParamsForNewUser for existing user ${user.username} (${user.id}) in room ${roomIdTyped.toString()}`);
+        this.autoRequestSynthParamsForNewUser(socket, roomIdTyped, userIdTyped);
+        this.autoRequestSynthParamsForNewUserNamespace(roomNamespace, roomIdTyped, userIdTyped);
 
         socket.emit('room_joined', {
           room,
-          users: this.roomService.getRoomUsers(roomId),
-          pendingMembers: this.roomService.getPendingMembers(roomId),
+          users: this.roomService.getRoomUsers(roomIdString),
+          pendingMembers: this.roomService.getPendingMembers(roomIdString),
         });
 
         // Send updated room state to all users to ensure UI consistency
         const updatedRoomData = {
           room: {
             ...room,
-            users: this.roomService.getRoomUsers(roomId),
-            pendingMembers: this.roomService.getPendingMembers(roomId)
+            users: this.roomService.getRoomUsers(roomIdString),
+            pendingMembers: this.roomService.getPendingMembers(roomIdString)
           }
         };
         roomNamespace.emit('room_state_updated', updatedRoomData);
       }
     } else if (isInGracePeriod) {
       // User is in grace period (disconnected, not intentionally left), restore them to the room
-      this.roomService.addUserToRoom(roomId, user);
-      this.roomService.removeFromGracePeriod(userId);
+      this.roomService.addUserToRoom(roomIdString, user);
+      this.roomService.removeFromGracePeriod(userIdString);
 
-      socket.join(roomId);
+      socket.join(roomIdString);
 
       // Get or create the room namespace for proper isolation
-      const roomNamespace = this.getOrCreateRoomNamespace(roomId);
+      const roomNamespace = this.getOrCreateRoomNamespace(roomIdTyped);
       if (roomNamespace) {
         // Notify others in room about the rejoin
-        socket.to(roomId).emit('user_joined', { user });
+        socket.to(roomIdString).emit('user_joined', { user });
 
         // Auto-request synth parameters from existing synth users for the grace period user
-        console.log(`🎛️ [GRACE] About to call autoRequestSynthParamsForNewUser for grace period user ${user.username} (${user.id}) in room ${roomId}`);
-        this.autoRequestSynthParamsForNewUser(socket, roomId, user.id);
-        this.autoRequestSynthParamsForNewUserNamespace(roomNamespace, roomId, user.id);
+        console.log(`🎛️ [GRACE] About to call autoRequestSynthParamsForNewUser for grace period user ${user.username} (${user.id}) in room ${roomIdTyped.toString()}`);
+        this.autoRequestSynthParamsForNewUser(socket, roomIdTyped, userIdTyped);
+        this.autoRequestSynthParamsForNewUserNamespace(roomNamespace, roomIdTyped, userIdTyped);
 
         socket.emit('room_joined', {
           room,
-          users: this.roomService.getRoomUsers(roomId),
-          pendingMembers: this.roomService.getPendingMembers(roomId)
+          users: this.roomService.getRoomUsers(roomIdString),
+          pendingMembers: this.roomService.getPendingMembers(roomIdString)
         });
 
         // Send updated room state to all users to ensure UI consistency
         const updatedRoomData = {
           room: {
             ...room,
-            users: this.roomService.getRoomUsers(roomId),
-            pendingMembers: this.roomService.getPendingMembers(roomId)
+            users: this.roomService.getRoomUsers(roomIdString),
+            pendingMembers: this.roomService.getPendingMembers(roomIdString)
           }
         };
         roomNamespace.emit('room_state_updated', updatedRoomData);
@@ -560,25 +576,45 @@ export class RoomLifecycleHandler {
     } else if (role === 'band_member' && room.isPrivate) {
       // Requesting to join as band member in a private room - redirect to approval namespace
       socket.emit('redirect_to_approval', {
-        roomId,
+        roomId: roomIdTyped.toString(),
         message: 'Private room requires approval. Please connect to approval namespace.',
-        approvalNamespace: `/approval/${roomId}`
+        approvalNamespace: `/approval/${roomIdTyped.toString()}`
       });
     } else {
       // New audience member or band member in public room - join directly
-      this.roomService.addUserToRoom(roomId, user);
+      this.roomService.addUserToRoom(roomIdString, user);
 
-      socket.join(roomId);
+      // Publish domain events for user joining
+      if (this.eventBus) {
+        const memberJoinedEvent = new MemberJoined(
+          roomIdString,
+          userIdString,
+          user.username,
+          user.role
+        );
+        await this.eventBus.publish(memberJoinedEvent);
+
+        // Also publish UserJoinedRoom event to start onboarding coordination
+        const userJoinedRoomEvent = new UserJoinedRoom(
+          roomIdString,
+          userIdString,
+          user.username,
+          user.role
+        );
+        await this.eventBus.publish(userJoinedRoomEvent);
+      }
+
+      socket.join(roomIdString);
 
       console.log('🏠 User joining room:', {
         socketId: socket.id,
-        roomId,
+        roomId: roomIdTyped.toString(),
         userId: user.id,
         username: user.username
       });
 
       // Get or create the room namespace for proper isolation
-      const roomNamespace = this.getOrCreateRoomNamespace(roomId);
+      const roomNamespace = this.getOrCreateRoomNamespace(roomIdTyped);
       if (roomNamespace) {
         console.log('📡 Room namespace ready:', {
           namespaceName: roomNamespace.name,
@@ -586,32 +622,32 @@ export class RoomLifecycleHandler {
         });
 
         // Notify others in room
-        socket.to(roomId).emit('user_joined', { user });
+        socket.to(roomIdString).emit('user_joined', { user });
 
         // Auto-request synth parameters from existing synth users for the new user
-        console.log(`🎛️ [MAIN] About to call autoRequestSynthParamsForNewUser for user ${user.username} (${user.id}) in room ${roomId}`);
-        this.autoRequestSynthParamsForNewUser(socket, roomId, user.id);
+        console.log(`🎛️ [MAIN] About to call autoRequestSynthParamsForNewUser for user ${user.username} (${user.id}) in room ${roomIdTyped.toString()}`);
+        this.autoRequestSynthParamsForNewUser(socket, roomIdTyped, userIdTyped);
         
         // Also request via namespace for better reliability
-        this.autoRequestSynthParamsForNewUserNamespace(roomNamespace, roomId, user.id);
+        this.autoRequestSynthParamsForNewUserNamespace(roomNamespace, roomIdTyped, userIdTyped);
 
         socket.emit('room_joined', {
           room,
-          users: this.roomService.getRoomUsers(roomId),
-          pendingMembers: this.roomService.getPendingMembers(roomId)
+          users: this.roomService.getRoomUsers(roomIdString),
+          pendingMembers: this.roomService.getPendingMembers(roomIdString)
         });
 
         // Send updated room state to all users to ensure UI consistency
         const updatedRoomData = {
           room: {
             ...room,
-            users: this.roomService.getRoomUsers(roomId),
-            pendingMembers: this.roomService.getPendingMembers(roomId)
+            users: this.roomService.getRoomUsers(roomIdString),
+            pendingMembers: this.roomService.getPendingMembers(roomIdString)
           }
         };
         roomNamespace.emit('room_state_updated', updatedRoomData);
       } else {
-        console.error('❌ Failed to create room namespace for roomId:', roomId);
+        console.error('❌ Failed to create room namespace for roomId:', roomIdTyped.toString());
       }
     }
   }
@@ -723,7 +759,13 @@ export class RoomLifecycleHandler {
       return;
     }
 
-    const room = this.roomService.getRoom(roomId);
+    // Convert to strongly-typed IDs for internal processing
+    const roomIdTyped = this.ensureRoomId(roomId);
+    const userIdTyped = this.ensureUserId(userId);
+    const roomIdString = this.roomIdToString(roomIdTyped);
+    const userIdString = this.userIdToString(userIdTyped);
+
+    const room = this.roomService.getRoom(roomIdString);
     if (!room) {
       res.status(404).json({
         success: false,
@@ -732,7 +774,7 @@ export class RoomLifecycleHandler {
       return;
     }
 
-    const user = this.roomService.findUserInRoom(roomId, userId);
+    const user = this.roomService.findUserInRoom(roomIdString, userIdString);
     if (!user) {
       res.status(404).json({
         success: false,
@@ -742,7 +784,7 @@ export class RoomLifecycleHandler {
     }
 
     // Remove user from room with intentional leave flag
-    const removedUser = this.roomService.removeUserFromRoom(roomId, userId, true);
+    const removedUser = this.roomService.removeUserFromRoom(roomIdString, userIdString, true);
 
     if (!removedUser) {
       res.status(500).json({
@@ -754,25 +796,25 @@ export class RoomLifecycleHandler {
 
     // Handle room owner leaving
     if (user.role === 'room_owner') {
-      this.handleImmediateOwnershipTransfer(roomId, user, user);
+      this.handleImmediateOwnershipTransfer(roomIdTyped, user, user);
     } else {
       // Check if room should be closed after regular user leaves
-      if (this.roomService.shouldCloseRoom(roomId)) {
+      if (this.roomService.shouldCloseRoom(roomIdString)) {
         // Get or create the room namespace for proper isolation
-        const roomNamespace = this.getOrCreateRoomNamespace(roomId);
+        const roomNamespace = this.getOrCreateRoomNamespace(roomIdTyped);
         if (roomNamespace) {
           roomNamespace.emit('room_closed', { message: 'Room is empty and has been closed' });
         }
-        this.metronomeService.cleanupRoom(roomId);
-        this.namespaceManager.cleanupRoomNamespace(roomId);
-        this.namespaceManager.cleanupApprovalNamespace(roomId);
-        this.roomService.deleteRoom(roomId);
+        this.metronomeService.cleanupRoom(roomIdString);
+        this.namespaceManager.cleanupRoomNamespace(roomIdString);
+        this.namespaceManager.cleanupApprovalNamespace(roomIdString);
+        this.roomService.deleteRoom(roomIdString);
 
         // Broadcast to all clients that the room was closed (via main namespace)
-        this.io.emit('room_closed_broadcast', { roomId });
+        this.io.emit('room_closed_broadcast', { roomId: roomIdTyped.toString() });
       } else {
         // Get or create the room namespace for proper isolation
-        const roomNamespace = this.getOrCreateRoomNamespace(roomId);
+        const roomNamespace = this.getOrCreateRoomNamespace(roomIdTyped);
         if (roomNamespace) {
           // Notify others about user leaving
           roomNamespace.emit('user_left', { user });
@@ -781,8 +823,8 @@ export class RoomLifecycleHandler {
           const updatedRoomData = {
             room: {
               ...room,
-              users: this.roomService.getRoomUsers(roomId),
-              pendingMembers: this.roomService.getPendingMembers(roomId)
+              users: this.roomService.getRoomUsers(roomIdString),
+              pendingMembers: this.roomService.getPendingMembers(roomIdString)
             }
           };
           roomNamespace.emit('room_state_updated', updatedRoomData);
@@ -793,7 +835,7 @@ export class RoomLifecycleHandler {
     res.json({
       success: true,
       message: 'Successfully left room',
-      roomClosed: this.roomService.shouldCloseRoom(roomId)
+      roomClosed: this.roomService.shouldCloseRoom(roomIdString)
     });
   }
 }

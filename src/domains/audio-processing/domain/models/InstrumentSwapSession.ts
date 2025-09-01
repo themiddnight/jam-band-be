@@ -192,8 +192,53 @@ export interface UserAudioState {
   instrument: string;
   category: string;
   synthParams?: Record<string, any>;
-  effectChain?: any[]; // Will be properly typed when effect system is implemented
-  audioRouting?: any;  // Will be properly typed when routing system is implemented
+  effectChain?: EffectChainSnapshot;
+  audioRouting?: AudioRoutingSnapshot;
+  mixerSettings?: MixerChannelSnapshot;
+  timestamp: Date;
+}
+
+// Snapshots for audio state preservation during swaps
+export interface EffectChainSnapshot {
+  effects: EffectSnapshot[];
+  totalLatency: number;
+}
+
+export interface EffectSnapshot {
+  id: string;
+  type: string;
+  parameters: Record<string, any>;
+  isEnabled: boolean;
+}
+
+export interface AudioRoutingSnapshot {
+  input: {
+    type: string;
+    deviceId?: string;
+    channelCount: number;
+  };
+  output: {
+    type: string;
+    deviceId?: string;
+    channelCount: number;
+  };
+  gain: number;
+  isMuted: boolean;
+}
+
+export interface MixerChannelSnapshot {
+  level: number;
+  isMuted: boolean;
+  isSoloed: boolean;
+  panPosition: number;
+  eqSettings: {
+    lowGain: number;
+    midGain: number;
+    highGain: number;
+    lowFreq: number;
+    midFreq: number;
+    highFreq: number;
+  };
 }
 
 // Domain Events

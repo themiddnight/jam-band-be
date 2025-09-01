@@ -9,7 +9,7 @@
  * Requirements: 10.2, 10.3
  */
 
-import { describe, it, expect, beforeEach, jest } from 'bun:test';
+import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { Server } from 'socket.io';
 import { MeshWebRTCStrategy } from '../infrastructure/strategies/MeshWebRTCStrategy';
 import { StreamingStrategy } from '../infrastructure/strategies/StreamingStrategy';

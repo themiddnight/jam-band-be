@@ -41,20 +41,20 @@ describe('Complete Room and Onboarding Workflow Integration', () => {
     const userReadyEvents: UserReadyForPlayback[] = [];
 
     // Subscribe to events to track the workflow
-    eventBus.subscribe(MemberJoined, (event) => {
+    eventBus.subscribe('MemberJoined', (event) => {
       memberJoinedEvents.push(event);
     });
 
-    eventBus.subscribe(UserJoinedRoom, (event) => {
+    eventBus.subscribe('UserJoinedRoom', (event) => {
       userJoinedRoomEvents.push(event);
     });
 
-    eventBus.subscribe(UserReadyForPlayback, (event) => {
+    eventBus.subscribe('UserReadyForPlayback', (event) => {
       userReadyEvents.push(event);
     });
 
     // Setup automatic onboarding trigger when members join
-    eventBus.subscribe(MemberJoined, async (event) => {
+    eventBus.subscribe('MemberJoined', async (event) => {
       // Simulate triggering user onboarding when member joins room
       await eventBus.publish(new UserJoinedRoom(
         event.aggregateId,
@@ -116,12 +116,12 @@ describe('Complete Room and Onboarding Workflow Integration', () => {
       ownershipTransferredEvents.push(event);
     });
 
-    eventBus.subscribe(UserReadyForPlayback, (event) => {
+    eventBus.subscribe('UserReadyForPlayback', (event) => {
       userReadyEvents.push(event);
     });
 
     // Auto-trigger onboarding for new members
-    eventBus.subscribe(MemberJoined, async (event) => {
+    eventBus.subscribe('MemberJoined', async (event) => {
       await eventBus.publish(new UserJoinedRoom(
         event.aggregateId,
         event.userId,
@@ -163,35 +163,35 @@ describe('Complete Room and Onboarding Workflow Integration', () => {
     const coordinationLog: string[] = [];
 
     // Simulate different bounded contexts responding to events
-    eventBus.subscribe(MemberJoined, async (event) => {
+    eventBus.subscribe('MemberJoined', async (event) => {
       coordinationLog.push(`RoomManagement: Member ${event.username} joined room ${event.aggregateId}`);
     });
 
-    eventBus.subscribe(UserJoinedRoom, async (event) => {
+    eventBus.subscribe('UserJoinedRoom', async (event) => {
       coordinationLog.push(`OnboardingCoordinator: Starting onboarding for ${event.username}`);
     });
 
     // Import the specific event classes
     const { UserInstrumentsReady, UserAudioRoutingReady, UserVoiceConnectionReady } = require('../../../../shared/domain/events/UserOnboardingEvents');
 
-    eventBus.subscribe(UserInstrumentsReady, async (event: any) => {
+    eventBus.subscribe('UserInstrumentsReady', async (event: any) => {
       coordinationLog.push(`AudioProcessing: Instruments ready for user ${event.userId}`);
     });
 
-    eventBus.subscribe(UserAudioRoutingReady, async (event: any) => {
+    eventBus.subscribe('UserAudioRoutingReady', async (event: any) => {
       coordinationLog.push(`AudioProcessing: Audio routing ready for user ${event.userId}`);
     });
 
-    eventBus.subscribe(UserVoiceConnectionReady, async (event: any) => {
+    eventBus.subscribe('UserVoiceConnectionReady', async (event: any) => {
       coordinationLog.push(`RealTimeCommunication: Voice connection ready for user ${event.userId}`);
     });
 
-    eventBus.subscribe(UserReadyForPlayback, async (event) => {
+    eventBus.subscribe('UserReadyForPlayback', async (event) => {
       coordinationLog.push(`SyncService: User ${event.userId} is ready for playback`);
     });
 
     // Auto-trigger onboarding
-    eventBus.subscribe(MemberJoined, async (event) => {
+    eventBus.subscribe('MemberJoined', async (event) => {
       await eventBus.publish(new UserJoinedRoom(
         event.aggregateId,
         event.userId,

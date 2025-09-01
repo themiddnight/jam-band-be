@@ -1,7 +1,9 @@
 import { Namespace, Socket } from 'socket.io';
 import { RoomHandlers } from './RoomHandlers';
-import { VoiceConnectionHandler } from './VoiceConnectionHandler';
-import { ApprovalWorkflowHandler } from './ApprovalWorkflowHandler';
+import { VoiceConnectionHandler, ChatHandler } from '../domains/real-time-communication/infrastructure/handlers';
+import { ApprovalWorkflowHandler } from '../domains/user-management/infrastructure/handlers/ApprovalWorkflowHandler';
+import { AudioRoutingHandler, NotePlayingHandler } from '../domains/audio-processing/infrastructure/handlers';
+import { MetronomeHandler } from '../domains/room-management/infrastructure/handlers';
 import { RoomSessionManager } from '../services/RoomSessionManager';
 import { PerformanceMonitoringService } from '../services/PerformanceMonitoringService';
 import { ConnectionHealthService } from '../services/ConnectionHealthService';
@@ -38,7 +40,11 @@ export class NamespaceEventHandlers {
     private roomHandlers: RoomHandlers,
     private voiceConnectionHandler: VoiceConnectionHandler,
     private approvalWorkflowHandler: ApprovalWorkflowHandler,
-    private roomSessionManager: RoomSessionManager
+    private roomSessionManager: RoomSessionManager,
+    private audioRoutingHandler: AudioRoutingHandler,
+    private chatHandler: ChatHandler,
+    private metronomeHandler: MetronomeHandler,
+    private notePlayingHandler: NotePlayingHandler
   ) {
     this.errorRecoveryService = new BackendErrorRecoveryService();
   }
@@ -310,7 +316,7 @@ export class NamespaceEventHandlers {
     socket.on('join_room', (data) => {
       secureSocketEvent('join_room', joinRoomSchema, 
         this.trackRoomEvent(roomId, 'join_room', 
-          (socket, data) => this.roomHandlers.handleJoinRoomNamespace(socket, data, namespace)
+          (socket, data) => this.roomHandlers.handleJoinRoomNamespace(socket, data)
         )
       )(socket, data);
     });
@@ -346,7 +352,7 @@ export class NamespaceEventHandlers {
       }
       
       console.log('✅ Calling handlePlayNoteNamespace');
-      this.roomHandlers.handlePlayNoteNamespace(socket, data, namespace);
+      this.notePlayingHandler.handlePlayNoteNamespace(socket, data, namespace);
     });
     
     socket.on('change_instrument', (data) => {
@@ -358,7 +364,7 @@ export class NamespaceEventHandlers {
         });
         return;
       }
-      this.roomHandlers.handleChangeInstrumentNamespace(socket, data, namespace);
+      this.notePlayingHandler.handleChangeInstrumentNamespace(socket, data, namespace);
     });
     
     socket.on('stop_all_notes', (data) => {
@@ -370,7 +376,7 @@ export class NamespaceEventHandlers {
         });
         return;
       }
-      this.roomHandlers.handleStopAllNotesNamespace(socket, data, namespace);
+      this.notePlayingHandler.handleStopAllNotesNamespace(socket, data, namespace);
     });
     
     socket.on('update_synth_params', (data) => {
@@ -391,12 +397,12 @@ export class NamespaceEventHandlers {
       }
       
       console.log('✅ Calling handleUpdateSynthParamsNamespace');
-      this.roomHandlers.handleUpdateSynthParamsNamespace(socket, data, namespace);
+      this.audioRoutingHandler.handleUpdateSynthParamsNamespace(socket, data, namespace);
     });
     
     socket.on('request_synth_params', () => {
       secureSocketEvent('request_synth_params', undefined, 
-        () => this.roomHandlers.handleRequestSynthParamsNamespace(socket, namespace))(socket, undefined);
+        () => this.audioRoutingHandler.handleRequestSynthParamsNamespace(socket, namespace))(socket, undefined);
     });
 
     socket.on('auto_send_synth_params_to_new_user', (data) => {
@@ -407,19 +413,9 @@ export class NamespaceEventHandlers {
       });
       
       secureSocketEvent('auto_send_synth_params_to_new_user', undefined, 
-        () => this.roomHandlers.handleAutoSendSynthParamsToNewUserNamespace(socket, data, namespace))(socket, data);
+        () => this.audioRoutingHandler.autoRequestSynthParamsForNewUserNamespace(namespace, data.roomId || '', data.newUserId))(socket, data);
     });
 
-    socket.on('request_current_synth_params_for_new_user', (data) => {
-      console.log('🎛️ Namespace received request_current_synth_params_for_new_user event:', {
-        socketId: socket.id,
-        namespaceName: namespace.name,
-        data
-      });
-      
-      secureSocketEvent('request_current_synth_params_for_new_user', undefined, 
-        () => this.roomHandlers.handleRequestCurrentSynthParamsForNewUserNamespace(socket, data, namespace))(socket, data);
-    });
 
     // Ownership events
     socket.on('transfer_ownership', (data) => {
@@ -480,17 +476,17 @@ export class NamespaceEventHandlers {
     // Chat events - Requirements: 7.4
     socket.on('chat_message', (data) => {
       secureSocketEvent('chat_message', chatMessageSchema, 
-        (socket, data) => this.roomHandlers.handleChatMessageNamespace(socket, data, namespace))(socket, data);
+        (socket, data) => this.chatHandler.handleChatMessageNamespace(socket, data, namespace))(socket, data);
     });
 
     // Metronome events
     socket.on('update_metronome', (data) => {
       secureSocketEvent('update_metronome', updateMetronomeSchema, 
-        (socket, data) => this.roomHandlers.handleUpdateMetronomeNamespace(socket, data, namespace))(socket, data);
+        (socket, data) => this.metronomeHandler.handleUpdateMetronomeNamespace(socket, data, namespace))(socket, data);
     });
 
     socket.on('request_metronome_state', () => {
-      this.roomHandlers.handleRequestMetronomeStateNamespace(socket, namespace);
+      this.metronomeHandler.handleRequestMetronomeStateNamespace(socket, namespace);
     });
 
     // Ping measurement events for latency monitoring in rooms

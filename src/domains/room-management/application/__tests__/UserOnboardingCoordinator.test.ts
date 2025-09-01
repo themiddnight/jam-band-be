@@ -41,7 +41,7 @@ describe('UserOnboardingCoordinator', () => {
     it('should coordinate complete user onboarding workflow', async () => {
       const userReadyEvents: UserReadyForPlayback[] = [];
       
-      eventBus.subscribe(UserReadyForPlayback, (event) => {
+      eventBus.subscribe('UserReadyForPlayback', (event) => {
         userReadyEvents.push(event);
       });
 
@@ -102,7 +102,7 @@ describe('UserOnboardingCoordinator', () => {
       const user3Id = 'user3';
       const userReadyEvents: UserReadyForPlayback[] = [];
 
-      eventBus.subscribe(UserReadyForPlayback, (event) => {
+      eventBus.subscribe('UserReadyForPlayback', (event) => {
         userReadyEvents.push(event);
       });
 
@@ -155,7 +155,7 @@ describe('UserOnboardingCoordinator', () => {
       const failingInstrumentService = new MockInstrumentService(eventBus, true);
       
       const failureEvents: UserOnboardingFailed[] = [];
-      eventBus.subscribe(UserOnboardingFailed, (event) => {
+      eventBus.subscribe('UserOnboardingFailed', (event) => {
         failureEvents.push(event);
       });
 
@@ -179,7 +179,7 @@ describe('UserOnboardingCoordinator', () => {
       const failingAudioBusService = new MockAudioBusService(eventBus, true);
       
       const failureEvents: UserOnboardingFailed[] = [];
-      eventBus.subscribe(UserOnboardingFailed, (event) => {
+      eventBus.subscribe('UserOnboardingFailed', (event) => {
         failureEvents.push(event);
       });
 
@@ -195,7 +195,7 @@ describe('UserOnboardingCoordinator', () => {
       const failingVoiceService = new MockVoiceConnectionService(eventBus, true);
       
       const failureEvents: UserOnboardingFailed[] = [];
-      eventBus.subscribe(UserOnboardingFailed, (event) => {
+      eventBus.subscribe('UserOnboardingFailed', (event) => {
         failureEvents.push(event);
       });
 
@@ -216,7 +216,7 @@ describe('UserOnboardingCoordinator', () => {
       (shortTimeoutCoordinator as any).ONBOARDING_TIMEOUT_MS = 100;
 
       const timeoutEvents: UserOnboardingTimeout[] = [];
-      timeoutEventBus.subscribe(UserOnboardingTimeout, (event) => {
+      timeoutEventBus.subscribe('UserOnboardingTimeout', (event) => {
         timeoutEvents.push(event);
       });
 
@@ -243,7 +243,7 @@ describe('UserOnboardingCoordinator', () => {
       const instrumentService = new MockInstrumentService(partialEventBus, false, 50);
 
       const timeoutEvents: UserOnboardingTimeout[] = [];
-      partialEventBus.subscribe(UserOnboardingTimeout, (event) => {
+      partialEventBus.subscribe('UserOnboardingTimeout', (event) => {
         timeoutEvents.push(event);
       });
 
@@ -273,7 +273,7 @@ describe('UserOnboardingCoordinator', () => {
 
     it('should ignore events for already completed sessions', async () => {
       const userReadyEvents: UserReadyForPlayback[] = [];
-      eventBus.subscribe(UserReadyForPlayback, (event) => {
+      eventBus.subscribe('UserReadyForPlayback', (event) => {
         userReadyEvents.push(event);
       });
 

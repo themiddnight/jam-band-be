@@ -27,15 +27,15 @@ export class UserOnboardingCoordinator {
 
   private setupEventHandlers(): void {
     // Start onboarding when user joins room
-    this.eventBus.subscribe(UserJoinedRoom, this.handleUserJoinedRoom.bind(this));
+    this.eventBus.subscribe('UserJoinedRoom', this.handleUserJoinedRoom.bind(this));
     
     // Track component readiness
-    this.eventBus.subscribe(UserInstrumentsReady, this.handleUserInstrumentsReady.bind(this));
-    this.eventBus.subscribe(UserAudioRoutingReady, this.handleUserAudioRoutingReady.bind(this));
-    this.eventBus.subscribe(UserVoiceConnectionReady, this.handleUserVoiceConnectionReady.bind(this));
+    this.eventBus.subscribe('UserInstrumentsReady', this.handleUserInstrumentsReady.bind(this));
+    this.eventBus.subscribe('UserAudioRoutingReady', this.handleUserAudioRoutingReady.bind(this));
+    this.eventBus.subscribe('UserVoiceConnectionReady', this.handleUserVoiceConnectionReady.bind(this));
     
     // Handle failures
-    this.eventBus.subscribe(UserOnboardingFailed, this.handleUserOnboardingFailed.bind(this));
+    this.eventBus.subscribe('UserOnboardingFailed', this.handleUserOnboardingFailed.bind(this));
   }
 
   private async handleUserJoinedRoom(event: UserJoinedRoom): Promise<void> {

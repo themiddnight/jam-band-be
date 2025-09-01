@@ -16,7 +16,7 @@ import {
   AudioBuffer
 } from '../index';
 import { RoomSessionManager } from '../../../services/RoomSessionManager';
-import { VoiceConnectionHandler } from '../../../handlers/VoiceConnectionHandler';
+import { VoiceConnectionHandler } from '../infrastructure/handlers/VoiceConnectionHandler';
 
 /**
  * Enhanced Voice Connection Handler with Hybrid Communication

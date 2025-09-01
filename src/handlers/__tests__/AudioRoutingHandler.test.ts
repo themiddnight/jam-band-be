@@ -1,4 +1,4 @@
-import { AudioRoutingHandler } from '../AudioRoutingHandler';
+import { AudioRoutingHandler } from '../domains/audio-processing/infrastructure/handlers/AudioRoutingHandler';
 import { RoomService } from '../../services/RoomService';
 import { RoomSessionManager, NamespaceSession } from '../../services/RoomSessionManager';
 import { NamespaceManager } from '../../services/NamespaceManager';

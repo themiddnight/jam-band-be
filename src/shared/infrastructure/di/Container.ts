@@ -13,8 +13,8 @@ export interface ServiceDefinition<T = any> {
 }
 
 export class Container {
-  private services = new Map<string, ServiceDefinition>();
-  private instances = new Map<string, ServiceInstance>();
+  protected services = new Map<string, ServiceDefinition>();
+  protected instances = new Map<string, ServiceInstance>();
   private loading = new Set<string>();
 
   /**
@@ -47,21 +47,21 @@ export class Container {
    * Register a singleton service (default behavior)
    */
   singleton<T>(name: string, factory: ServiceFactory<T>, dependencies?: string[]): void {
-    this.register(name, factory, { singleton: true, dependencies });
+    this.register(name, factory, { singleton: true, ...(dependencies && { dependencies }) });
   }
 
   /**
    * Register a transient service (new instance each time)
    */
   transient<T>(name: string, factory: ServiceFactory<T>, dependencies?: string[]): void {
-    this.register(name, factory, { singleton: false, dependencies });
+    this.register(name, factory, { singleton: false, ...(dependencies && { dependencies }) });
   }
 
   /**
    * Register a lazy-loaded singleton service
    */
   lazy<T>(name: string, factory: ServiceFactory<T>, dependencies?: string[]): void {
-    this.register(name, factory, { singleton: true, lazy: true, dependencies });
+    this.register(name, factory, { singleton: true, lazy: true, ...(dependencies && { dependencies }) });
   }
 
   /**

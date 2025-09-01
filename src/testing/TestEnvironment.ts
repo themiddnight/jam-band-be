@@ -7,6 +7,11 @@ import { RoomHandlers } from '../handlers/RoomHandlers';
 import { MockSocket, MockSocketFactory } from './MockSocket';
 import { ParallelTestHarness } from './ParallelTestHarness';
 
+import { MetronomeService } from '../services/MetronomeService';
+import { ChatHandler } from '../domains/real-time-communication/infrastructure/handlers/ChatHandler';
+import { MetronomeHandler } from '../domains/room-management/infrastructure/handlers/MetronomeHandler';
+import { NotePlayingHandler } from '../domains/audio-processing/infrastructure/handlers/NotePlayingHandler';
+
 export interface TestEnvironmentConfig {
   enableHTTPS?: boolean;
   sslCertPath?: string;
@@ -20,14 +25,15 @@ export interface TestEnvironmentConfig {
  * Supports both HTTP and HTTPS configurations for WebRTC testing
  */
 export class TestEnvironment {
-  private server: any;
-  private io!: Server;
-  private roomService!: RoomService;
-  private namespaceManager!: NamespaceManager;
-  private roomSessionManager!: RoomSessionManager;
-  private roomHandlers!: RoomHandlers;
+  protected server: any;
+  protected io!: Server;
+  protected roomService!: RoomService;
+  protected namespaceManager!: NamespaceManager;
+  protected roomSessionManager!: RoomSessionManager;
+  protected roomHandlers!: RoomHandlers;
+  protected voiceConnectionHandler: any;
   private testHarness: ParallelTestHarness;
-  private config: TestEnvironmentConfig;
+  protected config: TestEnvironmentConfig;
 
   constructor(config: TestEnvironmentConfig = {}) {
     this.config = {
@@ -60,13 +66,33 @@ export class TestEnvironment {
     this.roomService = new RoomService(this.roomSessionManager);
     this.namespaceManager = new NamespaceManager(this.io);
     
+    // Import extracted handlers
+    const { RoomLifecycleHandler, RoomMembershipHandler } = require('../domains/room-management/infrastructure/handlers');
+    const { VoiceConnectionHandler } = require('../domains/real-time-communication/infrastructure/handlers');
+    const { AudioRoutingHandler } = require('../domains/audio-processing/infrastructure/handlers');
+    
+    // Initialize extracted handlers
+    const roomLifecycleHandler = new RoomLifecycleHandler(this.roomService, this.namespaceManager, this.roomSessionManager);
+    const voiceConnectionHandler = new VoiceConnectionHandler(this.roomService, this.io, this.namespaceManager, this.roomSessionManager);
+    const audioRoutingHandler = new AudioRoutingHandler(this.roomService, this.io, this.namespaceManager, this.roomSessionManager);
+    const roomMembershipHandler = new RoomMembershipHandler(this.roomService, this.namespaceManager, this.roomSessionManager);
+    
+    // Initialize services needed by RoomHandlers
+    const metronomeService = new MetronomeService(this.io, this.roomService);
+    const chatHandler = new ChatHandler(this.roomService, this.namespaceManager, this.roomSessionManager);
+    const metronomeHandler = new MetronomeHandler(this.roomService, metronomeService, this.roomSessionManager, this.namespaceManager);
+    const notePlayingHandler = new NotePlayingHandler(this.roomService, this.io, this.namespaceManager, this.roomSessionManager);
+    
     // Initialize handlers
     this.roomHandlers = new RoomHandlers(
       this.roomService,
-      this.io,
       this.namespaceManager,
-      this.roomSessionManager
+      this.roomSessionManager,
+      roomLifecycleHandler
     );
+    
+    // Store voice handler for WebRTC testing
+    this.voiceConnectionHandler = voiceConnectionHandler;
 
     // Start server on random port for testing
     await new Promise<void>((resolve, reject) => {
@@ -220,9 +246,9 @@ export class TestEnvironment {
       }
     };
 
-    // Simulate the WebRTC handshake
-    this.roomHandlers.handleVoiceOffer(socket1 as any, offerData);
-    this.roomHandlers.handleVoiceAnswer(socket2 as any, answerData);
+    // Simulate the WebRTC handshake using extracted voice handler
+    this.voiceConnectionHandler.handleVoiceOffer(socket1 as any, offerData);
+    this.voiceConnectionHandler.handleVoiceAnswer(socket2 as any, answerData);
 
     // Simulate ICE candidates
     const iceCandidateData = {
@@ -235,7 +261,7 @@ export class TestEnvironment {
       }
     };
 
-    this.roomHandlers.handleVoiceIceCandidate(socket1 as any, iceCandidateData);
+    this.voiceConnectionHandler.handleVoiceIceCandidate(socket1 as any, iceCandidateData);
   }
 
   /**

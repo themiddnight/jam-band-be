@@ -4,6 +4,13 @@
 
 import { container, serviceRegistry } from '../../../shared/infrastructure/di';
 import { RoomApplicationService } from '../application/RoomApplicationService';
+import { RoomRepository } from '../domain/repositories/RoomRepository';
+import { UserRepository } from '../domain/repositories/UserRepository';
+import { EventBus } from '../../../shared/domain/events/EventBus';
+import { RoomService } from '../../../services/RoomService';
+import { Server } from 'socket.io';
+import { NamespaceManager } from '../../../services/NamespaceManager';
+import { RoomSessionManager } from '../../../services/RoomSessionManager';
 
 /**
  * Configure all services for the Room Management context
@@ -24,25 +31,32 @@ export function configureRoomServices(): void {
 
   // Application services
   container.singleton('roomApplicationService', async () => {
-    const roomRepository = await container.get('roomRepository');
-    const userRepository = await container.get('userRepository');
-    const eventBus = await container.get('eventBus'); // Shared event bus
+    const roomRepository = await container.get('roomRepository') as RoomRepository;
+    const userRepository = await container.get('userRepository') as UserRepository;
+    const eventBus = await container.get('eventBus') as EventBus;
     
     return new RoomApplicationService(roomRepository, userRepository, eventBus);
   }, ['roomRepository', 'userRepository', 'eventBus']);
 
   // Handlers (lazy loaded)
   container.lazy('roomLifecycleHandler', async () => {
-    const { RoomLifecycleHandler } = await import('../../../handlers/RoomLifecycleHandler');
-    const applicationService = await container.get('roomApplicationService');
-    return new RoomLifecycleHandler(applicationService);
-  }, ['roomApplicationService']);
+    const { RoomLifecycleHandler } = await import('./handlers/RoomLifecycleHandler');
+    const roomService = await container.get('roomService') as RoomService;
+    const io = await container.get('io') as Server;
+    const namespaceManager = await container.get('namespaceManager') as NamespaceManager;
+    const roomSessionManager = await container.get('roomSessionManager') as RoomSessionManager;
+    const eventBus = await container.get('eventBus') as EventBus;
+    return new RoomLifecycleHandler(roomService, io, namespaceManager, roomSessionManager, undefined, eventBus);
+  }, ['roomService', 'io', 'namespaceManager', 'roomSessionManager', 'eventBus']);
 
   container.lazy('roomMembershipHandler', async () => {
-    const { RoomMembershipHandler } = await import('../../../handlers/RoomMembershipHandler');
-    const applicationService = await container.get('roomApplicationService');
-    return new RoomMembershipHandler(applicationService);
-  }, ['roomApplicationService']);
+    const { RoomMembershipHandler } = await import('./handlers/RoomMembershipHandler');
+    const roomService = await container.get('roomService') as RoomService;
+    const io = await container.get('io') as Server;
+    const namespaceManager = await container.get('namespaceManager') as NamespaceManager;
+    const roomSessionManager = await container.get('roomSessionManager') as RoomSessionManager;
+    return new RoomMembershipHandler(roomService, io, namespaceManager, roomSessionManager);
+  }, ['roomService', 'io', 'namespaceManager', 'roomSessionManager']);
 
   // Register context with service registry
   serviceRegistry.registerContext('room-management', {

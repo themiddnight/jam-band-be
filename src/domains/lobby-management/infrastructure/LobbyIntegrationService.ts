@@ -5,6 +5,7 @@ import { RoomServiceRoomListingRepository } from './repositories/RoomServiceRoom
 import { CachedRoomListingRepository } from './repositories/CachedRoomListingRepository';
 import { LobbyNamespaceHandlers } from './handlers/LobbyNamespaceHandlers';
 import { LobbyEventHandlers } from './handlers/LobbyEventHandlers';
+import { RealTimeRoomStatusHandler } from './handlers/RealTimeRoomStatusHandler';
 import { EventBus } from '../../../shared/domain/events/EventBus';
 import { RoomService } from '../../../services/RoomService';
 
@@ -20,6 +21,7 @@ export class LobbyIntegrationService {
   private lobbyApplicationService: LobbyApplicationService;
   private lobbyNamespaceHandlers: LobbyNamespaceHandlers;
   private lobbyEventHandlers: LobbyEventHandlers;
+  private realTimeStatusHandler: RealTimeRoomStatusHandler;
   private roomDiscoveryService: RoomDiscoveryService;
   private roomListingRepository: CachedRoomListingRepository;
 
@@ -45,6 +47,7 @@ export class LobbyIntegrationService {
     // Initialize handlers
     this.lobbyNamespaceHandlers = new LobbyNamespaceHandlers(this.lobbyApplicationService);
     this.lobbyEventHandlers = new LobbyEventHandlers(this.eventBus, this);
+    this.realTimeStatusHandler = new RealTimeRoomStatusHandler(this.eventBus, this);
   }
 
   /**
@@ -79,6 +82,13 @@ export class LobbyIntegrationService {
    */
   getLobbyEventHandlers(): LobbyEventHandlers {
     return this.lobbyEventHandlers;
+  }
+
+  /**
+   * Gets the real-time status handler for external use
+   */
+  getRealTimeStatusHandler(): RealTimeRoomStatusHandler {
+    return this.realTimeStatusHandler;
   }
 
   /**
@@ -121,5 +131,7 @@ export class LobbyIntegrationService {
    */
   shutdown(): void {
     this.roomListingRepository.shutdown();
+    this.lobbyEventHandlers.shutdown();
+    this.realTimeStatusHandler.shutdown();
   }
 }

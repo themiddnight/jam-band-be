@@ -4,6 +4,7 @@
 
 import { Container } from './Container';
 import { performanceMetrics } from '../monitoring/PerformanceMetrics';
+import { getHighResolutionTime, calculateProcessingTime } from '../../utils/timing';
 
 export interface BoundedContextServices {
   applicationServices: string[];
@@ -46,7 +47,7 @@ export class ServiceRegistry {
    * Initialize all services for a context (lazy loading)
    */
   async initializeContext(contextName: string): Promise<void> {
-    const startTime = Bun.nanoseconds();
+    const startTime = getHighResolutionTime();
     
     try {
       const services = this.contextServices.get(contextName);
@@ -68,7 +69,7 @@ export class ServiceRegistry {
         }
       }
 
-      const duration = (Bun.nanoseconds() - startTime) / 1_000_000;
+      const duration = calculateProcessingTime(startTime);
       
       performanceMetrics.recordDuration(
         'context.initialization',
@@ -78,7 +79,7 @@ export class ServiceRegistry {
       );
       
     } catch (error) {
-      const duration = (Bun.nanoseconds() - startTime) / 1_000_000;
+      const duration = calculateProcessingTime(startTime);
       
       performanceMetrics.recordDuration(
         'context.initialization',

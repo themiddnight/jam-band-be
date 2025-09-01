@@ -7,6 +7,7 @@ import { InMemoryEventBus } from '../domain/events/InMemoryEventBus';
 import { configureLobbyServices, initializeLobbyContext } from '../../domains/lobby-management/infrastructure/ServiceConfiguration';
 import { configureRoomServices, initializeRoomContext } from '../../domains/room-management/infrastructure/ServiceConfiguration';
 import { performanceMetrics } from './monitoring';
+import { getHighResolutionTime, calculateProcessingTime } from '../utils/timing';
 
 /**
  * Configure shared services used across all bounded contexts
@@ -50,7 +51,7 @@ export function configureAllServices(): void {
  * Initialize all contexts in optimal order
  */
 export async function initializeAllContexts(): Promise<void> {
-  const startTime = Bun.nanoseconds();
+  const startTime = getHighResolutionTime();
   
   try {
     // Initialize shared services first
@@ -69,7 +70,7 @@ export async function initializeAllContexts(): Promise<void> {
     // await initializeRealTimeCommunicationContext();
     // await initializeUserContext();
     
-    const duration = (Bun.nanoseconds() - startTime) / 1_000_000;
+    const duration = calculateProcessingTime(startTime);
     
     performanceMetrics.recordDuration(
       'application.initialization',
@@ -81,7 +82,7 @@ export async function initializeAllContexts(): Promise<void> {
     console.log(`✅ All contexts initialized successfully in ${duration.toFixed(2)}ms`);
     
   } catch (error) {
-    const duration = (Bun.nanoseconds() - startTime) / 1_000_000;
+    const duration = calculateProcessingTime(startTime);
     
     performanceMetrics.recordDuration(
       'application.initialization',
@@ -137,13 +138,13 @@ export function getServiceHealthReport(): {
  * Gracefully shutdown all services
  */
 export async function shutdownServices(): Promise<void> {
-  const startTime = Bun.nanoseconds();
+  const startTime = getHighResolutionTime();
   
   try {
     // Clear all service instances
     container.clearInstances();
     
-    const duration = (Bun.nanoseconds() - startTime) / 1_000_000;
+    const duration = calculateProcessingTime(startTime);
     
     performanceMetrics.recordDuration(
       'application.shutdown',
@@ -155,7 +156,7 @@ export async function shutdownServices(): Promise<void> {
     console.log(`✅ Services shutdown completed in ${duration.toFixed(2)}ms`);
     
   } catch (error) {
-    const duration = (Bun.nanoseconds() - startTime) / 1_000_000;
+    const duration = calculateProcessingTime(startTime);
     
     performanceMetrics.recordDuration(
       'application.shutdown',

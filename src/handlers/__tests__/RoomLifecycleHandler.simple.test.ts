@@ -1,4 +1,4 @@
-import { RoomLifecycleHandler } from '../RoomLifecycleHandler';
+import { RoomLifecycleHandler } from '../../domains/room-management/infrastructure/handlers/RoomLifecycleHandler';
 import { RoomService } from '../../services/RoomService';
 import { MetronomeService } from '../../services/MetronomeService';
 import { NamespaceManager } from '../../services/NamespaceManager';

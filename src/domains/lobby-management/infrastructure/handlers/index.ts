@@ -6,3 +6,4 @@
 
 export * from './LobbyNamespaceHandlers';
 export * from './LobbyEventHandlers';
+export * from './RealTimeRoomStatusHandler';

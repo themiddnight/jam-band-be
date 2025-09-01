@@ -3,6 +3,7 @@
  */
 
 import { performanceMetrics } from './PerformanceMetrics';
+import { getHighResolutionTime, calculateProcessingTime } from '../../utils/timing';
 
 export interface EventMetrics {
   eventType: string;
@@ -25,11 +26,11 @@ export class EventProcessingMonitor {
     handlerCount: number,
     processingFn: () => Promise<T>
   ): Promise<T> {
-    const startTime = Bun.nanoseconds();
+    const startTime = getHighResolutionTime();
 
     try {
       const result = await processingFn();
-      const processingTime = (Bun.nanoseconds() - startTime) / 1_000_000;
+      const processingTime = calculateProcessingTime(startTime);
 
       this.recordEventMetrics({
         eventType,
@@ -56,7 +57,7 @@ export class EventProcessingMonitor {
 
       return result;
     } catch (error) {
-      const processingTime = (Bun.nanoseconds() - startTime) / 1_000_000;
+      const processingTime = calculateProcessingTime(startTime);
 
       this.recordEventMetrics({
         eventType,
@@ -171,6 +172,8 @@ export class EventProcessingMonitor {
       this.eventMetrics = this.eventMetrics.slice(-this.maxEvents);
     }
   }
+
+
 }
 
 // Singleton instance

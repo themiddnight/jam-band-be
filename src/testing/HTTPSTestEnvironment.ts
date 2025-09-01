@@ -19,6 +19,7 @@ export interface HTTPSTestConfig extends TestEnvironmentConfig {
 export class HTTPSTestEnvironment extends TestEnvironment {
   private httpsConfig: HTTPSTestConfig;
   private sslOptions: { key: Buffer; cert: Buffer } | null = null;
+  private voiceConnectionHandler: any;
 
   constructor(config: HTTPSTestConfig) {
     super(config);
@@ -29,39 +30,44 @@ export class HTTPSTestEnvironment extends TestEnvironment {
    * Initialize HTTPS test environment with SSL certificates
    */
   async initialize(): Promise<void> {
-    // Load SSL certificates
-    await this.loadSSLCertificates();
+    try {
+      // Load SSL certificates
+      await this.loadSSLCertificates();
 
-    // Create HTTPS server instead of HTTP
-    if (this.sslOptions) {
-      this.server = createHTTPSServer(this.sslOptions);
-    } else {
-      throw new Error('SSL certificates not available for HTTPS test environment');
-    }
+      // Create HTTPS server instead of HTTP
+      if (this.sslOptions) {
+        this.server = createHTTPSServer(this.sslOptions);
+      } else {
+        throw new Error('SSL certificates not available for HTTPS test environment');
+      }
 
-    // Initialize Socket.IO with HTTPS server
-    this.io = new Server(this.server, {
-      cors: {
-        origin: "*",
-        methods: ["GET", "POST"]
-      },
-      allowEIO3: true // Allow Engine.IO v3 for compatibility
-    });
-
-    // Initialize services (same as parent)
-    await this.initializeServices();
-
-    // Start HTTPS server
-    await new Promise<void>((resolve, reject) => {
-      this.server.listen(this.config.port, (err: any) => {
-        if (err) reject(err);
-        else resolve();
+      // Initialize Socket.IO with HTTPS server
+      this.io = new Server(this.server, {
+        cors: {
+          origin: "*",
+          methods: ["GET", "POST"]
+        },
+        allowEIO3: true // Allow Engine.IO v3 for compatibility
       });
-    });
 
-    if (this.config.enableLogging) {
-      console.log(`HTTPS test environment initialized on port ${this.server.address()?.port}`);
-      console.log(`SSL certificates loaded from: ${this.httpsConfig.sslCertPath}, ${this.httpsConfig.sslKeyPath}`);
+      // Initialize services (same as parent)
+      await this.initializeServices();
+
+      // Start HTTPS server
+      await new Promise<void>((resolve, reject) => {
+        this.server.listen(this.config.port, (err: any) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+
+      if (this.config.enableLogging) {
+        console.log(`HTTPS test environment initialized on port ${this.server.address()?.port}`);
+        console.log(`SSL certificates loaded from: ${this.httpsConfig.sslCertPath}, ${this.httpsConfig.sslKeyPath}`);
+      }
+    } catch (error) {
+      // If HTTPS initialization fails, throw a more descriptive error
+      throw new Error(`Failed to initialize HTTPS test environment: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -143,19 +149,50 @@ export class HTTPSTestEnvironment extends TestEnvironment {
     const { NamespaceManager } = require('../services/NamespaceManager');
     const { RoomSessionManager } = require('../services/RoomSessionManager');
     const { RoomHandlers } = require('../handlers/RoomHandlers');
+    
+    // Import extracted handlers
+    const { RoomLifecycleHandler, RoomMembershipHandler } = require('../domains/room-management/infrastructure/handlers');
+    const { VoiceConnectionHandler } = require('../domains/real-time-communication/infrastructure/handlers');
+    const { AudioRoutingHandler } = require('../domains/audio-processing/infrastructure/handlers');
+    
+    // Import services
+    const { MetronomeService } = require('../services/MetronomeService');
+    const { ChatHandler } = require('../domains/real-time-communication/infrastructure/handlers/ChatHandler');
+    const { MetronomeHandler } = require('../domains/room-management/infrastructure/handlers/MetronomeHandler');
+    const { NotePlayingHandler } = require('../domains/audio-processing/infrastructure/handlers/NotePlayingHandler');
 
     // Initialize services
     this.roomService = new RoomService();
     this.namespaceManager = new NamespaceManager(this.io);
     this.roomSessionManager = new RoomSessionManager();
     
-    // Initialize handlers
+    // Initialize extracted handlers
+    const roomLifecycleHandler = new RoomLifecycleHandler(this.roomService, this.namespaceManager, this.roomSessionManager);
+    const voiceConnectionHandler = new VoiceConnectionHandler(this.roomService, this.io, this.roomSessionManager);
+    const audioRoutingHandler = new AudioRoutingHandler(this.roomService, this.io, this.roomSessionManager, this.namespaceManager);
+    const roomMembershipHandler = new RoomMembershipHandler(this.roomService, this.io, this.namespaceManager, this.roomSessionManager);
+    
+    // Initialize services needed by RoomHandlers
+    const metronomeService = new MetronomeService(this.io, this.roomService);
+    const chatHandler = new ChatHandler(this.roomService, this.namespaceManager, this.roomSessionManager);
+    const metronomeHandler = new MetronomeHandler(this.roomService, metronomeService, this.roomSessionManager, this.namespaceManager);
+    const notePlayingHandler = new NotePlayingHandler(this.roomService, this.io, this.namespaceManager, this.roomSessionManager);
+    
+    // Initialize main handlers with dependencies
     this.roomHandlers = new RoomHandlers(
       this.roomService,
-      this.io,
       this.namespaceManager,
-      this.roomSessionManager
+      this.roomSessionManager,
+      roomLifecycleHandler,
+      audioRoutingHandler,
+      roomMembershipHandler,
+      chatHandler,
+      metronomeHandler,
+      notePlayingHandler
     );
+    
+    // Store voice handler for WebRTC testing
+    this.voiceConnectionHandler = voiceConnectionHandler;
   }
 
   /**
@@ -213,11 +250,11 @@ export class HTTPSTestEnvironment extends TestEnvironment {
       // Simulate SSL handshake delay (1-5ms)
       await new Promise(resolve => setTimeout(resolve, Math.random() * 4 + 1));
 
-      // Execute WebRTC handshake
-      this.roomHandlers.handleVoiceOffer(socket1, offerData);
+      // Execute WebRTC handshake using the extracted voice handler
+      this.voiceConnectionHandler.handleVoiceOffer(socket1, offerData);
       await new Promise(resolve => setTimeout(resolve, 1)); // Simulate network delay
       
-      this.roomHandlers.handleVoiceAnswer(socket2, answerData);
+      this.voiceConnectionHandler.handleVoiceAnswer(socket2, answerData);
       await new Promise(resolve => setTimeout(resolve, 1)); // Simulate network delay
 
       // Simulate ICE candidate exchange
@@ -231,7 +268,7 @@ export class HTTPSTestEnvironment extends TestEnvironment {
         }
       };
 
-      this.roomHandlers.handleVoiceIceCandidate(socket1, iceCandidateData);
+      this.voiceConnectionHandler.handleVoiceIceCandidate(socket1, iceCandidateData);
 
       const endTime = Date.now();
       const latency = endTime - startTime;

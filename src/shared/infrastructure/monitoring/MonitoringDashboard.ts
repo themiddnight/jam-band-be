@@ -229,10 +229,13 @@ export class MonitoringDashboard {
    */
   private groupMetricsByContext(metrics: MetricData[]): Record<string, MetricData[]> {
     return metrics.reduce((groups, metric) => {
-      if (!groups[metric.context]) {
-        groups[metric.context] = [];
+      const context = metric.context;
+      if (!context) return groups;
+      
+      if (!groups[context]) {
+        groups[context] = [];
       }
-      groups[metric.context].push(metric);
+      groups[context].push(metric);
       return groups;
     }, {} as Record<string, MetricData[]>);
   }
@@ -254,6 +257,7 @@ export class MonitoringDashboard {
 
     metrics.forEach(metric => {
       const operationName = metric.name.split('.')[0];
+      if (!operationName) return;
       
       if (!operations.has(operationName)) {
         operations.set(operationName, { durations: [], calls: 0, errors: 0 });

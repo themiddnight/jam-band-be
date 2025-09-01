@@ -1,4 +1,4 @@
-import { RoomMembershipHandler } from '../RoomMembershipHandler';
+import { RoomMembershipHandler } from '../domains/room-management/infrastructure/handlers/RoomMembershipHandler';
 
 describe('RoomMembershipHandler', () => {
   it('should create instance', () => {

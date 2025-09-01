@@ -24,9 +24,18 @@ import { createSocketServer } from './config/socket';
 import { createRoutes } from './routes';
 import { RoomService } from './services/RoomService';
 import { RoomHandlers } from './handlers/RoomHandlers';
-import { RoomLifecycleHandler } from './handlers/RoomLifecycleHandler';
-import { VoiceConnectionHandler } from './handlers/VoiceConnectionHandler';
-import { ApprovalWorkflowHandler } from './handlers/ApprovalWorkflowHandler';
+import { RoomLifecycleHandler, RoomMembershipHandler } from './domains/room-management/infrastructure/handlers';
+import { VoiceConnectionHandler } from './domains/real-time-communication/infrastructure/handlers/VoiceConnectionHandler';
+import { AudioRoutingHandler } from './domains/audio-processing/infrastructure/handlers';
+import { ApprovalWorkflowHandler } from './domains/user-management/infrastructure/handlers/ApprovalWorkflowHandler';
+
+// Repository and Domain Services
+import { RepositoryServiceFactory } from './domains/room-management/infrastructure/services/RepositoryServiceFactory';
+
+import { MetronomeService } from './services/MetronomeService';
+import { ChatHandler } from './domains/real-time-communication/infrastructure/handlers/ChatHandler';
+import { MetronomeHandler } from './domains/room-management/infrastructure/handlers/MetronomeHandler';
+import { NotePlayingHandler } from './domains/audio-processing/infrastructure/handlers/NotePlayingHandler';
 
 import { NamespaceManager } from './services/NamespaceManager';
 import { RoomSessionManager } from './services/RoomSessionManager';
@@ -36,6 +45,9 @@ import { ConnectionHealthService } from './services/ConnectionHealthService';
 import { NamespaceCleanupService } from './services/NamespaceCleanupService';
 import { ConnectionOptimizationService } from './services/ConnectionOptimizationService';
 import { loggingService } from './services/LoggingService';
+
+// Event System
+import { EventSystemInitializer } from './shared/infrastructure/events/EventSystemInitializer';
 
 const app = express();
 
@@ -81,21 +93,43 @@ const namespaceManager = new NamespaceManager(io);
 const roomSessionManager = new RoomSessionManager();
 const roomService = new RoomService(roomSessionManager);
 
+// Initialize event system
+const eventSystemInitializer = new EventSystemInitializer(io, namespaceManager);
+const eventBus = eventSystemInitializer.initialize();
+
+// Initialize repository services and bridge
+const repositoryFactory = RepositoryServiceFactory.getInstance();
+const roomApplicationService = repositoryFactory.getRoomApplicationService();
+const roomServiceBridge = repositoryFactory.getRoomServiceBridge(roomService);
+
+// Initialize repositories with existing data (async operation)
+repositoryFactory.initializeWithLegacyData(roomService).catch(error => {
+  console.error('Failed to initialize repositories with legacy data:', error);
+});
+
 // Initialize performance monitoring services
 const performanceMonitoring = PerformanceMonitoringService.getInstance(namespaceManager, roomSessionManager);
 const connectionHealth = ConnectionHealthService.getInstance(performanceMonitoring);
 const namespaceCleanup = NamespaceCleanupService.getInstance(namespaceManager, roomSessionManager, performanceMonitoring);
 const connectionOptimization = ConnectionOptimizationService.getInstance(io, performanceMonitoring);
 
-// Initialize room lifecycle handler
-const roomLifecycleHandler = new RoomLifecycleHandler(roomService, io, namespaceManager, roomSessionManager);
-
-// Initialize voice connection handler
+// Initialize other domain handlers
 const voiceConnectionHandler = new VoiceConnectionHandler(roomService, io, roomSessionManager);
+const audioRoutingHandler = new AudioRoutingHandler(roomService, io, roomSessionManager, namespaceManager);
+
+// Initialize room lifecycle handler with event bus
+const roomLifecycleHandler = new RoomLifecycleHandler(roomService, io, namespaceManager, roomSessionManager, audioRoutingHandler, eventBus);
+const roomMembershipHandler = new RoomMembershipHandler(roomService, io, namespaceManager, roomSessionManager);
 const approvalWorkflowHandler = new ApprovalWorkflowHandler(roomService, io, namespaceManager, roomSessionManager);
 
-const roomHandlers = new RoomHandlers(roomService, io, namespaceManager, roomSessionManager, roomLifecycleHandler, voiceConnectionHandler);
-const namespaceEventHandlers = new NamespaceEventHandlers(roomHandlers, voiceConnectionHandler, approvalWorkflowHandler, roomSessionManager);
+// Initialize services needed by RoomHandlers
+const metronomeService = new MetronomeService(io, roomService);
+const chatHandler = new ChatHandler(roomService, namespaceManager, roomSessionManager);
+const metronomeHandler = new MetronomeHandler(roomService, metronomeService, roomSessionManager, namespaceManager);
+const notePlayingHandler = new NotePlayingHandler(roomService, io, namespaceManager, roomSessionManager);
+
+const roomHandlers = new RoomHandlers(roomService, roomSessionManager, roomLifecycleHandler, roomMembershipHandler, approvalWorkflowHandler, roomApplicationService);
+const namespaceEventHandlers = new NamespaceEventHandlers(roomHandlers, voiceConnectionHandler, approvalWorkflowHandler, roomSessionManager, audioRoutingHandler, chatHandler, metronomeHandler, notePlayingHandler);
 
 // Set up namespace event handlers
 namespaceManager.setEventHandlers(namespaceEventHandlers);
@@ -243,6 +277,9 @@ const gracefulShutdown = (signal: string) => {
 
     // Cleanup approval session manager
     approvalWorkflowHandler.getApprovalSessionManager().cleanup();
+
+    // Cleanup event system
+    eventSystemInitializer.cleanup();
 
     loggingService.logInfo('Graceful shutdown complete');
     process.exit(0);

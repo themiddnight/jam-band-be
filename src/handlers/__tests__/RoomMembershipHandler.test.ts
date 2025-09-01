@@ -1,4 +1,4 @@
-import { RoomMembershipHandler } from '../RoomMembershipHandler';
+import { RoomMembershipHandler } from '../domains/room-management/infrastructure/handlers/RoomMembershipHandler';
 import { RoomService } from '../../services/RoomService';
 import { NamespaceManager } from '../../services/NamespaceManager';
 import { RoomSessionManager, NamespaceSession } from '../../services/RoomSessionManager';

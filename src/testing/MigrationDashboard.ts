@@ -245,10 +245,15 @@ export class MigrationDashboard extends EventEmitter {
     const rollbackStatus = this.evaluateRollbackConditions();
     
     if (rollbackStatus.canRollback && rollbackStatus.criticalIssues > 0) {
-      this.emit('rollbackTriggered', rollbackStatus);
+      // Use setTimeout to avoid blocking the main thread
+      setTimeout(() => {
+        this.emit('rollbackTriggered', rollbackStatus);
+      }, 0);
       
       if (this.config.rollbackThresholds.criticalFailures <= rollbackStatus.criticalIssues) {
-        this.triggerAutomaticRollback(rollbackStatus.reason || 'Critical failure threshold exceeded');
+        setTimeout(() => {
+          this.triggerAutomaticRollback(rollbackStatus.reason || 'Critical failure threshold exceeded');
+        }, 0);
       }
     }
   }
@@ -266,12 +271,17 @@ export class MigrationDashboard extends EventEmitter {
       a => a.regressionPercentage > this.config.rollbackThresholds.performanceRegressionPercent
     ).length;
 
-    const criticalIssues = criticalAlerts + functionalFailures + performanceRegressions;
+    // Also count errors as critical issues for rollback evaluation
+    const errorCount = this.migrationStatus.errors.length;
+    const criticalIssues = criticalAlerts + functionalFailures + performanceRegressions + errorCount;
 
     let canRollback = false;
     let reason: string | undefined;
 
-    if (criticalAlerts >= this.config.rollbackThresholds.criticalFailures) {
+    if (errorCount >= this.config.rollbackThresholds.criticalFailures) {
+      canRollback = true;
+      reason = `Critical errors threshold exceeded (${errorCount}/${this.config.rollbackThresholds.criticalFailures})`;
+    } else if (criticalAlerts >= this.config.rollbackThresholds.criticalFailures) {
       canRollback = true;
       reason = `Critical alerts threshold exceeded (${criticalAlerts}/${this.config.rollbackThresholds.criticalFailures})`;
     } else if (functionalFailures >= this.config.rollbackThresholds.functionalFailures) {

@@ -7,7 +7,7 @@
  * Requirements: 8.1, 8.4
  */
 
-import { VoiceConnectionHandler } from '../VoiceConnectionHandler';
+import { VoiceConnectionHandler } from '../domains/real-time-communication/infrastructure/handlers/VoiceConnectionHandler';
 import { RoomService } from '../../services/RoomService';
 import { RoomSessionManager } from '../../services/RoomSessionManager';
 import { Server } from 'socket.io';

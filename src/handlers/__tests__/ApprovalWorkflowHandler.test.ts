@@ -1,4 +1,4 @@
-import { ApprovalWorkflowHandler } from '../ApprovalWorkflowHandler';
+import { ApprovalWorkflowHandler } from '../../domains/user-management/infrastructure/handlers/ApprovalWorkflowHandler';
 import { ApprovalSessionManager } from '../../services/ApprovalSessionManager';
 import { RoomService } from '../../services/RoomService';
 import { NamespaceManager } from '../../services/NamespaceManager';
@@ -168,6 +168,93 @@ describe('ApprovalWorkflowHandler - Edge Cases', () => {
 
       // Verify room service was called to reject member
       expect(mockRoomService.rejectMember).toHaveBeenCalledWith('test-room', 'requester-id');
+
+      jest.useRealTimers();
+    });
+
+    it('should handle timeout with precise timing using Bun timer APIs', async () => {
+      const mockRoom = createMockRoom();
+      mockRoomService.getRoom.mockReturnValue(mockRoom);
+      mockRoomService.findUserInRoom.mockReturnValue(undefined);
+
+      const mockSocket = new MockSocket('precise-timer-socket');
+      const mockApprovalNamespace = new MockNamespace();
+      const mockRoomNamespace = new MockNamespace();
+
+      mockApprovalNamespace.addSocket(mockSocket);
+      mockNamespaceManager.getRoomNamespace.mockReturnValue(mockRoomNamespace as any);
+      mockNamespaceManager.getApprovalNamespace.mockReturnValue(mockApprovalNamespace as any);
+
+      jest.useFakeTimers();
+
+      const requestData: ApprovalRequestData = {
+        roomId: 'test-room',
+        userId: 'precise-timer-user',
+        username: 'precise-timer-user',
+        role: 'band_member'
+      };
+
+      // Record start time
+      const startTime = Date.now();
+      handler.handleApprovalRequest(mockSocket as any, requestData, mockApprovalNamespace as any);
+
+      // Verify session exists
+      const session = mockApprovalSessionManager.getApprovalSessionByUserId('precise-timer-user');
+      expect(session).toBeDefined();
+
+      // Test timeout at exactly 30 seconds (30000ms)
+      jest.advanceTimersByTime(29999);
+      
+      // Session should still exist
+      const sessionBeforeTimeout = mockApprovalSessionManager.getApprovalSessionByUserId('precise-timer-user');
+      expect(sessionBeforeTimeout).toBeDefined();
+
+      // Advance by 1ms to trigger timeout
+      jest.advanceTimersByTime(1);
+      jest.runAllTimers();
+
+      // Session should be cleaned up
+      const sessionAfterTimeout = mockApprovalSessionManager.getApprovalSessionByUserId('precise-timer-user');
+      expect(sessionAfterTimeout).toBeUndefined();
+
+      jest.useRealTimers();
+    });
+
+    it('should handle timeout edge case at exactly timeout boundary', async () => {
+      const mockRoom = createMockRoom();
+      mockRoomService.getRoom.mockReturnValue(mockRoom);
+      mockRoomService.findUserInRoom.mockReturnValue(undefined);
+
+      const mockSocket = new MockSocket('boundary-socket');
+      const mockApprovalNamespace = new MockNamespace();
+      const mockRoomNamespace = new MockNamespace();
+
+      mockApprovalNamespace.addSocket(mockSocket);
+      mockNamespaceManager.getRoomNamespace.mockReturnValue(mockRoomNamespace as any);
+      mockNamespaceManager.getApprovalNamespace.mockReturnValue(mockApprovalNamespace as any);
+
+      jest.useFakeTimers();
+
+      const requestData: ApprovalRequestData = {
+        roomId: 'test-room',
+        userId: 'boundary-user',
+        username: 'boundary-user',
+        role: 'band_member'
+      };
+
+      handler.handleApprovalRequest(mockSocket as any, requestData, mockApprovalNamespace as any);
+
+      // Test multiple boundary conditions
+      const timeoutMs = mockApprovalSessionManager.getApprovalTimeoutMs();
+      
+      // Just before timeout
+      jest.advanceTimersByTime(timeoutMs - 1);
+      expect(mockApprovalSessionManager.getApprovalSessionByUserId('boundary-user')).toBeDefined();
+
+      // Exactly at timeout
+      jest.advanceTimersByTime(1);
+      jest.runAllTimers();
+      expect(mockApprovalSessionManager.getApprovalSessionByUserId('boundary-user')).toBeUndefined();
 
       jest.useRealTimers();
     });
@@ -393,6 +480,81 @@ describe('ApprovalWorkflowHandler - Edge Cases', () => {
       const session = mockApprovalSessionManager.getApprovalSessionByUserId('legitimate-user');
       expect(session).toBeDefined();
     });
+
+    it('should handle cancellation with wrong room ID', () => {
+      const mockRoom = createMockRoom();
+      mockRoomService.getRoom.mockReturnValue(mockRoom);
+      mockRoomService.findUserInRoom.mockReturnValue(undefined);
+
+      const mockApprovalNamespace = new MockNamespace();
+      const requesterSocket = new MockSocket('requester-socket');
+
+      // Create approval request
+      const requestData: ApprovalRequestData = {
+        roomId: 'test-room',
+        userId: 'room-mismatch-user',
+        username: 'room-mismatch-user',
+        role: 'band_member'
+      };
+
+      handler.handleApprovalRequest(requesterSocket as any, requestData, mockApprovalNamespace as any);
+
+      // Try to cancel with wrong room ID
+      const cancelData: ApprovalCancelData = {
+        userId: 'room-mismatch-user',
+        roomId: 'wrong-room'
+      };
+
+      handler.handleApprovalCancel(requesterSocket as any, cancelData, mockApprovalNamespace as any);
+
+      // Verify error was emitted
+      expect(requesterSocket.hasEmitted('approval_error')).toBe(true);
+      const errorEvents = requesterSocket.getEmittedEvents('approval_error');
+      expect(errorEvents[0]).toEqual({ message: 'Invalid cancellation request' });
+
+      // Verify session still exists
+      const session = mockApprovalSessionManager.getApprovalSessionByUserId('room-mismatch-user');
+      expect(session).toBeDefined();
+    });
+
+    it('should handle rapid cancellation attempts', () => {
+      const mockRoom = createMockRoom();
+      mockRoomService.getRoom.mockReturnValue(mockRoom);
+      mockRoomService.findUserInRoom.mockReturnValue(undefined);
+
+      const mockApprovalNamespace = new MockNamespace();
+      const mockRoomNamespace = new MockNamespace();
+      const requesterSocket = new MockSocket('rapid-cancel-socket');
+
+      mockNamespaceManager.getRoomNamespace.mockReturnValue(mockRoomNamespace as any);
+
+      // Create approval request
+      const requestData: ApprovalRequestData = {
+        roomId: 'test-room',
+        userId: 'rapid-cancel-user',
+        username: 'rapid-cancel-user',
+        role: 'band_member'
+      };
+
+      handler.handleApprovalRequest(requesterSocket as any, requestData, mockApprovalNamespace as any);
+
+      const cancelData: ApprovalCancelData = {
+        userId: 'rapid-cancel-user',
+        roomId: 'test-room'
+      };
+
+      // First cancellation should succeed
+      handler.handleApprovalCancel(requesterSocket as any, cancelData, mockApprovalNamespace as any);
+      expect(requesterSocket.hasEmitted('approval_cancelled')).toBe(true);
+
+      // Second cancellation should fail (session no longer exists)
+      const secondSocket = new MockSocket('second-cancel-socket');
+      handler.handleApprovalCancel(secondSocket as any, cancelData, mockApprovalNamespace as any);
+      expect(secondSocket.hasEmitted('approval_error')).toBe(true);
+      
+      const errorEvents = secondSocket.getEmittedEvents('approval_error');
+      expect(errorEvents[0]).toEqual({ message: 'No approval session found' });
+    });
   });
 
   describe('Concurrent Approval Requests', () => {
@@ -438,6 +600,114 @@ describe('ApprovalWorkflowHandler - Edge Cases', () => {
       // Verify all sockets received pending confirmation
       sockets.forEach(socket => {
         expect(socket.hasEmitted('approval_pending')).toBe(true);
+      });
+    });
+
+    it('should handle high-concurrency approval requests with Bun concurrent testing', async () => {
+      const mockRoom = createMockRoom();
+      mockRoomService.getRoom.mockReturnValue(mockRoom);
+      mockRoomService.findUserInRoom.mockReturnValue(undefined);
+
+      const mockApprovalNamespace = new MockNamespace();
+      const mockRoomNamespace = new MockNamespace();
+
+      mockNamespaceManager.getRoomNamespace.mockReturnValue(mockRoomNamespace as any);
+
+      // Test with higher concurrency (20 users)
+      const userCount = 20;
+      const users = Array.from({ length: userCount }, (_, i) => `concurrent-user-${i}`);
+      const sockets = users.map(userId => new MockSocket(`${userId}-socket`));
+
+      // Create concurrent promises for all requests
+      const concurrentRequests = users.map((userId, index) => {
+        return new Promise<void>((resolve) => {
+          const requestData: ApprovalRequestData = {
+            roomId: 'test-room',
+            userId,
+            username: userId,
+            role: 'band_member'
+          };
+
+          // Simulate slight timing variations
+          setTimeout(() => {
+            handler.handleApprovalRequest(sockets[index] as any, requestData, mockApprovalNamespace as any);
+            resolve();
+          }, Math.random() * 10); // Random delay 0-10ms
+        });
+      });
+
+      // Execute all requests concurrently
+      await Promise.all(concurrentRequests);
+
+      // Verify all sessions were created successfully
+      users.forEach(userId => {
+        const session = mockApprovalSessionManager.getApprovalSessionByUserId(userId);
+        expect(session).toBeDefined();
+        expect(session?.roomId).toBe('test-room');
+      });
+
+      // Verify session manager statistics
+      const stats = mockApprovalSessionManager.getStats();
+      expect(stats.totalSessions).toBe(userCount);
+      expect(stats.sessionsByRoom['test-room']).toBe(userCount);
+    });
+
+    it('should handle concurrent approval and cancellation operations', async () => {
+      const mockRoom = createMockRoom();
+      mockRoomService.getRoom.mockReturnValue(mockRoom);
+      mockRoomService.findUserInRoom.mockReturnValue(undefined);
+
+      const mockApprovalNamespace = new MockNamespace();
+      const mockRoomNamespace = new MockNamespace();
+
+      mockNamespaceManager.getRoomNamespace.mockReturnValue(mockRoomNamespace as any);
+
+      // Create approval requests
+      const users = ['cancel-user-1', 'cancel-user-2', 'cancel-user-3'];
+      const sockets = users.map(userId => new MockSocket(`${userId}-socket`));
+
+      // Submit approval requests
+      users.forEach((userId, index) => {
+        const requestData: ApprovalRequestData = {
+          roomId: 'test-room',
+          userId,
+          username: userId,
+          role: 'band_member'
+        };
+
+        handler.handleApprovalRequest(sockets[index] as any, requestData, mockApprovalNamespace as any);
+      });
+
+      // Verify all sessions exist
+      users.forEach(userId => {
+        expect(mockApprovalSessionManager.getApprovalSessionByUserId(userId)).toBeDefined();
+      });
+
+      // Concurrently cancel all requests
+      const concurrentCancellations = users.map((userId, index) => {
+        return new Promise<void>((resolve) => {
+          const cancelData: ApprovalCancelData = {
+            userId,
+            roomId: 'test-room'
+          };
+
+          setTimeout(() => {
+            handler.handleApprovalCancel(sockets[index] as any, cancelData, mockApprovalNamespace as any);
+            resolve();
+          }, Math.random() * 5); // Random delay 0-5ms
+        });
+      });
+
+      await Promise.all(concurrentCancellations);
+
+      // Verify all sessions were cleaned up
+      users.forEach(userId => {
+        expect(mockApprovalSessionManager.getApprovalSessionByUserId(userId)).toBeUndefined();
+      });
+
+      // Verify all cancellation confirmations were sent
+      sockets.forEach(socket => {
+        expect(socket.hasEmitted('approval_cancelled')).toBe(true);
       });
     });
 
@@ -620,6 +890,165 @@ describe('ApprovalWorkflowHandler - Edge Cases', () => {
       expect(mockRoomService.rejectMember).not.toHaveBeenCalled();
 
       jest.useRealTimers();
+    });
+  });
+
+  describe('Complex Edge Cases and Race Conditions', () => {
+    it('should handle timeout vs cancellation race condition', async () => {
+      const mockRoom = createMockRoom();
+      mockRoomService.getRoom.mockReturnValue(mockRoom);
+      mockRoomService.findUserInRoom.mockReturnValue(undefined);
+
+      const mockApprovalNamespace = new MockNamespace();
+      const mockRoomNamespace = new MockNamespace();
+      const requesterSocket = new MockSocket('race-condition-socket');
+
+      mockNamespaceManager.getRoomNamespace.mockReturnValue(mockRoomNamespace as any);
+
+      jest.useFakeTimers();
+
+      // Create approval request
+      const requestData: ApprovalRequestData = {
+        roomId: 'test-room',
+        userId: 'race-condition-user',
+        username: 'race-condition-user',
+        role: 'band_member'
+      };
+
+      handler.handleApprovalRequest(requesterSocket as any, requestData, mockApprovalNamespace as any);
+
+      // Schedule cancellation to happen just before timeout
+      setTimeout(() => {
+        const cancelData: ApprovalCancelData = {
+          userId: 'race-condition-user',
+          roomId: 'test-room'
+        };
+        handler.handleApprovalCancel(requesterSocket as any, cancelData, mockApprovalNamespace as any);
+      }, 29999);
+
+      // Advance to just before timeout
+      jest.advanceTimersByTime(29999);
+
+      // Verify session was cleaned up by cancellation
+      expect(mockApprovalSessionManager.getApprovalSessionByUserId('race-condition-user')).toBeUndefined();
+
+      // Advance past timeout
+      jest.advanceTimersByTime(2);
+
+      // Verify no double processing occurred
+      expect(mockRoomService.rejectMember).toHaveBeenCalledTimes(1);
+      expect(requesterSocket.hasEmitted('approval_cancelled')).toBe(true);
+
+      jest.useRealTimers();
+    });
+
+    it('should handle disconnect during approval process', () => {
+      const mockRoom = createMockRoom();
+      mockRoomService.getRoom.mockReturnValue(mockRoom);
+      mockRoomService.findUserInRoom.mockReturnValue(undefined);
+
+      const mockApprovalNamespace = new MockNamespace();
+      const mockRoomNamespace = new MockNamespace();
+      const requesterSocket = new MockSocket('disconnect-socket');
+
+      mockNamespaceManager.getRoomNamespace.mockReturnValue(mockRoomNamespace as any);
+
+      // Create approval request
+      const requestData: ApprovalRequestData = {
+        roomId: 'test-room',
+        userId: 'disconnect-user',
+        username: 'disconnect-user',
+        role: 'band_member'
+      };
+
+      handler.handleApprovalRequest(requesterSocket as any, requestData, mockApprovalNamespace as any);
+
+      // Verify session exists
+      expect(mockApprovalSessionManager.getApprovalSessionByUserId('disconnect-user')).toBeDefined();
+
+      // Handle disconnect
+      handler.handleApprovalDisconnect(requesterSocket as any);
+
+      // Verify session was cleaned up
+      expect(mockApprovalSessionManager.getApprovalSessionByUserId('disconnect-user')).toBeUndefined();
+
+      // Verify room service was called to reject member
+      expect(mockRoomService.rejectMember).toHaveBeenCalledWith('test-room', 'disconnect-user');
+    });
+
+    it('should handle multiple disconnects gracefully', () => {
+      const mockRoom = createMockRoom();
+      mockRoomService.getRoom.mockReturnValue(mockRoom);
+      mockRoomService.findUserInRoom.mockReturnValue(undefined);
+
+      const mockApprovalNamespace = new MockNamespace();
+      const mockRoomNamespace = new MockNamespace();
+
+      mockNamespaceManager.getRoomNamespace.mockReturnValue(mockRoomNamespace as any);
+
+      // Create multiple approval requests
+      const users = ['disconnect-1', 'disconnect-2', 'disconnect-3'];
+      const sockets = users.map(userId => new MockSocket(`${userId}-socket`));
+
+      users.forEach((userId, index) => {
+        const requestData: ApprovalRequestData = {
+          roomId: 'test-room',
+          userId,
+          username: userId,
+          role: 'band_member'
+        };
+
+        handler.handleApprovalRequest(sockets[index] as any, requestData, mockApprovalNamespace as any);
+      });
+
+      // Verify all sessions exist
+      users.forEach(userId => {
+        expect(mockApprovalSessionManager.getApprovalSessionByUserId(userId)).toBeDefined();
+      });
+
+      // Handle all disconnects
+      sockets.forEach(socket => {
+        handler.handleApprovalDisconnect(socket as any);
+      });
+
+      // Verify all sessions were cleaned up
+      users.forEach(userId => {
+        expect(mockApprovalSessionManager.getApprovalSessionByUserId(userId)).toBeUndefined();
+      });
+
+      // Verify room service was called for each user
+      users.forEach(userId => {
+        expect(mockRoomService.rejectMember).toHaveBeenCalledWith('test-room', userId);
+      });
+    });
+
+    it('should handle session cleanup edge cases', () => {
+      // Test cleanup when no session exists
+      const nonExistentSocket = new MockSocket('non-existent-socket');
+      
+      // Should not throw error
+      expect(() => {
+        handler.handleApprovalDisconnect(nonExistentSocket as any);
+      }).not.toThrow();
+
+      // Test stats with no sessions
+      const stats = mockApprovalSessionManager.getStats();
+      expect(stats.totalSessions).toBe(0);
+      expect(stats.oldestSessionAge).toBeNull();
+    });
+
+    it('should handle approval session manager edge cases', () => {
+      // Test removing non-existent session by user ID
+      const removedSession = mockApprovalSessionManager.removeApprovalSessionByUserId('non-existent-user');
+      expect(removedSession).toBeUndefined();
+
+      // Test getting sessions for non-existent room
+      const roomSessions = mockApprovalSessionManager.getApprovalSessionsForRoom('non-existent-room');
+      expect(roomSessions).toEqual([]);
+
+      // Test hasApprovalSession for non-existent user
+      const hasSession = mockApprovalSessionManager.hasApprovalSession('non-existent-user');
+      expect(hasSession).toBe(false);
     });
   });
 

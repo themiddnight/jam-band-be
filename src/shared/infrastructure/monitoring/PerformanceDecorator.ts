@@ -3,6 +3,7 @@
  */
 
 import { performanceMetrics } from './PerformanceMetrics';
+import { boundedContextMonitor } from './BoundedContextMonitor';
 
 export interface MonitoringOptions {
   context: string;
@@ -24,53 +25,13 @@ export function Monitor(options: MonitoringOptions) {
     const metricName = options.metricName || propertyName;
 
     descriptor.value = async function (...args: any[]) {
-      const startTime = Bun.nanoseconds();
-      
-      try {
-        const result = await method.apply(this, args);
-        const duration = (Bun.nanoseconds() - startTime) / 1_000_000; // Convert to milliseconds
-        
-        performanceMetrics.recordDuration(
-          metricName,
-          duration,
-          options.context,
-          { ...options.tags, status: 'success' }
-        );
-        
-        performanceMetrics.recordCounter(
-          `${metricName}.calls`,
-          1,
-          options.context,
-          { ...options.tags, status: 'success' }
-        );
-        
-        return result;
-      } catch (error) {
-        const duration = (Bun.nanoseconds() - startTime) / 1_000_000;
-        
-        performanceMetrics.recordDuration(
-          metricName,
-          duration,
-          options.context,
-          { ...options.tags, status: 'error' }
-        );
-        
-        performanceMetrics.recordCounter(
-          `${metricName}.calls`,
-          1,
-          options.context,
-          { ...options.tags, status: 'error' }
-        );
-        
-        performanceMetrics.recordCounter(
-          `${metricName}.errors`,
-          1,
-          options.context,
-          { ...options.tags, error: error instanceof Error ? error.constructor.name : 'UnknownError' }
-        );
-        
-        throw error;
-      }
+      return await boundedContextMonitor.monitorOperation(
+        options.context,
+        metricName,
+        async () => {
+          return await method.apply(this, args);
+        }
+      );
     };
 
     return descriptor;
@@ -90,39 +51,13 @@ export function MonitorClass(context: string, tags?: Record<string, string>) {
       const originalMethod = prototype[methodName];
       
       prototype[methodName] = async function (...args: any[]) {
-        const startTime = Bun.nanoseconds();
-        
-        try {
-          const result = await originalMethod.apply(this, args);
-          const duration = (Bun.nanoseconds() - startTime) / 1_000_000;
-          
-          performanceMetrics.recordDuration(
-            methodName,
-            duration,
-            context,
-            { ...tags, status: 'success', class: constructor.name }
-          );
-          
-          return result;
-        } catch (error) {
-          const duration = (Bun.nanoseconds() - startTime) / 1_000_000;
-          
-          performanceMetrics.recordDuration(
-            methodName,
-            duration,
-            context,
-            { ...tags, status: 'error', class: constructor.name }
-          );
-          
-          performanceMetrics.recordCounter(
-            `${methodName}.errors`,
-            1,
-            context,
-            { ...tags, error: error instanceof Error ? error.constructor.name : 'UnknownError', class: constructor.name }
-          );
-          
-          throw error;
-        }
+        return await boundedContextMonitor.monitorOperation(
+          context,
+          `${constructor.name}.${methodName}`,
+          async () => {
+            return await originalMethod.apply(this, args);
+          }
+        );
       };
     });
 

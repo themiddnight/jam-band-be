@@ -1,107 +1,95 @@
-import { describe, it, expect, beforeEach, mock } from 'bun:test';
+import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { RoomHandlers } from '../RoomHandlers';
 import { RoomService } from '../../services/RoomService';
-import { NamespaceManager } from '../../services/NamespaceManager';
 import { RoomSessionManager } from '../../services/RoomSessionManager';
-import { Server } from 'socket.io';
 import { Socket } from 'socket.io';
 
 describe('RoomHandlers Coordination Layer', () => {
   let roomHandlers: RoomHandlers;
   let mockRoomService: any;
-  let mockNamespaceManager: any;
   let mockRoomSessionManager: any;
-  let mockIo: any;
   let mockSocket: any;
+  let mockRoomLifecycleHandler: any;
+  let mockRoomMembershipHandler: any;
+  let mockApprovalWorkflowHandler: any;
 
   beforeEach(() => {
     // Create mocks
     mockRoomService = {
-      getAllRooms: mock(() => []),
-      getRoom: mock(() => null),
-      updateUserInstrument: mock(() => {}),
-      findUserInRoom: mock(() => null),
-      updateMetronomeBPM: mock(() => null),
-      transferOwnership: mock(() => null),
-    };
-    
-    mockNamespaceManager = {
-      getRoomNamespace: mock(() => null),
-      createRoomNamespace: mock(() => null),
+      getAllRooms: jest.fn(() => []),
+      getRoom: jest.fn(() => null),
     };
     
     mockRoomSessionManager = {
-      getRoomSession: mock(() => null),
-      setRoomSession: mock(() => {}),
-      removeSession: mock(() => {}),
-    };
-    
-    mockIo = {
-      emit: mock(() => {}),
+      getRoomSession: jest.fn(() => null),
+      setRoomSession: jest.fn(() => {}),
+      removeSession: jest.fn(() => {}),
     };
     
     mockSocket = {
       id: 'test-socket-id',
-      emit: mock(() => {}),
-      to: mock(() => mockSocket),
+      emit: jest.fn(() => {}),
+      to: jest.fn(() => mockSocket),
       broadcast: {
-        emit: mock(() => {}),
+        emit: jest.fn(() => {}),
       },
     };
 
-    // Create RoomHandlers instance
+    // Create domain handler mocks
+    mockRoomLifecycleHandler = {
+      handleCreateRoomHttp: jest.fn(() => {}),
+      handleLeaveRoomHttp: jest.fn(() => {}),
+      handleJoinRoom: jest.fn(() => {}),
+      handleLeaveRoom: jest.fn(() => {}),
+    };
+
+    mockRoomMembershipHandler = {
+      handleTransferOwnership: jest.fn(() => {}),
+      handleTransferOwnershipNamespace: jest.fn(() => {}),
+    };
+
+    mockApprovalWorkflowHandler = {
+      handleApprovalDisconnect: jest.fn(() => {}),
+    };
+
+    // Create RoomHandlers instance with all required domain handlers
     roomHandlers = new RoomHandlers(
       mockRoomService,
-      mockIo,
-      mockNamespaceManager,
-      mockRoomSessionManager
+      mockRoomSessionManager,
+      mockRoomLifecycleHandler,
+      mockRoomMembershipHandler,
+      mockApprovalWorkflowHandler
     );
   });
 
   describe('Coordination Logic', () => {
-    it('should create instance with all required dependencies', () => {
+    it('should create instance with all required domain handler dependencies', () => {
       expect(roomHandlers).toBeInstanceOf(RoomHandlers);
     });
 
     it('should delegate HTTP room creation to RoomLifecycleHandler', () => {
       const mockReq = {} as any;
-      const mockRes = {
-        status: mock(() => mockRes),
-        json: mock(() => {}),
-      } as any;
+      const mockRes = {} as any;
 
       roomHandlers.handleCreateRoomHttp(mockReq, mockRes);
 
-      // Should return error when lifecycle handler not available
-      expect(mockRes.status).toHaveBeenCalledWith(500);
-      expect(mockRes.json).toHaveBeenCalledWith({
-        success: false,
-        message: 'Room lifecycle handler not available'
-      });
+      expect(mockRoomLifecycleHandler.handleCreateRoomHttp).toHaveBeenCalledWith(mockReq, mockRes);
     });
 
     it('should delegate HTTP room leaving to RoomLifecycleHandler', () => {
       const mockReq = {} as any;
-      const mockRes = {
-        status: mock(() => mockRes),
-        json: mock(() => {}),
-      } as any;
+      const mockRes = {} as any;
 
       roomHandlers.handleLeaveRoomHttp(mockReq, mockRes);
 
-      // Should return error when lifecycle handler not available
-      expect(mockRes.status).toHaveBeenCalledWith(500);
-      expect(mockRes.json).toHaveBeenCalledWith({
-        success: false,
-        message: 'Room lifecycle handler not available'
-      });
+      expect(mockRoomLifecycleHandler.handleLeaveRoomHttp).toHaveBeenCalledWith(mockReq, mockRes);
     });
 
     it('should handle health check requests', () => {
       const mockReq = {} as any;
       const mockRes = {
-        json: mock(() => {}),
-        status: mock(() => mockRes),
+        json: jest.fn(() => {}),
+        status: jest.fn(() => mockRes),
       } as any;
 
       roomHandlers.getHealthCheck(mockReq, mockRes);
@@ -112,7 +100,7 @@ describe('RoomHandlers Coordination Layer', () => {
     it('should handle room list requests', () => {
       const mockReq = {} as any;
       const mockRes = {
-        json: mock(() => {}),
+        json: jest.fn(() => {}),
       } as any;
 
       const mockRoomList = [{ id: 'room1', name: 'Test Room' }];
@@ -151,143 +139,87 @@ describe('RoomHandlers Coordination Layer', () => {
       } as any);
     });
 
-    it('should handle play note events', () => {
-      const playNoteData = {
-        notes: ['C4'],
-        velocity: 0.8,
-        instrument: 'piano',
-        category: 'keyboard',
-        eventType: 'noteOn',
-        isKeyHeld: true
-      };
-
-      roomHandlers.handlePlayNote(mockSocket, playNoteData);
-
-      expect(mockRoomService.updateUserInstrument).toHaveBeenCalledWith(
-        'test-room',
-        'test-user',
-        'piano',
-        'keyboard'
-      );
-    });
-
-    it('should handle instrument changes', () => {
-      const changeInstrumentData = {
-        instrument: 'guitar',
-        category: 'string'
-      };
-
-      roomHandlers.handleChangeInstrument(mockSocket, changeInstrumentData);
-
-      expect(mockRoomService.updateUserInstrument).toHaveBeenCalledWith(
-        'test-room',
-        'test-user',
-        'guitar',
-        'string'
-      );
-    });
-
-    it('should handle stop all notes events', () => {
-      const stopNotesData = {
-        instrument: 'piano',
-        category: 'keyboard'
-      };
-
-      roomHandlers.handleStopAllNotes(mockSocket, stopNotesData);
-
-      // Should process the event without errors
-      expect(mockRoomSessionManager.getRoomSession).toHaveBeenCalledWith('test-socket-id');
-    });
-
-    it('should handle chat messages', () => {
-      const chatData = {
-        message: 'Hello everyone!'
-      };
-
-      mockRoomService.findUserInRoom.mockReturnValue({
-        id: 'test-user',
-        username: 'Test User'
-      } as any);
-
-      roomHandlers.handleChatMessage(mockSocket, chatData);
-
-      expect(mockRoomService.findUserInRoom).toHaveBeenCalledWith('test-room', 'test-user');
-    });
-
-    it('should handle metronome updates', () => {
-      const metronomeData = {
-        bpm: 140
-      };
-
-      mockRoomService.updateMetronomeBPM.mockReturnValue({
-        metronome: { bpm: 140, lastTickTimestamp: Date.now() }
-      } as any);
-
-      roomHandlers.handleUpdateMetronome(mockSocket, metronomeData);
-
-      expect(mockRoomService.updateMetronomeBPM).toHaveBeenCalledWith('test-room', 140);
-    });
-
-    it('should handle ownership transfer', () => {
+    it('should delegate ownership transfer to RoomMembershipHandler', () => {
       const transferData = {
         newOwnerId: 'new-owner'
       };
 
-      mockRoomService.transferOwnership.mockReturnValue({
-        newOwner: { id: 'new-owner', username: 'New Owner' },
-        oldOwner: { id: 'test-user', username: 'Test User' }
-      });
-
       roomHandlers.handleTransferOwnership(mockSocket, transferData);
 
-      expect(mockRoomService.transferOwnership).toHaveBeenCalledWith('test-room', 'new-owner');
+      expect(mockRoomMembershipHandler.handleTransferOwnership).toHaveBeenCalledWith(mockSocket, transferData);
     });
-  });
 
-  describe('Delegation to Specialized Handlers', () => {
-    let mockRoomMembershipHandler: any;
+    it('should delegate namespace ownership transfer to RoomMembershipHandler', () => {
+      const transferData = {
+        newOwnerId: 'new-owner'
+      };
+      const mockNamespace = {
+        emit: jest.fn(() => {}),
+        name: '/room/test-room'
+      } as any;
 
-    beforeEach(() => {
-      mockRoomMembershipHandler = {
-        handleApproveMember: mock(() => {}),
-        handleRejectMember: mock(() => {}),
-        handleApproveMemberNamespace: mock(() => {}),
-        handleRejectMemberNamespace: mock(() => {}),
+      roomHandlers.handleTransferOwnershipNamespace(mockSocket, transferData, mockNamespace);
+
+      expect(mockRoomMembershipHandler.handleTransferOwnershipNamespace).toHaveBeenCalledWith(mockSocket, transferData, mockNamespace);
+    });
+
+    it('should coordinate disconnection between approval workflow and lifecycle handlers', () => {
+      // Test pending member disconnection
+      mockRoomService.getRoom.mockReturnValue({
+        id: 'test-room',
+        users: new Map(),
+        pendingMembers: new Map([
+          ['test-user', {
+            id: 'test-user',
+            username: 'Test User'
+          }]
+        ])
+      } as any);
+
+      roomHandlers.handleDisconnect(mockSocket);
+
+      expect(mockApprovalWorkflowHandler.handleApprovalDisconnect).toHaveBeenCalledWith(mockSocket);
+      expect(mockRoomSessionManager.removeSession).toHaveBeenCalledWith('test-socket-id');
+    });
+
+    it('should coordinate disconnection for regular members', () => {
+      // Test regular member disconnection
+      mockRoomService.getRoom.mockReturnValue({
+        id: 'test-room',
+        users: new Map([
+          ['test-user', {
+            id: 'test-user',
+            username: 'Test User'
+          }]
+        ]),
+        pendingMembers: new Map()
+      } as any);
+
+      roomHandlers.handleDisconnect(mockSocket);
+
+      expect(mockRoomLifecycleHandler.handleLeaveRoom).toHaveBeenCalledWith(mockSocket, false);
+      expect(mockRoomSessionManager.removeSession).toHaveBeenCalledWith('test-socket-id');
+    });
+
+    it('should handle join room namespace by setting session and delegating to lifecycle handler', () => {
+      const joinData = {
+        roomId: 'test-room',
+        userId: 'test-user'
       };
 
-      // Create new instance with membership handler
-      roomHandlers = new RoomHandlers(
-        mockRoomService,
-        mockIo,
-        mockNamespaceManager,
-        mockRoomSessionManager,
-        undefined, // roomLifecycleHandler
-        undefined, // voiceConnectionHandler
-        undefined, // audioRoutingHandler
-        mockRoomMembershipHandler
-      );
-    });
+      roomHandlers.handleJoinRoomNamespace(mockSocket, joinData);
 
-    it('should delegate member approval to RoomMembershipHandler', () => {
-      const approvalData = { userId: 'user-to-approve' };
-
-      roomHandlers.handleApproveMember(mockSocket, approvalData);
-
-      expect(mockRoomMembershipHandler.handleApproveMember).toHaveBeenCalledWith(
-        mockSocket,
-        approvalData
-      );
-    });
-
-    it('should delegate member rejection to RoomMembershipHandler', () => {
-      const rejectionData = { userId: 'user-to-reject', message: 'Not suitable' };
-
-      roomHandlers.handleRejectMember(mockSocket, rejectionData);
-
-      expect(mockRoomMembershipHandler.handleRejectMember).toHaveBeenCalledWith(
-        mockSocket,
-        rejectionData
-      );
+      expect(mockRoomSessionManager.setRoomSession).toHaveBeenCalledWith('test-room', 'test-socket-id', {
+        roomId: 'test-room',
+        userId: 'test-user'
+      });
+      expect(mockRoomLifecycleHandler.handleJoinRoom).toHaveBeenCalledWith(mockSocket, joinData);
     });
   });
+
+  // Note: Member management delegation tests removed as functionality moved to RoomMembershipHandler
+  // These tests are now covered in RoomMembershipHandler.test.ts
+  
+  // Note: Synth parameter handling has been moved to AudioRoutingHandler
+  // These tests are now covered in AudioRoutingHandler.test.ts
 });

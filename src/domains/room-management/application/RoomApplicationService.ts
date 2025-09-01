@@ -74,11 +74,23 @@ export class RoomApplicationService {
     tags: { operation: 'create' }
   })
   async createRoom(command: CreateRoomCommand): Promise<{ roomId: string; room: Room }> {
-    // Validate owner exists
+    // Validate owner exists or create if not found (for backward compatibility)
     const ownerId = UserId.fromString(command.ownerId);
-    const owner = await this.userRepository.findById(ownerId);
+    let owner = await this.userRepository.findById(ownerId);
+    
     if (!owner) {
-      throw new Error(`Owner with ID ${command.ownerId} not found`);
+      // Create user if not found (backward compatibility with legacy system)
+      const { User, UserProfile } = await import('../domain/models/User');
+      const profile = new UserProfile(command.ownerUsername);
+      owner = User.create(command.ownerUsername, profile);
+      
+      // Override the generated ID with the provided ID for consistency
+      (owner as any)._id = ownerId;
+      
+      // Clear domain events to avoid publishing events for auto-created users
+      owner.clearDomainEvents();
+      
+      await this.userRepository.save(owner);
     }
 
     // Check if owner can create rooms
