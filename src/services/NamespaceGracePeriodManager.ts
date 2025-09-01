@@ -18,6 +18,7 @@ export class NamespaceGracePeriodManager {
   // Grace period entries organized by room for isolation
   private roomGracePeriods = new Map<string, Map<string, GracePeriodEntry>>(); // roomId -> userId -> entry
   private readonly GRACE_PERIOD_MS = 30000; // 30 seconds (reduced from 60s for better UX)
+  private cleanupInterval?: NodeJS.Timeout;
 
   constructor() {
     loggingService.logInfo('NamespaceGracePeriodManager initialized');
@@ -281,9 +282,19 @@ export class NamespaceGracePeriodManager {
    * Start periodic cleanup of expired entries
    */
   private startCleanupInterval(): void {
-    setInterval(() => {
+    this.cleanupInterval = setInterval(() => {
       this.cleanupExpiredGracePeriods();
     }, 60000); // Clean up every minute
+  }
+
+  /**
+   * Shutdown and cleanup resources
+   */
+  shutdown(): void {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+    }
+    this.roomGracePeriods.clear();
   }
 }
 

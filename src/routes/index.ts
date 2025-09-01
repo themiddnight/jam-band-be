@@ -1,9 +1,10 @@
 import { Router } from 'express';
 import { RoomHandlers } from '../handlers/RoomHandlers';
+import { RoomLifecycleHandler } from '../handlers/RoomLifecycleHandler';
 import { validateData, leaveRoomHttpSchema, createRoomSchema } from '../validation/schemas';
 import { config } from '../config/environment';
 
-export const createRoutes = (roomHandlers: RoomHandlers): Router => {
+export const createRoutes = (roomHandlers: RoomHandlers, roomLifecycleHandler: RoomLifecycleHandler): Router => {
   const router = Router();
 
   // Simple health check endpoint (no dependencies)
@@ -40,7 +41,7 @@ export const createRoutes = (roomHandlers: RoomHandlers): Router => {
       req.body = validationResult.value;
     }
 
-    return roomHandlers.handleCreateRoomHttp(req, res);
+    return roomLifecycleHandler.handleCreateRoomHttp(req, res);
   });
 
   // Leave room endpoint with validation
@@ -63,7 +64,7 @@ export const createRoutes = (roomHandlers: RoomHandlers): Router => {
       };
     }
 
-    return roomHandlers.handleLeaveRoomHttp(req, res);
+    return roomLifecycleHandler.handleLeaveRoomHttp(req, res);
   });
 
   return router;

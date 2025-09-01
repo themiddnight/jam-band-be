@@ -1,5 +1,7 @@
 import { Namespace, Socket } from 'socket.io';
 import { RoomHandlers } from './RoomHandlers';
+import { VoiceConnectionHandler } from './VoiceConnectionHandler';
+import { ApprovalWorkflowHandler } from './ApprovalWorkflowHandler';
 import { RoomSessionManager } from '../services/RoomSessionManager';
 import { PerformanceMonitoringService } from '../services/PerformanceMonitoringService';
 import { ConnectionHealthService } from '../services/ConnectionHealthService';
@@ -34,6 +36,8 @@ export class NamespaceEventHandlers {
 
   constructor(
     private roomHandlers: RoomHandlers,
+    private voiceConnectionHandler: VoiceConnectionHandler,
+    private approvalWorkflowHandler: ApprovalWorkflowHandler,
     private roomSessionManager: RoomSessionManager
   ) {
     this.errorRecoveryService = new BackendErrorRecoveryService();
@@ -252,8 +256,11 @@ export class NamespaceEventHandlers {
             this.connectionOptimization.unregisterConnection(socket, roomId);
           }
 
-          // Handle user leaving room
-          this.roomHandlers.handleLeaveRoom(socket, false);
+          // Handle user leaving room through lifecycle handler
+          const roomLifecycleHandler = (this.roomHandlers as any).roomLifecycleHandler;
+          if (roomLifecycleHandler) {
+            roomLifecycleHandler.handleLeaveRoom(socket, false);
+          }
           
           // Clean up session
           this.roomSessionManager.removeSession(socket.id);
@@ -310,25 +317,15 @@ export class NamespaceEventHandlers {
     
     socket.on('leave_room', (data) => {
       secureSocketEvent('leave_room', undefined, 
-        (socket, data) => this.roomHandlers.handleLeaveRoom(socket, data?.isIntendedLeave || false))(socket, data);
+        (socket, data) => {
+          const roomLifecycleHandler = (this.roomHandlers as any).roomLifecycleHandler;
+          if (roomLifecycleHandler) {
+            roomLifecycleHandler.handleLeaveRoom(socket, data?.isIntendedLeave || false);
+          }
+        })(socket, data);
     });
 
-    // Member management events
-    socket.on('approve_member', (data) => {
-      secureSocketEvent('approve_member', memberActionSchema, 
-        (socket, data) => this.roomHandlers.handleApproveMemberNamespace(socket, data, namespace))(socket, data);
-    });
-    
-    socket.on('reject_member', (data) => {
-      secureSocketEvent('reject_member', memberActionSchema, 
-        (socket, data) => this.roomHandlers.handleRejectMemberNamespace(socket, data, namespace))(socket, data);
-    });
 
-    // Approval response events (from room owner)
-    socket.on('approval_response', (data) => {
-      secureSocketEvent('approval_response', approvalResponseSchema, 
-        (socket, data) => this.roomHandlers.handleApprovalResponse(socket, data, namespace))(socket, data);
-    });
 
     // Music events - Requirements: 7.1, 7.2
     socket.on('play_note', (data) => {
@@ -433,51 +430,51 @@ export class NamespaceEventHandlers {
     // WebRTC Voice events - Requirements: 7.3
     socket.on('voice_offer', (data) => {
       secureSocketEvent('voice_offer', voiceOfferSchema, 
-        (socket, data) => this.roomHandlers.handleVoiceOfferNamespace(socket, data, namespace))(socket, data);
+        (socket, data) => this.voiceConnectionHandler.handleVoiceOfferNamespace(socket, data, namespace))(socket, data);
     });
     
     socket.on('voice_answer', (data) => {
       secureSocketEvent('voice_answer', voiceAnswerSchema, 
-        (socket, data) => this.roomHandlers.handleVoiceAnswerNamespace(socket, data, namespace))(socket, data);
+        (socket, data) => this.voiceConnectionHandler.handleVoiceAnswerNamespace(socket, data, namespace))(socket, data);
     });
     
     socket.on('voice_ice_candidate', (data) => {
       secureSocketEvent('voice_ice_candidate', voiceIceCandidateSchema, 
-        (socket, data) => this.roomHandlers.handleVoiceIceCandidateNamespace(socket, data, namespace))(socket, data);
+        (socket, data) => this.voiceConnectionHandler.handleVoiceIceCandidateNamespace(socket, data, namespace))(socket, data);
     });
     
     socket.on('join_voice', (data) => {
       secureSocketEvent('join_voice', voiceJoinSchema, 
-        (socket, data) => this.roomHandlers.handleJoinVoiceNamespace(socket, data, namespace))(socket, data);
+        (socket, data) => this.voiceConnectionHandler.handleJoinVoiceNamespace(socket, data, namespace))(socket, data);
     });
     
     socket.on('leave_voice', (data) => {
       secureSocketEvent('leave_voice', voiceLeaveSchema, 
-        (socket, data) => this.roomHandlers.handleLeaveVoiceNamespace(socket, data, namespace))(socket, data);
+        (socket, data) => this.voiceConnectionHandler.handleLeaveVoiceNamespace(socket, data, namespace))(socket, data);
     });
     
     socket.on('voice_mute_changed', (data) => {
       secureSocketEvent('voice_mute_changed', voiceMuteChangedSchema, 
-        (socket, data) => this.roomHandlers.handleVoiceMuteChangedNamespace(socket, data, namespace))(socket, data);
+        (socket, data) => this.voiceConnectionHandler.handleVoiceMuteChangedNamespace(socket, data, namespace))(socket, data);
     });
     
     socket.on('request_voice_participants', (data) => {
       secureSocketEvent('request_voice_participants', requestVoiceParticipantsSchema, 
-        (socket, data) => this.roomHandlers.handleRequestVoiceParticipantsNamespace(socket, data, namespace))(socket, data);
+        (socket, data) => this.voiceConnectionHandler.handleRequestVoiceParticipantsNamespace(socket, data, namespace))(socket, data);
     });
 
     // Full Mesh Network Coordination
     socket.on('request_mesh_connections', (data) => {
-      this.roomHandlers.handleRequestMeshConnectionsNamespace(socket, data, namespace);
+      this.voiceConnectionHandler.handleRequestMeshConnectionsNamespace(socket, data, namespace);
     });
 
     // WebRTC Health Monitoring events
     socket.on('voice_heartbeat', (data) => {
-      this.roomHandlers.handleVoiceHeartbeatNamespace(socket, data, namespace);
+      this.voiceConnectionHandler.handleVoiceHeartbeatNamespace(socket, data, namespace);
     });
 
     socket.on('voice_connection_failed', (data) => {
-      this.roomHandlers.handleVoiceConnectionFailedNamespace(socket, data, namespace);
+      this.voiceConnectionHandler.handleVoiceConnectionFailedNamespace(socket, data, namespace);
     });
 
     // Chat events - Requirements: 7.4
@@ -522,7 +519,7 @@ export class NamespaceEventHandlers {
       });
 
       // Handle initial approval connection setup
-      this.roomHandlers.handleApprovalConnection(socket, roomId, namespace);
+      this.approvalWorkflowHandler.handleApprovalConnection(socket, roomId, namespace);
 
       // Bind approval-specific event handlers
       this.bindApprovalEventHandlers(socket, roomId, namespace);
@@ -536,7 +533,7 @@ export class NamespaceEventHandlers {
         });
 
         // Handle approval disconnect (cancellation due to disconnect)
-        this.roomHandlers.handleApprovalDisconnect(socket);
+        this.approvalWorkflowHandler.handleApprovalDisconnect(socket);
 
         // Clean up session
         this.roomSessionManager.removeSession(socket.id);
@@ -561,13 +558,13 @@ export class NamespaceEventHandlers {
     // Handle approval request from waiting user
     socket.on('request_approval', (data) => {
       secureSocketEvent('request_approval', approvalRequestSchema, 
-        (socket, data) => this.roomHandlers.handleApprovalRequest(socket, data, namespace))(socket, data);
+        (socket, data) => this.approvalWorkflowHandler.handleApprovalRequest(socket, data, namespace))(socket, data);
     });
 
     // Handle approval cancellation from waiting user
     socket.on('cancel_approval_request', (data) => {
       secureSocketEvent('cancel_approval_request', approvalCancelSchema, 
-        (socket, data) => this.roomHandlers.handleApprovalCancel(socket, data, namespace))(socket, data);
+        (socket, data) => this.approvalWorkflowHandler.handleApprovalCancel(socket, data, namespace))(socket, data);
     });
 
     // Ping measurement events for latency monitoring during approval

@@ -24,6 +24,9 @@ import { createSocketServer } from './config/socket';
 import { createRoutes } from './routes';
 import { RoomService } from './services/RoomService';
 import { RoomHandlers } from './handlers/RoomHandlers';
+import { RoomLifecycleHandler } from './handlers/RoomLifecycleHandler';
+import { VoiceConnectionHandler } from './handlers/VoiceConnectionHandler';
+import { ApprovalWorkflowHandler } from './handlers/ApprovalWorkflowHandler';
 
 import { NamespaceManager } from './services/NamespaceManager';
 import { RoomSessionManager } from './services/RoomSessionManager';
@@ -84,8 +87,15 @@ const connectionHealth = ConnectionHealthService.getInstance(performanceMonitori
 const namespaceCleanup = NamespaceCleanupService.getInstance(namespaceManager, roomSessionManager, performanceMonitoring);
 const connectionOptimization = ConnectionOptimizationService.getInstance(io, performanceMonitoring);
 
-const roomHandlers = new RoomHandlers(roomService, io, namespaceManager, roomSessionManager);
-const namespaceEventHandlers = new NamespaceEventHandlers(roomHandlers, roomSessionManager);
+// Initialize room lifecycle handler
+const roomLifecycleHandler = new RoomLifecycleHandler(roomService, io, namespaceManager, roomSessionManager);
+
+// Initialize voice connection handler
+const voiceConnectionHandler = new VoiceConnectionHandler(roomService, io, roomSessionManager);
+const approvalWorkflowHandler = new ApprovalWorkflowHandler(roomService, io, namespaceManager, roomSessionManager);
+
+const roomHandlers = new RoomHandlers(roomService, io, namespaceManager, roomSessionManager, roomLifecycleHandler, voiceConnectionHandler);
+const namespaceEventHandlers = new NamespaceEventHandlers(roomHandlers, voiceConnectionHandler, approvalWorkflowHandler, roomSessionManager);
 
 // Set up namespace event handlers
 namespaceManager.setEventHandlers(namespaceEventHandlers);
@@ -139,7 +149,7 @@ app.use(express.urlencoded({
 app.use(sanitizeInput);
 
 // Routes
-app.use('/api', createRoutes(roomHandlers));
+app.use('/api', createRoutes(roomHandlers, roomLifecycleHandler));
 
 // Performance monitoring routes
 import { createPerformanceRoutes } from './routes/performance';
@@ -232,7 +242,7 @@ const gracefulShutdown = (signal: string) => {
     namespaceManager.shutdown();
 
     // Cleanup approval session manager
-    roomHandlers.getApprovalSessionManager().cleanup();
+    approvalWorkflowHandler.getApprovalSessionManager().cleanup();
 
     loggingService.logInfo('Graceful shutdown complete');
     process.exit(0);
