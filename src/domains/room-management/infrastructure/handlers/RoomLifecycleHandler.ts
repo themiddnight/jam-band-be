@@ -23,18 +23,15 @@ import { UserJoinedRoom } from '../../../../shared/domain/events/UserOnboardingE
  * Requirements: 4.1, 4.6
  */
 export class RoomLifecycleHandler {
-  private metronomeService: MetronomeService;
-
   constructor(
     private roomService: RoomService,
     private io: Server,
     private namespaceManager: NamespaceManager,
     private roomSessionManager: RoomSessionManager,
+    private metronomeService: MetronomeService,
     private audioRoutingHandler?: AudioRoutingHandler,
     private eventBus?: EventBus
-  ) {
-    this.metronomeService = new MetronomeService(io, roomService);
-  }
+  ) {}
 
   /**
    * Helper method to ensure RoomId type safety while maintaining backward compatibility

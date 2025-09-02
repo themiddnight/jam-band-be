@@ -55,12 +55,16 @@ describe('RoomLifecycleHandler Integration Tests', () => {
     roomService = new RoomService(roomSessionManager);
     namespaceManager = new NamespaceManager(io);
 
+    // Initialize metronome service
+    const metronomeService = new MetronomeService(io, roomService);
+
     // Initialize handler
     roomLifecycleHandler = new RoomLifecycleHandler(
       roomService,
       io,
       namespaceManager,
-      roomSessionManager
+      roomSessionManager,
+      metronomeService
     );
 
     // Start server on random port

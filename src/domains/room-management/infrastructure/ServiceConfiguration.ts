@@ -8,6 +8,7 @@ import { RoomRepository } from '../domain/repositories/RoomRepository';
 import { UserRepository } from '../domain/repositories/UserRepository';
 import { EventBus } from '../../../shared/domain/events/EventBus';
 import { RoomService } from '../../../services/RoomService';
+import { MetronomeService } from '../../../services/MetronomeService';
 import { Server } from 'socket.io';
 import { NamespaceManager } from '../../../services/NamespaceManager';
 import { RoomSessionManager } from '../../../services/RoomSessionManager';
@@ -45,9 +46,10 @@ export function configureRoomServices(): void {
     const io = await container.get('io') as Server;
     const namespaceManager = await container.get('namespaceManager') as NamespaceManager;
     const roomSessionManager = await container.get('roomSessionManager') as RoomSessionManager;
+    const metronomeService = await container.get('metronomeService') as MetronomeService;
     const eventBus = await container.get('eventBus') as EventBus;
-    return new RoomLifecycleHandler(roomService, io, namespaceManager, roomSessionManager, undefined, eventBus);
-  }, ['roomService', 'io', 'namespaceManager', 'roomSessionManager', 'eventBus']);
+    return new RoomLifecycleHandler(roomService, io, namespaceManager, roomSessionManager, metronomeService, undefined, eventBus);
+  }, ['roomService', 'io', 'namespaceManager', 'roomSessionManager', 'metronomeService', 'eventBus']);
 
   container.lazy('roomMembershipHandler', async () => {
     const { RoomMembershipHandler } = await import('./handlers/RoomMembershipHandler');

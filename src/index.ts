@@ -117,13 +117,13 @@ const connectionOptimization = ConnectionOptimizationService.getInstance(io, per
 const voiceConnectionHandler = new VoiceConnectionHandler(roomService, io, roomSessionManager);
 const audioRoutingHandler = new AudioRoutingHandler(roomService, io, roomSessionManager, namespaceManager);
 
-// Initialize room lifecycle handler with event bus
-const roomLifecycleHandler = new RoomLifecycleHandler(roomService, io, namespaceManager, roomSessionManager, audioRoutingHandler, eventBus);
-const roomMembershipHandler = new RoomMembershipHandler(roomService, io, namespaceManager, roomSessionManager);
-const approvalWorkflowHandler = new ApprovalWorkflowHandler(roomService, io, namespaceManager, roomSessionManager);
-
 // Initialize services needed by RoomHandlers
 const metronomeService = new MetronomeService(io, roomService);
+
+// Initialize room lifecycle handler with event bus
+const roomLifecycleHandler = new RoomLifecycleHandler(roomService, io, namespaceManager, roomSessionManager, metronomeService, audioRoutingHandler, eventBus);
+const roomMembershipHandler = new RoomMembershipHandler(roomService, io, namespaceManager, roomSessionManager);
+const approvalWorkflowHandler = new ApprovalWorkflowHandler(roomService, io, namespaceManager, roomSessionManager);
 const chatHandler = new ChatHandler(roomService, namespaceManager, roomSessionManager);
 const metronomeHandler = new MetronomeHandler(roomService, metronomeService, roomSessionManager, namespaceManager);
 const notePlayingHandler = new NotePlayingHandler(roomService, io, namespaceManager, roomSessionManager);

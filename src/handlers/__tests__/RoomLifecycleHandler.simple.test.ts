@@ -48,12 +48,16 @@ describe('RoomLifecycleHandler - Core Functionality', () => {
     roomService = new RoomService(roomSessionManager);
     namespaceManager = new NamespaceManager(io);
 
+    // Initialize metronome service
+    const metronomeService = new MetronomeService(io, roomService);
+
     // Initialize handler
     roomLifecycleHandler = new RoomLifecycleHandler(
       roomService,
       io,
       namespaceManager,
-      roomSessionManager
+      roomSessionManager,
+      metronomeService
     );
   });
 
