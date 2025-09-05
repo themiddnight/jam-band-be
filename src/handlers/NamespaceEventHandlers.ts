@@ -1,5 +1,10 @@
 import { Namespace, Socket } from 'socket.io';
 import { RoomHandlers } from './RoomHandlers';
+import { VoiceConnectionHandler, ChatHandler } from '../domains/real-time-communication/infrastructure/handlers';
+import { ApprovalWorkflowHandler } from '../domains/user-management/infrastructure/handlers/ApprovalWorkflowHandler';
+import { AudioRoutingHandler, NotePlayingHandler } from '../domains/audio-processing/infrastructure/handlers';
+import { MetronomeHandler } from '../domains/room-management/infrastructure/handlers';
+import { InstrumentSwapHandler } from '../domains/room-management/infrastructure/handlers/InstrumentSwapHandler';
 import { RoomSessionManager } from '../services/RoomSessionManager';
 import { PerformanceMonitoringService } from '../services/PerformanceMonitoringService';
 import { ConnectionHealthService } from '../services/ConnectionHealthService';
@@ -34,7 +39,14 @@ export class NamespaceEventHandlers {
 
   constructor(
     private roomHandlers: RoomHandlers,
-    private roomSessionManager: RoomSessionManager
+    private voiceConnectionHandler: VoiceConnectionHandler,
+    private approvalWorkflowHandler: ApprovalWorkflowHandler,
+    private roomSessionManager: RoomSessionManager,
+    private audioRoutingHandler: AudioRoutingHandler,
+    private chatHandler: ChatHandler,
+    private metronomeHandler: MetronomeHandler,
+    private notePlayingHandler: NotePlayingHandler,
+    private instrumentSwapHandler: InstrumentSwapHandler
   ) {
     this.errorRecoveryService = new BackendErrorRecoveryService();
   }
@@ -252,8 +264,17 @@ export class NamespaceEventHandlers {
             this.connectionOptimization.unregisterConnection(socket, roomId);
           }
 
-          // Handle user leaving room
-          this.roomHandlers.handleLeaveRoom(socket, false);
+          // Handle user leaving room through lifecycle handler
+          const roomLifecycleHandler = (this.roomHandlers as any).roomLifecycleHandler;
+          if (roomLifecycleHandler) {
+            roomLifecycleHandler.handleLeaveRoom(socket, false);
+          }
+          
+          // Clean up pending instrument swaps
+          const session = this.roomSessionManager.getRoomSession(socket.id);
+          if (session) {
+            this.instrumentSwapHandler.handleUserDisconnect(session.userId, namespace);
+          }
           
           // Clean up session
           this.roomSessionManager.removeSession(socket.id);
@@ -303,32 +324,22 @@ export class NamespaceEventHandlers {
     socket.on('join_room', (data) => {
       secureSocketEvent('join_room', joinRoomSchema, 
         this.trackRoomEvent(roomId, 'join_room', 
-          (socket, data) => this.roomHandlers.handleJoinRoomNamespace(socket, data, namespace)
+          (socket, data) => this.roomHandlers.handleJoinRoomNamespace(socket, data)
         )
       )(socket, data);
     });
     
     socket.on('leave_room', (data) => {
       secureSocketEvent('leave_room', undefined, 
-        (socket, data) => this.roomHandlers.handleLeaveRoom(socket, data?.isIntendedLeave || false))(socket, data);
+        (socket, data) => {
+          const roomLifecycleHandler = (this.roomHandlers as any).roomLifecycleHandler;
+          if (roomLifecycleHandler) {
+            roomLifecycleHandler.handleLeaveRoom(socket, data?.isIntendedLeave || false);
+          }
+        })(socket, data);
     });
 
-    // Member management events
-    socket.on('approve_member', (data) => {
-      secureSocketEvent('approve_member', memberActionSchema, 
-        (socket, data) => this.roomHandlers.handleApproveMemberNamespace(socket, data, namespace))(socket, data);
-    });
-    
-    socket.on('reject_member', (data) => {
-      secureSocketEvent('reject_member', memberActionSchema, 
-        (socket, data) => this.roomHandlers.handleRejectMemberNamespace(socket, data, namespace))(socket, data);
-    });
 
-    // Approval response events (from room owner)
-    socket.on('approval_response', (data) => {
-      secureSocketEvent('approval_response', approvalResponseSchema, 
-        (socket, data) => this.roomHandlers.handleApprovalResponse(socket, data, namespace))(socket, data);
-    });
 
     // Music events - Requirements: 7.1, 7.2
     socket.on('play_note', (data) => {
@@ -349,7 +360,7 @@ export class NamespaceEventHandlers {
       }
       
       console.log('✅ Calling handlePlayNoteNamespace');
-      this.roomHandlers.handlePlayNoteNamespace(socket, data, namespace);
+      this.notePlayingHandler.handlePlayNoteNamespace(socket, data, namespace);
     });
     
     socket.on('change_instrument', (data) => {
@@ -361,7 +372,7 @@ export class NamespaceEventHandlers {
         });
         return;
       }
-      this.roomHandlers.handleChangeInstrumentNamespace(socket, data, namespace);
+      this.notePlayingHandler.handleChangeInstrumentNamespace(socket, data, namespace);
     });
     
     socket.on('stop_all_notes', (data) => {
@@ -373,7 +384,7 @@ export class NamespaceEventHandlers {
         });
         return;
       }
-      this.roomHandlers.handleStopAllNotesNamespace(socket, data, namespace);
+      this.notePlayingHandler.handleStopAllNotesNamespace(socket, data, namespace);
     });
     
     socket.on('update_synth_params', (data) => {
@@ -394,12 +405,12 @@ export class NamespaceEventHandlers {
       }
       
       console.log('✅ Calling handleUpdateSynthParamsNamespace');
-      this.roomHandlers.handleUpdateSynthParamsNamespace(socket, data, namespace);
+      this.audioRoutingHandler.handleUpdateSynthParamsNamespace(socket, data, namespace);
     });
     
     socket.on('request_synth_params', () => {
       secureSocketEvent('request_synth_params', undefined, 
-        () => this.roomHandlers.handleRequestSynthParamsNamespace(socket, namespace))(socket, undefined);
+        () => this.audioRoutingHandler.handleRequestSynthParamsNamespace(socket, namespace))(socket, undefined);
     });
 
     socket.on('auto_send_synth_params_to_new_user', (data) => {
@@ -410,19 +421,9 @@ export class NamespaceEventHandlers {
       });
       
       secureSocketEvent('auto_send_synth_params_to_new_user', undefined, 
-        () => this.roomHandlers.handleAutoSendSynthParamsToNewUserNamespace(socket, data, namespace))(socket, data);
+        () => this.audioRoutingHandler.autoRequestSynthParamsForNewUserNamespace(namespace, data.roomId || '', data.newUserId))(socket, data);
     });
 
-    socket.on('request_current_synth_params_for_new_user', (data) => {
-      console.log('🎛️ Namespace received request_current_synth_params_for_new_user event:', {
-        socketId: socket.id,
-        namespaceName: namespace.name,
-        data
-      });
-      
-      secureSocketEvent('request_current_synth_params_for_new_user', undefined, 
-        () => this.roomHandlers.handleRequestCurrentSynthParamsForNewUserNamespace(socket, data, namespace))(socket, data);
-    });
 
     // Ownership events
     socket.on('transfer_ownership', (data) => {
@@ -430,70 +431,165 @@ export class NamespaceEventHandlers {
         (socket, data) => this.roomHandlers.handleTransferOwnershipNamespace(socket, data, namespace))(socket, data);
     });
 
+    // Member approval/rejection events - Requirements: 4.1, 4.6
+    // Route to ApprovalWorkflowHandler for proper user-specific responses
+    socket.on('approve_member', (data) => {
+      const rateLimitCheck = checkSocketRateLimit(socket, 'approve_member');
+      if (!rateLimitCheck.allowed) {
+        socket.emit('membership_error', {
+          message: `Rate limit exceeded for approve_member. Try again in ${rateLimitCheck.retryAfter} seconds.`,
+        });
+        return;
+      }
+      secureSocketEvent('approve_member', memberActionSchema, 
+        (socket, data) => this.approvalWorkflowHandler.handleApprovalResponse(socket, { 
+          userId: data.userId, 
+          approved: true 
+        }, namespace))(socket, data);
+    });
+
+    socket.on('reject_member', (data) => {
+      const rateLimitCheck = checkSocketRateLimit(socket, 'reject_member');
+      if (!rateLimitCheck.allowed) {
+        socket.emit('membership_error', {
+          message: `Rate limit exceeded for reject_member. Try again in ${rateLimitCheck.retryAfter} seconds.`,
+        });
+        return;
+      }
+      secureSocketEvent('reject_member', memberActionSchema, 
+        (socket, data) => this.approvalWorkflowHandler.handleApprovalResponse(socket, { 
+          userId: data.userId, 
+          approved: false,
+          message: data.message || 'Your request was rejected'
+        }, namespace))(socket, data);
+    });
+
+    // Instrument swap events
+    socket.on('request_instrument_swap', (data) => {
+      const rateLimitCheck = checkSocketRateLimit(socket, 'request_instrument_swap');
+      if (!rateLimitCheck.allowed) {
+        socket.emit('swap_error', {
+          message: `Rate limit exceeded for request_instrument_swap. Try again in ${rateLimitCheck.retryAfter} seconds.`,
+        });
+        return;
+      }
+      this.instrumentSwapHandler.handleRequestInstrumentSwap(socket, data, namespace);
+    });
+
+    socket.on('approve_instrument_swap', (data) => {
+      const rateLimitCheck = checkSocketRateLimit(socket, 'approve_instrument_swap');
+      if (!rateLimitCheck.allowed) {
+        socket.emit('swap_error', {
+          message: `Rate limit exceeded for approve_instrument_swap. Try again in ${rateLimitCheck.retryAfter} seconds.`,
+        });
+        return;
+      }
+      this.instrumentSwapHandler.handleApproveInstrumentSwap(socket, data, namespace);
+    });
+
+    socket.on('reject_instrument_swap', (data) => {
+      const rateLimitCheck = checkSocketRateLimit(socket, 'reject_instrument_swap');
+      if (!rateLimitCheck.allowed) {
+        socket.emit('swap_error', {
+          message: `Rate limit exceeded for reject_instrument_swap. Try again in ${rateLimitCheck.retryAfter} seconds.`,
+        });
+        return;
+      }
+      this.instrumentSwapHandler.handleRejectInstrumentSwap(socket, data, namespace);
+    });
+
+    socket.on('cancel_instrument_swap', () => {
+      const rateLimitCheck = checkSocketRateLimit(socket, 'cancel_instrument_swap');
+      if (!rateLimitCheck.allowed) {
+        socket.emit('swap_error', {
+          message: `Rate limit exceeded for cancel_instrument_swap. Try again in ${rateLimitCheck.retryAfter} seconds.`,
+        });
+        return;
+      }
+      this.instrumentSwapHandler.handleCancelInstrumentSwap(socket, namespace);
+    });
+
+    // Sequencer snapshot exchange events
+    socket.on('request_sequencer_state', (data) => {
+      this.instrumentSwapHandler.handleRequestSequencerState(socket, data as { targetUserId: string }, namespace);
+    });
+
+    socket.on('send_sequencer_state', (data) => {
+      this.instrumentSwapHandler.handleSendSequencerState(
+        socket,
+        data as { targetUserId: string; snapshot: { banks: any; settings: any; currentBank: string } },
+        namespace
+      );
+    });
+
+    socket.on('kick_user', (data) => {
+      this.instrumentSwapHandler.handleKickUser(socket, data, namespace);
+    });
+
     // WebRTC Voice events - Requirements: 7.3
     socket.on('voice_offer', (data) => {
       secureSocketEvent('voice_offer', voiceOfferSchema, 
-        (socket, data) => this.roomHandlers.handleVoiceOfferNamespace(socket, data, namespace))(socket, data);
+        (socket, data) => this.voiceConnectionHandler.handleVoiceOfferNamespace(socket, data, namespace))(socket, data);
     });
     
     socket.on('voice_answer', (data) => {
       secureSocketEvent('voice_answer', voiceAnswerSchema, 
-        (socket, data) => this.roomHandlers.handleVoiceAnswerNamespace(socket, data, namespace))(socket, data);
+        (socket, data) => this.voiceConnectionHandler.handleVoiceAnswerNamespace(socket, data, namespace))(socket, data);
     });
     
     socket.on('voice_ice_candidate', (data) => {
       secureSocketEvent('voice_ice_candidate', voiceIceCandidateSchema, 
-        (socket, data) => this.roomHandlers.handleVoiceIceCandidateNamespace(socket, data, namespace))(socket, data);
+        (socket, data) => this.voiceConnectionHandler.handleVoiceIceCandidateNamespace(socket, data, namespace))(socket, data);
     });
     
     socket.on('join_voice', (data) => {
       secureSocketEvent('join_voice', voiceJoinSchema, 
-        (socket, data) => this.roomHandlers.handleJoinVoiceNamespace(socket, data, namespace))(socket, data);
+        (socket, data) => this.voiceConnectionHandler.handleJoinVoiceNamespace(socket, data, namespace))(socket, data);
     });
     
     socket.on('leave_voice', (data) => {
       secureSocketEvent('leave_voice', voiceLeaveSchema, 
-        (socket, data) => this.roomHandlers.handleLeaveVoiceNamespace(socket, data, namespace))(socket, data);
+        (socket, data) => this.voiceConnectionHandler.handleLeaveVoiceNamespace(socket, data, namespace))(socket, data);
     });
     
     socket.on('voice_mute_changed', (data) => {
       secureSocketEvent('voice_mute_changed', voiceMuteChangedSchema, 
-        (socket, data) => this.roomHandlers.handleVoiceMuteChangedNamespace(socket, data, namespace))(socket, data);
+        (socket, data) => this.voiceConnectionHandler.handleVoiceMuteChangedNamespace(socket, data, namespace))(socket, data);
     });
     
     socket.on('request_voice_participants', (data) => {
       secureSocketEvent('request_voice_participants', requestVoiceParticipantsSchema, 
-        (socket, data) => this.roomHandlers.handleRequestVoiceParticipantsNamespace(socket, data, namespace))(socket, data);
+        (socket, data) => this.voiceConnectionHandler.handleRequestVoiceParticipantsNamespace(socket, data, namespace))(socket, data);
     });
 
     // Full Mesh Network Coordination
     socket.on('request_mesh_connections', (data) => {
-      this.roomHandlers.handleRequestMeshConnectionsNamespace(socket, data, namespace);
+      this.voiceConnectionHandler.handleRequestMeshConnectionsNamespace(socket, data, namespace);
     });
 
     // WebRTC Health Monitoring events
     socket.on('voice_heartbeat', (data) => {
-      this.roomHandlers.handleVoiceHeartbeatNamespace(socket, data, namespace);
+      this.voiceConnectionHandler.handleVoiceHeartbeatNamespace(socket, data, namespace);
     });
 
     socket.on('voice_connection_failed', (data) => {
-      this.roomHandlers.handleVoiceConnectionFailedNamespace(socket, data, namespace);
+      this.voiceConnectionHandler.handleVoiceConnectionFailedNamespace(socket, data, namespace);
     });
 
     // Chat events - Requirements: 7.4
     socket.on('chat_message', (data) => {
       secureSocketEvent('chat_message', chatMessageSchema, 
-        (socket, data) => this.roomHandlers.handleChatMessageNamespace(socket, data, namespace))(socket, data);
+        (socket, data) => this.chatHandler.handleChatMessageNamespace(socket, data, namespace))(socket, data);
     });
 
     // Metronome events
     socket.on('update_metronome', (data) => {
       secureSocketEvent('update_metronome', updateMetronomeSchema, 
-        (socket, data) => this.roomHandlers.handleUpdateMetronomeNamespace(socket, data, namespace))(socket, data);
+        (socket, data) => this.metronomeHandler.handleUpdateMetronomeNamespace(socket, data, namespace))(socket, data);
     });
 
     socket.on('request_metronome_state', () => {
-      this.roomHandlers.handleRequestMetronomeStateNamespace(socket, namespace);
+      this.metronomeHandler.handleRequestMetronomeStateNamespace(socket, namespace);
     });
 
     // Ping measurement events for latency monitoring in rooms
@@ -522,7 +618,7 @@ export class NamespaceEventHandlers {
       });
 
       // Handle initial approval connection setup
-      this.roomHandlers.handleApprovalConnection(socket, roomId, namespace);
+      this.approvalWorkflowHandler.handleApprovalConnection(socket, roomId, namespace);
 
       // Bind approval-specific event handlers
       this.bindApprovalEventHandlers(socket, roomId, namespace);
@@ -536,7 +632,7 @@ export class NamespaceEventHandlers {
         });
 
         // Handle approval disconnect (cancellation due to disconnect)
-        this.roomHandlers.handleApprovalDisconnect(socket);
+        this.approvalWorkflowHandler.handleApprovalDisconnect(socket);
 
         // Clean up session
         this.roomSessionManager.removeSession(socket.id);
@@ -561,13 +657,13 @@ export class NamespaceEventHandlers {
     // Handle approval request from waiting user
     socket.on('request_approval', (data) => {
       secureSocketEvent('request_approval', approvalRequestSchema, 
-        (socket, data) => this.roomHandlers.handleApprovalRequest(socket, data, namespace))(socket, data);
+        (socket, data) => this.approvalWorkflowHandler.handleApprovalRequest(socket, data, namespace))(socket, data);
     });
 
     // Handle approval cancellation from waiting user
     socket.on('cancel_approval_request', (data) => {
       secureSocketEvent('cancel_approval_request', approvalCancelSchema, 
-        (socket, data) => this.roomHandlers.handleApprovalCancel(socket, data, namespace))(socket, data);
+        (socket, data) => this.approvalWorkflowHandler.handleApprovalCancel(socket, data, namespace))(socket, data);
     });
 
     // Ping measurement events for latency monitoring during approval

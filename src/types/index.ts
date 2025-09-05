@@ -4,6 +4,7 @@ export interface User {
   role: 'room_owner' | 'band_member' | 'audience';
   currentInstrument?: string;
   currentCategory?: string;
+  synthParams?: Record<string, any>;
   isReady: boolean;
 }
 

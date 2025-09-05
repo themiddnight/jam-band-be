@@ -3,7 +3,7 @@
     "target": "ES2022",
     "module": "commonjs",
     "lib": ["ES2022"],
-    "types": ["node", "jest"],
+    "types": ["node", "jest", "bun"],
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
@@ -23,11 +23,13 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
     "baseUrl": "./src",
     "paths": {
       "@/*": ["*"]
     }
   },
-  "include": ["src/**/*", "tests/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "tests/**/*", "src/**/__tests__/**/*", "src/**/*.test.ts", "src/**/*.spec.ts", "src/testing/**/*"]
 } 
