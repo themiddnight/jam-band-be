@@ -28,6 +28,7 @@ import { RoomLifecycleHandler, RoomMembershipHandler } from './domains/room-mana
 import { VoiceConnectionHandler } from './domains/real-time-communication/infrastructure/handlers/VoiceConnectionHandler';
 import { AudioRoutingHandler } from './domains/audio-processing/infrastructure/handlers';
 import { ApprovalWorkflowHandler } from './domains/user-management/infrastructure/handlers/ApprovalWorkflowHandler';
+import { InstrumentSwapHandler } from './domains/room-management/infrastructure/handlers/InstrumentSwapHandler';
 
 // Repository and Domain Services
 import { RepositoryServiceFactory } from './domains/room-management/infrastructure/services/RepositoryServiceFactory';
@@ -127,9 +128,10 @@ const approvalWorkflowHandler = new ApprovalWorkflowHandler(roomService, io, nam
 const chatHandler = new ChatHandler(roomService, namespaceManager, roomSessionManager);
 const metronomeHandler = new MetronomeHandler(roomService, metronomeService, roomSessionManager, namespaceManager);
 const notePlayingHandler = new NotePlayingHandler(roomService, io, namespaceManager, roomSessionManager);
+const instrumentSwapHandler = new InstrumentSwapHandler(roomService, io, namespaceManager, roomSessionManager);
 
 const roomHandlers = new RoomHandlers(roomService, roomSessionManager, roomLifecycleHandler, roomMembershipHandler, approvalWorkflowHandler, roomApplicationService);
-const namespaceEventHandlers = new NamespaceEventHandlers(roomHandlers, voiceConnectionHandler, approvalWorkflowHandler, roomSessionManager, audioRoutingHandler, chatHandler, metronomeHandler, notePlayingHandler);
+const namespaceEventHandlers = new NamespaceEventHandlers(roomHandlers, voiceConnectionHandler, approvalWorkflowHandler, roomSessionManager, audioRoutingHandler, chatHandler, metronomeHandler, notePlayingHandler, instrumentSwapHandler);
 
 // Set up namespace event handlers
 namespaceManager.setEventHandlers(namespaceEventHandlers);

@@ -4,7 +4,7 @@ import { loggingService } from './LoggingService';
 export class ApprovalSessionManager {
   private approvalSessions = new Map<string, ApprovalSession>(); // socketId -> ApprovalSession
   private userApprovalSessions = new Map<string, string>(); // userId -> socketId
-  private readonly APPROVAL_TIMEOUT_MS = 30000; // 30 seconds
+  private readonly APPROVAL_TIMEOUT_MS = 600000; // 10 minutes (increased from 30 seconds)
 
   /**
    * Create a new approval session for a user requesting to join a room

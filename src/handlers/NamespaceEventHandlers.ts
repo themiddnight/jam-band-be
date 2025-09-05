@@ -4,6 +4,7 @@ import { VoiceConnectionHandler, ChatHandler } from '../domains/real-time-commun
 import { ApprovalWorkflowHandler } from '../domains/user-management/infrastructure/handlers/ApprovalWorkflowHandler';
 import { AudioRoutingHandler, NotePlayingHandler } from '../domains/audio-processing/infrastructure/handlers';
 import { MetronomeHandler } from '../domains/room-management/infrastructure/handlers';
+import { InstrumentSwapHandler } from '../domains/room-management/infrastructure/handlers/InstrumentSwapHandler';
 import { RoomSessionManager } from '../services/RoomSessionManager';
 import { PerformanceMonitoringService } from '../services/PerformanceMonitoringService';
 import { ConnectionHealthService } from '../services/ConnectionHealthService';
@@ -44,7 +45,8 @@ export class NamespaceEventHandlers {
     private audioRoutingHandler: AudioRoutingHandler,
     private chatHandler: ChatHandler,
     private metronomeHandler: MetronomeHandler,
-    private notePlayingHandler: NotePlayingHandler
+    private notePlayingHandler: NotePlayingHandler,
+    private instrumentSwapHandler: InstrumentSwapHandler
   ) {
     this.errorRecoveryService = new BackendErrorRecoveryService();
   }
@@ -268,6 +270,12 @@ export class NamespaceEventHandlers {
             roomLifecycleHandler.handleLeaveRoom(socket, false);
           }
           
+          // Clean up pending instrument swaps
+          const session = this.roomSessionManager.getRoomSession(socket.id);
+          if (session) {
+            this.instrumentSwapHandler.handleUserDisconnect(session.userId, namespace);
+          }
+          
           // Clean up session
           this.roomSessionManager.removeSession(socket.id);
         } catch (error) {
@@ -421,6 +429,101 @@ export class NamespaceEventHandlers {
     socket.on('transfer_ownership', (data) => {
       secureSocketEvent('transfer_ownership', transferOwnershipSchema, 
         (socket, data) => this.roomHandlers.handleTransferOwnershipNamespace(socket, data, namespace))(socket, data);
+    });
+
+    // Member approval/rejection events - Requirements: 4.1, 4.6
+    // Route to ApprovalWorkflowHandler for proper user-specific responses
+    socket.on('approve_member', (data) => {
+      const rateLimitCheck = checkSocketRateLimit(socket, 'approve_member');
+      if (!rateLimitCheck.allowed) {
+        socket.emit('membership_error', {
+          message: `Rate limit exceeded for approve_member. Try again in ${rateLimitCheck.retryAfter} seconds.`,
+        });
+        return;
+      }
+      secureSocketEvent('approve_member', memberActionSchema, 
+        (socket, data) => this.approvalWorkflowHandler.handleApprovalResponse(socket, { 
+          userId: data.userId, 
+          approved: true 
+        }, namespace))(socket, data);
+    });
+
+    socket.on('reject_member', (data) => {
+      const rateLimitCheck = checkSocketRateLimit(socket, 'reject_member');
+      if (!rateLimitCheck.allowed) {
+        socket.emit('membership_error', {
+          message: `Rate limit exceeded for reject_member. Try again in ${rateLimitCheck.retryAfter} seconds.`,
+        });
+        return;
+      }
+      secureSocketEvent('reject_member', memberActionSchema, 
+        (socket, data) => this.approvalWorkflowHandler.handleApprovalResponse(socket, { 
+          userId: data.userId, 
+          approved: false,
+          message: data.message || 'Your request was rejected'
+        }, namespace))(socket, data);
+    });
+
+    // Instrument swap events
+    socket.on('request_instrument_swap', (data) => {
+      const rateLimitCheck = checkSocketRateLimit(socket, 'request_instrument_swap');
+      if (!rateLimitCheck.allowed) {
+        socket.emit('swap_error', {
+          message: `Rate limit exceeded for request_instrument_swap. Try again in ${rateLimitCheck.retryAfter} seconds.`,
+        });
+        return;
+      }
+      this.instrumentSwapHandler.handleRequestInstrumentSwap(socket, data, namespace);
+    });
+
+    socket.on('approve_instrument_swap', (data) => {
+      const rateLimitCheck = checkSocketRateLimit(socket, 'approve_instrument_swap');
+      if (!rateLimitCheck.allowed) {
+        socket.emit('swap_error', {
+          message: `Rate limit exceeded for approve_instrument_swap. Try again in ${rateLimitCheck.retryAfter} seconds.`,
+        });
+        return;
+      }
+      this.instrumentSwapHandler.handleApproveInstrumentSwap(socket, data, namespace);
+    });
+
+    socket.on('reject_instrument_swap', (data) => {
+      const rateLimitCheck = checkSocketRateLimit(socket, 'reject_instrument_swap');
+      if (!rateLimitCheck.allowed) {
+        socket.emit('swap_error', {
+          message: `Rate limit exceeded for reject_instrument_swap. Try again in ${rateLimitCheck.retryAfter} seconds.`,
+        });
+        return;
+      }
+      this.instrumentSwapHandler.handleRejectInstrumentSwap(socket, data, namespace);
+    });
+
+    socket.on('cancel_instrument_swap', () => {
+      const rateLimitCheck = checkSocketRateLimit(socket, 'cancel_instrument_swap');
+      if (!rateLimitCheck.allowed) {
+        socket.emit('swap_error', {
+          message: `Rate limit exceeded for cancel_instrument_swap. Try again in ${rateLimitCheck.retryAfter} seconds.`,
+        });
+        return;
+      }
+      this.instrumentSwapHandler.handleCancelInstrumentSwap(socket, namespace);
+    });
+
+    // Sequencer snapshot exchange events
+    socket.on('request_sequencer_state', (data) => {
+      this.instrumentSwapHandler.handleRequestSequencerState(socket, data as { targetUserId: string }, namespace);
+    });
+
+    socket.on('send_sequencer_state', (data) => {
+      this.instrumentSwapHandler.handleSendSequencerState(
+        socket,
+        data as { targetUserId: string; snapshot: { banks: any; settings: any; currentBank: string } },
+        namespace
+      );
+    });
+
+    socket.on('kick_user', (data) => {
+      this.instrumentSwapHandler.handleKickUser(socket, data, namespace);
     });
 
     // WebRTC Voice events - Requirements: 7.3

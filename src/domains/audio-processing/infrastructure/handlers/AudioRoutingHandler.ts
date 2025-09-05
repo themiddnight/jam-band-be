@@ -39,6 +39,9 @@ export class AudioRoutingHandler {
     const user = room.users.get(session.userId);
     if (!user) return;
 
+    // Store synth parameters in user state for swapping
+    this.roomService.updateUserSynthParams(session.roomId, session.userId, data.params);
+
     // Synth params now bypass validation for performance
     loggingService.logInfo('Audio routing - synth params updated', {
       userId: session.userId,
@@ -285,6 +288,9 @@ export class AudioRoutingHandler {
       });
       return;
     }
+
+    // Store synth parameters in user state for swapping
+    this.roomService.updateUserSynthParams(session.roomId, session.userId, data.params);
 
     loggingService.logInfo('Audio routing - broadcasting synth_params_changed (namespace)', {
       namespaceName: namespace.name,

@@ -486,6 +486,21 @@ export class RoomService {
     return true;
   }
 
+  updateUserSynthParams(
+    roomId: string,
+    userId: string,
+    synthParams: Record<string, any>
+  ): boolean {
+    const room = this.rooms.get(roomId);
+    if (!room) return false;
+
+    const user = room.users.get(userId);
+    if (!user) return false;
+
+    user.synthParams = synthParams;
+    return true;
+  }
+
   // Utility methods
   isRoomOwner(roomId: string, userId: string): boolean {
     const room = this.rooms.get(roomId);
