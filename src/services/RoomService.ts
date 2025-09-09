@@ -535,30 +535,25 @@ export class RoomService {
     // Clean up expired intentional leave entries
     this.cleanupExpiredIntentionalLeaves();
 
-    // Additional cleanup: Remove rooms that have been empty for too long
-    const now = new Date();
-    const additionalRoomsToDelete: string[] = [];
+    // Immediate cleanup: Remove any rooms that have no active users and no grace users
+    const immediateRoomsToDelete: string[] = [];
 
-    for (const [roomId, room] of this.rooms.entries()) {
-      // Delete rooms that have no owner/band members for more than 1 hour
-      const timeSinceCreation = now.getTime() - room.createdAt.getTime();
-      const oneHour = 60 * 60 * 1000;
-
-      if (this.shouldCloseRoom(roomId) && timeSinceCreation > oneHour) {
-        additionalRoomsToDelete.push(roomId);
+    for (const [roomId] of this.rooms.entries()) {
+      if (this.shouldCloseRoom(roomId)) {
+        immediateRoomsToDelete.push(roomId);
       }
     }
 
-    // Combine all rooms to delete
-    const allRoomsToDelete = [
+    // Combine all rooms to delete (ensure uniqueness)
+    const allRoomsToDelete = Array.from(new Set([
       ...gracePeriodRoomsToDelete,
-      ...additionalRoomsToDelete,
-    ];
+      ...immediateRoomsToDelete,
+    ]));
 
     // Delete rooms and return list for external cleanup (namespaces, etc.)
     allRoomsToDelete.forEach((roomId) => {
       this.deleteRoom(roomId);
-      console.log(`Deleted expired/empty room: ${roomId}`);
+      console.log(`Deleted empty room: ${roomId}`);
     });
 
     return allRoomsToDelete;
