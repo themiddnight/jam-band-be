@@ -466,11 +466,14 @@ export class RoomLifecycleHandler {
         this.roomService.removeFromGracePeriod(userIdString, roomIdString);
       } else {
         // Grace period expired, create new user
+        const userRole = role || 'audience';
         user = {
           id: userIdString,
           username,
-          role: role || 'audience',
-          isReady: (role || 'audience') === 'audience'
+          role: userRole,
+          isReady: userRole === 'audience',
+          // Don't set default instruments - let frontend send user's preferences
+          // currentInstrument and currentCategory will be set when user sends change_instrument
         };
       }
     } else if (hasIntentionallyLeft) {
@@ -479,21 +482,27 @@ export class RoomLifecycleHandler {
       this.roomService.removeFromIntentionallyLeft(userIdString);
 
       // Create new user that will need approval
+      const userRole = role || 'audience';
       user = {
         id: userIdString,
         username,
-        role: role || 'audience',
-        isReady: (role || 'audience') === 'audience'
+        role: userRole,
+        isReady: userRole === 'audience',
+        // Don't set default instruments - let frontend send user's preferences
+        // currentInstrument and currentCategory will be set when user sends change_instrument
       };
 
       // Note: This user intentionally left and is trying to rejoin
     } else {
       // Create new user
+      const userRole = role || 'audience';
       user = {
         id: userIdString,
         username,
-        role: role || 'audience',
-        isReady: (role || 'audience') === 'audience'
+        role: userRole,
+        isReady: userRole === 'audience',
+        // Don't set default instruments - let frontend send user's preferences
+        // currentInstrument and currentCategory will be set when user sends change_instrument
       };
     }
 

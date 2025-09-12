@@ -349,6 +349,50 @@ export class InstrumentSwapHandler {
     // Notify all users in room about the swap
     namespace.emit('swap_completed', swapData);
 
+    // ALSO broadcast standard instrument & synth param events so other clients update immediately
+    // (Previously only swap_completed was emitted, causing other users to retain stale synth params
+    // until an explicit instrument toggle occurred.)
+    try {
+      namespace.emit('instrument_changed', {
+        userId: requesterId,
+        username: requesterUser.username,
+        instrument: requesterUser.currentInstrument,
+        category: requesterUser.currentCategory
+      });
+      namespace.emit('instrument_changed', {
+        userId: targetUserId,
+        username: targetUser.username,
+        instrument: targetUser.currentInstrument,
+        category: targetUser.currentCategory
+      });
+
+      if (requesterUser.currentCategory === 'synthesizer' && requesterUser.synthParams) {
+        namespace.emit('synth_params_changed', {
+          userId: requesterId,
+          username: requesterUser.username,
+            instrument: requesterUser.currentInstrument,
+          category: requesterUser.currentCategory,
+          params: requesterUser.synthParams
+        });
+      }
+      if (targetUser.currentCategory === 'synthesizer' && targetUser.synthParams) {
+        namespace.emit('synth_params_changed', {
+          userId: targetUserId,
+          username: targetUser.username,
+          instrument: targetUser.currentInstrument,
+          category: targetUser.currentCategory,
+          params: targetUser.synthParams
+        });
+      }
+    } catch (broadcastErr) {
+      loggingService.logError(broadcastErr instanceof Error ? broadcastErr : new Error('Unknown broadcast error'), {
+        context: 'InstrumentSwapHandler.executeSwap.broadcasts',
+        roomId,
+        requesterId,
+        targetUserId
+      });
+    }
+
     loggingService.logInfo('Instrument swap completed', {
       roomId,
       requesterId,

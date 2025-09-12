@@ -348,17 +348,7 @@ export class NamespaceEventHandlers {
         namespaceName: namespace.name,
         data: data
       });
-      
-      const rateLimitCheck = checkSocketRateLimit(socket, 'play_note');
-      if (!rateLimitCheck.allowed) {
-        console.log('🚫 Rate limit exceeded for play_note');
-        socket.emit('error', { 
-          message: `Rate limit exceeded for play_note. Try again in ${rateLimitCheck.retryAfter} seconds.`,
-          retryAfter: rateLimitCheck.retryAfter 
-        });
-        return;
-      }
-      
+
       console.log('✅ Calling handlePlayNoteNamespace');
       this.notePlayingHandler.handlePlayNoteNamespace(socket, data, namespace);
     });

@@ -49,6 +49,8 @@ export class RoomService {
       username,
       role: "room_owner",
       isReady: true,
+      // Don't set default instruments - let frontend send user's preferences
+      // currentInstrument and currentCategory will be set when user sends change_instrument
     };
 
     room.users.set(userId, user);
@@ -374,11 +376,20 @@ export class RoomService {
     // Perform ownership update
     room.owner = newOwner.id;
     newOwner.role = "room_owner";
+    
+    // For ownership transfers, preserve existing instruments or use defaults only as fallback
+    // This ensures that if a user already has instrument preferences, they are maintained
+    if (!newOwner.currentInstrument || !newOwner.currentCategory) {
+      newOwner.currentInstrument = 'acoustic_grand_piano';
+      newOwner.currentCategory = 'melodic';
+    }
 
     // If the old owner is still present in the room, demote them to band_member
     if (actualOldOwner && room.users.has(actualOldOwner.id)) {
       const foundOld = room.users.get(actualOldOwner.id)!;
       foundOld.role = "band_member";
+      // Preserve existing instruments when demoting owner - no need to change them
+      // The user can keep their current instrument preferences
       actualOldOwner = foundOld;
     }
 
