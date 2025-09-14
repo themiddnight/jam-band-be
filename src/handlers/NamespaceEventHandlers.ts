@@ -675,6 +675,7 @@ export class NamespaceEventHandlers {
    */
   setupLobbyMonitorNamespaceHandlers(namespace: Namespace): void {
     namespace.on('connection', (socket: Socket) => {
+      console.log('🔌 Backend: Socket connected to lobby-monitor namespace', socket.id);
       loggingService.logInfo('Socket connected to lobby monitor namespace', {
         socketId: socket.id,
         namespacePath: '/lobby-monitor'
@@ -682,17 +683,23 @@ export class NamespaceEventHandlers {
 
       // Lobby monitor event handlers
       socket.on('ping_measurement', (data) => {
+        console.log('🏓 Backend (lobby-monitor): Received ping_measurement', { socketId: socket.id, data });
         // Simple ping-pong response for latency measurement
         if (data && data.pingId && data.timestamp) {
-          socket.emit('ping_response', {
+          const response = {
             pingId: data.pingId,
             timestamp: data.timestamp,
             serverTimestamp: Date.now()
-          });
+          };
+          console.log('🏓 Backend (lobby-monitor): Sending ping_response', response);
+          socket.emit('ping_response', response);
+        } else {
+          console.log('🏓 Backend (lobby-monitor): Invalid ping data', data);
         }
       });
 
       socket.on('disconnect', (reason) => {
+        console.log('🔌 Backend: Socket disconnected from lobby-monitor namespace', socket.id, reason);
         loggingService.logInfo('Socket disconnected from lobby monitor namespace', {
           socketId: socket.id,
           reason,

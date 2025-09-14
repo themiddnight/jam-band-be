@@ -429,7 +429,12 @@ export class RoomLifecycleHandler {
   async handleJoinRoom(socket: Socket, data: JoinRoomData): Promise<void> {
     const { roomId, username, userId, role } = data;
 
-    // Convert to strongly-typed IDs for internal processing
+    // Validate input
+    if (!roomId || !username || !userId) {
+      socket.emit('join_error', { message: 'Missing required fields: roomId, username, userId' });
+      return;
+    }
+
     const roomIdTyped = this.ensureRoomId(roomId);
     const userIdTyped = this.ensureUserId(userId);
     const roomIdString = this.roomIdToString(roomIdTyped);
@@ -437,11 +442,15 @@ export class RoomLifecycleHandler {
 
     const room = this.roomService.getRoom(roomIdString);
     if (!room) {
-      socket.emit('error', { message: 'Room not found' });
+      socket.emit('join_error', { message: 'Room not found' });
       return;
     }
 
-    // Check if user already exists in the room, is in grace period, or has intentionally left
+    // Check if user is already connected with a different socket
+    // This prevents duplicate connections and role conflicts
+    // For now, we'll rely on removeOldSessionsForUser which is called later
+    // TODO: Implement findSessionByUserId method in RoomSessionManager if needed for better validation
+
     const existingUser = this.roomService.findUserInRoom(roomIdString, userIdString);
     const isInGracePeriod = this.roomService.isUserInGracePeriod(userIdString, roomIdString);
     const hasIntentionallyLeft = this.roomService.hasUserIntentionallyLeft(userIdString, roomIdString);
@@ -458,11 +467,28 @@ export class RoomLifecycleHandler {
       // Requirements: 6.7 - State restoration (user role, instrument, settings) after reconnection
       const gracePeriodUserData = this.roomService.getGracePeriodUserData(userIdString, roomIdString);
       if (gracePeriodUserData) {
-        // Restore user with their original role and data
-        user = {
-          ...gracePeriodUserData,
-          username, // Update username in case it changed
-        };
+        // Check if the user is trying to join with a different role than they had before
+        const requestedRole = role || 'audience';
+        const previousRole = gracePeriodUserData.role;
+        
+        // If user is requesting a different role, respect their choice and create new user with new role
+        // This handles cases where user enters as audience after being a band_member, or vice versa
+        if (requestedRole !== previousRole) {
+          console.log(`🔄 User ${username} changing role from ${previousRole} to ${requestedRole} during grace period`);
+          user = {
+            id: userIdString,
+            username,
+            role: requestedRole,
+            isReady: requestedRole === 'audience',
+            // Don't restore instrument data when role changes - let user choose fresh
+          };
+        } else {
+          // Same role - restore user with their original data (instruments, settings, etc.)
+          user = {
+            ...gracePeriodUserData,
+            username, // Update username in case it changed
+          };
+        }
         this.roomService.removeFromGracePeriod(userIdString, roomIdString);
       } else {
         // Grace period expired, create new user
@@ -659,35 +685,45 @@ export class RoomLifecycleHandler {
   }
 
   /**
-   * Handle leaving a room via Socket
+   * Handle user leaving room - coordinates cleanup and state updates
+   * Requirements: 6.5, 6.6, 6.7 - Grace period management, session cleanup, state restoration
    */
   handleLeaveRoom(socket: Socket, isIntendedLeave: boolean = false): void {
     const session = this.roomSessionManager.getRoomSession(socket.id);
     if (!session) {
+      // No session found - user might have already left or never joined properly
+      console.log('🚪 Leave room called but no session found for socket:', socket.id);
+      socket.emit('leave_confirmed', { message: 'Successfully left the room' });
       return;
     }
 
-    const room = this.roomService.getRoom(session.roomId);
+    const roomIdString = session.roomId;
+    const userIdString = session.userId;
+    const room = this.roomService.getRoom(roomIdString);
+    const user = room?.users.get(userIdString);
+
+    // Always confirm the leave to the user first to prevent UI hanging
+    socket.emit('leave_confirmed', { message: 'Successfully left the room' });
+
+    // Remove user from socket room immediately to prevent further message reception
+    socket.leave(roomIdString);
+
     if (!room) {
+      console.log('🚪 Room not found during leave:', roomIdString);
+      this.roomSessionManager.removeSession(socket.id);
       return;
     }
 
-    const user = room.users.get(session.userId);
-    const pendingUser = room.pendingMembers.get(session.userId);
-
-    // Check if this was a pending member who cancelled
-    if (pendingUser) {
-      this.roomService.rejectMember(session.roomId, session.userId);
-
-      // Get or create the room namespace for proper isolation
-      const roomNamespace = this.getOrCreateRoomNamespace(session.roomId);
+    if (!user) {
+      console.log('🚪 User not found in room during leave:', userIdString, 'from room:', roomIdString);
+      // Still broadcast room state update in case there's a sync issue
+      const roomNamespace = this.getOrCreateRoomNamespace(roomIdString);
       if (roomNamespace) {
-        // Send updated room state to all users in the room to remove the pending member
         const updatedRoomData = {
           room: {
             ...room,
-            users: this.roomService.getRoomUsers(session.roomId),
-            pendingMembers: this.roomService.getPendingMembers(session.roomId)
+            users: this.roomService.getRoomUsers(roomIdString),
+            pendingMembers: this.roomService.getPendingMembers(roomIdString)
           }
         };
         roomNamespace.emit('room_state_updated', updatedRoomData);
@@ -697,19 +733,11 @@ export class RoomLifecycleHandler {
       return;
     }
 
-    if (!user) {
-      return;
-    }
-
     // If room owner leaves, handle ownership transfer or room closure
     if (user.role === 'room_owner') {
-      // Notify the leaving owner that their leave is confirmed before handling transfer
-      socket.emit('leave_confirmed', { message: 'Successfully left the room' });
       this.handleRoomOwnerLeaving(session.roomId, session.userId, isIntendedLeave);
     } else {
-      // Regular user leaving - just remove them from room
-      // Notify the leaving user that their leave is confirmed
-      socket.emit('leave_confirmed', { message: 'Successfully left the room' });
+      // Regular user leaving - remove them from room
       this.roomService.removeUserFromRoom(session.roomId, session.userId, isIntendedLeave);
 
       // Check if room should be closed after regular user leaves
@@ -719,21 +747,13 @@ export class RoomLifecycleHandler {
         if (roomNamespace) {
           roomNamespace.emit('room_closed', { message: 'Room is empty and has been closed' });
         }
-        this.metronomeService.cleanupRoom(session.roomId);
-        this.namespaceManager.cleanupRoomNamespace(session.roomId);
-        this.namespaceManager.cleanupApprovalNamespace(session.roomId);
-        this.roomService.deleteRoom(session.roomId);
 
-        // Broadcast to all clients that the room was closed (via main namespace)
-        this.io.emit('room_closed_broadcast', { roomId: session.roomId });
+        // Attempt to close room
+        this.roomService.deleteRoom(session.roomId);
       } else {
-        // Get or create the room namespace for proper isolation
+        // Room still has users, broadcast updated state
         const roomNamespace = this.getOrCreateRoomNamespace(session.roomId);
         if (roomNamespace) {
-          // Notify others about user leaving
-          socket.to(session.roomId).emit('user_left', { user });
-
-          // Send updated room state to all users to ensure UI consistency
           const updatedRoomData = {
             room: {
               ...room,
@@ -746,8 +766,16 @@ export class RoomLifecycleHandler {
       }
     }
 
-    socket.leave(session.roomId);
+    // Clean up session last
     this.roomSessionManager.removeSession(socket.id);
+
+    console.log('🚪 User left room:', {
+      username: user.username,
+      role: user.role,
+      roomId: roomIdString,
+      isIntendedLeave,
+      socketId: socket.id
+    });
   }
 
   /**
