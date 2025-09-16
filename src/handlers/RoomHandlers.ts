@@ -201,4 +201,72 @@ export class RoomHandlers {
     // Delegate to domain handler which handles namespace-aware operations
     this.roomMembershipHandler.handleTransferOwnershipNamespace(socket, typedData, namespace);
   }
+
+  /**
+   * Handle room owner scale change - update room state and notify followers
+   */
+  handleRoomOwnerScaleChange(socket: Socket, data: import('../types').RoomOwnerScaleChangeData, namespace: Namespace): void {
+    const session = this.roomSessionManager.getSession(socket.id);
+    if (!session) return;
+
+    const room = this.roomService.getRoom(session.roomId);
+    if (!room) return;
+
+    // Only room owner can change the room scale
+    if (room.owner !== session.userId) {
+      socket.emit('error', { message: 'Only room owner can change the room scale' });
+      return;
+    }
+
+    // Update room's owner scale
+    room.ownerScale = {
+      rootNote: data.rootNote,
+      scale: data.scale
+    };
+
+    // Notify all users in the room about the scale change
+    namespace.emit('room_owner_scale_changed', {
+      rootNote: data.rootNote,
+      scale: data.scale,
+      ownerId: session.userId
+    });
+  }
+
+  /**
+   * Handle toggle follow room owner - update user follow state
+   */
+  handleToggleFollowRoomOwner(socket: Socket, data: import('../types').ToggleFollowRoomOwnerData, namespace: Namespace): void {
+    const session = this.roomSessionManager.getSession(socket.id);
+    if (!session) return;
+
+    const room = this.roomService.getRoom(session.roomId);
+    if (!room) return;
+
+    const user = room.users.get(session.userId);
+    if (!user) return;
+
+    // Only band members can follow room owner (not audience or room owner themselves)
+    if (user.role !== 'band_member') {
+      socket.emit('error', { message: 'Only band members can follow room owner scale' });
+      return;
+    }
+
+    // Update user's follow state
+    user.followRoomOwner = data.followRoomOwner;
+
+    // Notify the user about their follow state change
+    socket.emit('follow_room_owner_toggled', {
+      followRoomOwner: data.followRoomOwner,
+      ownerScale: room.ownerScale
+    });
+
+    // If they're now following and there's an owner scale, send it
+    if (data.followRoomOwner && room.ownerScale) {
+      socket.emit('room_owner_scale_changed', {
+        rootNote: room.ownerScale.rootNote,
+        scale: room.ownerScale.scale,
+        ownerId: room.owner
+      });
+    }
+  }
 }

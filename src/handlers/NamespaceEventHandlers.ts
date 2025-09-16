@@ -516,6 +516,31 @@ export class NamespaceEventHandlers {
       this.instrumentSwapHandler.handleKickUser(socket, data, namespace);
     });
 
+    // Scale follow events
+    socket.on('room_owner_scale_change', (data) => {
+      const rateLimitCheck = checkSocketRateLimit(socket, 'room_owner_scale_change');
+      if (!rateLimitCheck.allowed) {
+        socket.emit('error', {
+          message: `Rate limit exceeded for room_owner_scale_change. Try again in ${rateLimitCheck.retryAfter} seconds.`,
+          retryAfter: rateLimitCheck.retryAfter
+        });
+        return;
+      }
+      this.roomHandlers.handleRoomOwnerScaleChange(socket, data, namespace);
+    });
+
+    socket.on('toggle_follow_room_owner', (data) => {
+      const rateLimitCheck = checkSocketRateLimit(socket, 'toggle_follow_room_owner');
+      if (!rateLimitCheck.allowed) {
+        socket.emit('error', {
+          message: `Rate limit exceeded for toggle_follow_room_owner. Try again in ${rateLimitCheck.retryAfter} seconds.`,
+          retryAfter: rateLimitCheck.retryAfter
+        });
+        return;
+      }
+      this.roomHandlers.handleToggleFollowRoomOwner(socket, data, namespace);
+    });
+
     // WebRTC Voice events - Requirements: 7.3
     socket.on('voice_offer', (data) => {
       secureSocketEvent('voice_offer', voiceOfferSchema, 

@@ -6,6 +6,7 @@ export interface User {
   currentCategory?: string;
   synthParams?: Record<string, any>;
   isReady: boolean;
+  followRoomOwner?: boolean;
 }
 
 export interface Room {
@@ -18,6 +19,10 @@ export interface Room {
   isHidden: boolean;
   createdAt: Date;
   metronome: MetronomeState;
+  ownerScale?: {
+    rootNote: string;
+    scale: 'major' | 'minor';
+  };
 }
 
 export interface UserSession {
@@ -188,4 +193,14 @@ export interface ApprovalSession {
   role: 'band_member' | 'audience';
   requestedAt: Date;
   timeoutId?: NodeJS.Timeout;
+}
+
+// Scale-related types
+export interface RoomOwnerScaleChangeData {
+  rootNote: string;
+  scale: 'major' | 'minor';
+}
+
+export interface ToggleFollowRoomOwnerData {
+  followRoomOwner: boolean;
 } 
