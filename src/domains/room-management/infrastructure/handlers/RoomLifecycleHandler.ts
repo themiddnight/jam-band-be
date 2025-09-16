@@ -288,7 +288,7 @@ export class RoomLifecycleHandler {
       return;
     }
 
-    const { name, username, userId, isPrivate = false, isHidden = false } = validationResult.value;
+    const { name, username, userId, isPrivate = false, isHidden = false, description, roomType = 'perform' } = validationResult.value;
 
     try {
       // Convert to strongly-typed IDs for internal processing
@@ -299,7 +299,9 @@ export class RoomLifecycleHandler {
         username,
         this.userIdToString(userIdTyped), // Convert back to string for legacy service
         isPrivate,
-        isHidden
+        isHidden,
+        description,
+        roomType
       );
 
       // Convert room.id to RoomId for type safety
@@ -371,7 +373,9 @@ export class RoomLifecycleHandler {
       data.username,
       this.userIdToString(userIdTyped), // Convert back to string for legacy service
       data.isPrivate,
-      data.isHidden
+      data.isHidden,
+      data.description,
+      data.roomType
     );
 
     // Convert room.id to RoomId for type safety

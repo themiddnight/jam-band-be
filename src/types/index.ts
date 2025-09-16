@@ -12,6 +12,8 @@ export interface User {
 export interface Room {
   id: string;
   name: string;
+  description?: string;
+  roomType: 'perform' | 'produce';
   owner: string;
   users: Map<string, User>;
   pendingMembers: Map<string, User>;
@@ -39,6 +41,8 @@ export interface JoinRoomData {
 
 export interface CreateRoomData {
   name: string;
+  description?: string;
+  roomType: 'perform' | 'produce';
   username: string;
   userId: string;
   isPrivate: boolean;
@@ -78,6 +82,8 @@ export interface TransferOwnershipData {
 export interface RoomListResponse {
   id: string;
   name: string;
+  description?: string;
+  roomType: 'perform' | 'produce';
   userCount: number;
   owner: string;
   isPrivate: boolean;

@@ -25,13 +25,17 @@ export class RoomService {
     username: string,
     userId: string,
     isPrivate: boolean = false,
-    isHidden: boolean = false
+    isHidden: boolean = false,
+    description?: string,
+    roomType: 'perform' | 'produce' = 'perform'
   ): { room: Room; user: User; session: UserSession } {
     const roomId = uuidv4();
 
     const room: Room = {
       id: roomId,
       name,
+      ...(description && { description }),
+      roomType,
       owner: userId,
       users: new Map(),
       pendingMembers: new Map(),
@@ -118,6 +122,8 @@ export class RoomService {
         return {
           id: room.id,
           name: room.name,
+          description: room.description ?? "",
+          roomType: room.roomType ?? 'perform',
           userCount: totalUserCount,
           owner: room.owner,
           isPrivate: room.isPrivate,
