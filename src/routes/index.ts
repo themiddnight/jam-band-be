@@ -67,5 +67,10 @@ export const createRoutes = (roomHandlers: RoomHandlers, roomLifecycleHandler: R
     return roomLifecycleHandler.handleLeaveRoomHttp(req, res);
   });
 
+  // Update room settings endpoint with validation
+  router.put('/rooms/:roomId/settings', (req, res) => {
+    return roomLifecycleHandler.handleUpdateRoomSettingsHttp(req, res);
+  });
+
   return router;
 }; 

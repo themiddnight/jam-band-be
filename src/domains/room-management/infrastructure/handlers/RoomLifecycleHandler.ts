@@ -31,7 +31,7 @@ export class RoomLifecycleHandler {
     private metronomeService: MetronomeService,
     private audioRoutingHandler?: AudioRoutingHandler,
     private eventBus?: EventBus
-  ) {}
+  ) { }
 
   /**
    * Helper method to ensure RoomId type safety while maintaining backward compatibility
@@ -68,7 +68,7 @@ export class RoomLifecycleHandler {
   private getOrCreateRoomNamespace(roomId: string | RoomId): Namespace | null {
     const roomIdTyped = this.ensureRoomId(roomId);
     const roomIdString = this.roomIdToString(roomIdTyped);
-    
+
     let roomNamespace = this.namespaceManager.getRoomNamespace(roomIdString);
     if (!roomNamespace) {
       // Create the room namespace if it doesn't exist
@@ -247,7 +247,7 @@ export class RoomLifecycleHandler {
   private autoRequestSynthParamsForNewUser(socket: Socket, roomId: string | RoomId, newUserId: string | UserId): void {
     const roomIdString = this.roomIdToString(this.ensureRoomId(roomId));
     const newUserIdString = this.userIdToString(this.ensureUserId(newUserId));
-    
+
     // Delegate to AudioRoutingHandler which handles all audio-related functionality
     // If audioRoutingHandler is not provided (e.g., in tests), skip this functionality
     if (this.audioRoutingHandler) {
@@ -262,7 +262,7 @@ export class RoomLifecycleHandler {
   private autoRequestSynthParamsForNewUserNamespace(roomNamespace: Namespace, roomId: string | RoomId, newUserId: string | UserId): void {
     const roomIdString = this.roomIdToString(this.ensureRoomId(roomId));
     const newUserIdString = this.userIdToString(this.ensureUserId(newUserId));
-    
+
     // Delegate to AudioRoutingHandler which handles all audio-related functionality
     // If audioRoutingHandler is not provided (e.g., in tests), skip this functionality
     if (this.audioRoutingHandler) {
@@ -293,7 +293,7 @@ export class RoomLifecycleHandler {
     try {
       // Convert to strongly-typed IDs for internal processing
       const userIdTyped = this.ensureUserId(userId);
-      
+
       const { room, user } = this.roomService.createRoom(
         name,
         username,
@@ -474,7 +474,7 @@ export class RoomLifecycleHandler {
         // Check if the user is trying to join with a different role than they had before
         const requestedRole = role || 'audience';
         const previousRole = gracePeriodUserData.role;
-        
+
         // If user is requesting a different role, respect their choice and create new user with new role
         // This handles cases where user enters as audience after being a band_member, or vice versa
         if (requestedRole !== previousRole) {
@@ -663,7 +663,7 @@ export class RoomLifecycleHandler {
         // Auto-request synth parameters from existing synth users for the new user
         console.log(`🎛️ [MAIN] About to call autoRequestSynthParamsForNewUser for user ${user.username} (${user.id}) in room ${roomIdTyped.toString()}`);
         this.autoRequestSynthParamsForNewUser(socket, roomIdTyped, userIdTyped);
-        
+
         // Also request via namespace for better reliability
         this.autoRequestSynthParamsForNewUserNamespace(roomNamespace, roomIdTyped, userIdTyped);
 
@@ -875,5 +875,170 @@ export class RoomLifecycleHandler {
       message: 'Successfully left room',
       roomClosed: this.roomService.shouldCloseRoom(roomIdString)
     });
+  }
+
+  /**
+   * Handle room settings update via HTTP
+   */
+  async handleUpdateRoomSettingsHttp(req: Request, res: Response): Promise<void> {
+    const { validateData, updateRoomSettingsSchema } = require('../../../../validation/schemas');
+
+    // Validate request body
+    const validationResult = validateData(updateRoomSettingsSchema, req.body);
+    if (validationResult.error) {
+      res.status(400).json({
+        success: false,
+        message: 'Invalid request data',
+        details: validationResult.error
+      });
+      return;
+    }
+
+    const { roomId } = req.params;
+    const { name, description, isPrivate, isHidden, updatedBy } = validationResult.value;
+
+    if (!roomId) {
+      res.status(400).json({
+        success: false,
+        message: 'Room ID is required'
+      });
+      return;
+    }
+
+    try {
+      // Convert to strongly-typed IDs for internal processing
+      const roomIdTyped = this.ensureRoomId(roomId);
+      const updatedByTyped = this.ensureUserId(updatedBy);
+      const roomIdString = this.roomIdToString(roomIdTyped);
+      const updatedByString = this.userIdToString(updatedByTyped);
+
+      const room = this.roomService.getRoom(roomIdString);
+      if (!room) {
+        res.status(404).json({
+          success: false,
+          message: 'Room not found'
+        });
+        return;
+      }
+
+      // Check if user is the room owner
+      const user = this.roomService.findUserInRoom(roomIdString, updatedByString);
+      if (!user || user.role !== 'room_owner') {
+        res.status(403).json({
+          success: false,
+          message: 'Only room owner can update room settings'
+        });
+        return;
+      }
+
+      // Update room settings
+      const oldSettings = {
+        name: room.name,
+        description: room.description,
+        isPrivate: room.isPrivate,
+        isHidden: room.isHidden
+      };
+
+      // Apply updates using RoomService method (includes cache invalidation)
+      const updateSuccess = this.roomService.updateRoomSettings(roomIdString, {
+        name,
+        description,
+        isPrivate,
+        isHidden
+      });
+
+      if (!updateSuccess) {
+        res.status(500).json({
+          success: false,
+          message: 'Failed to update room settings'
+        });
+        return;
+      }
+
+      // Get the updated room object
+      const updatedRoom = this.roomService.getRoom(roomIdString);
+      if (!updatedRoom) {
+        res.status(500).json({
+          success: false,
+          message: 'Failed to retrieve updated room'
+        });
+        return;
+      }
+
+      // Get or create the room namespace for proper isolation
+      const roomNamespace = this.getOrCreateRoomNamespace(roomIdTyped);
+      if (roomNamespace) {
+        // Notify all users in the room about the settings change
+        roomNamespace.emit('room_settings_updated', {
+          roomId: roomIdString,
+          updatedBy: updatedByString,
+          oldSettings,
+          newSettings: {
+            name: updatedRoom.name,
+            description: updatedRoom.description,
+            isPrivate: updatedRoom.isPrivate,
+            isHidden: updatedRoom.isHidden
+          }
+        });
+
+        // Send updated room state to all users to ensure UI consistency
+        const updatedRoomData = {
+          room: {
+            ...updatedRoom,
+            users: this.roomService.getRoomUsers(roomIdString),
+            pendingMembers: this.roomService.getPendingMembers(roomIdString)
+          }
+        };
+        roomNamespace.emit('room_state_updated', updatedRoomData);
+      }
+
+      // Handle privacy changes - create/cleanup approval namespace
+      if (oldSettings.isPrivate !== updatedRoom.isPrivate) {
+        if (updatedRoom.isPrivate && !oldSettings.isPrivate) {
+          // Room became private - create approval namespace
+          this.namespaceManager.createApprovalNamespace(roomIdString);
+        } else if (!updatedRoom.isPrivate && oldSettings.isPrivate) {
+          // Room became public - cleanup approval namespace
+          this.namespaceManager.cleanupApprovalNamespace(roomIdString);
+        }
+      }
+
+      // Broadcast room update to lobby (for room list updates)
+      const roomUpdateData = {
+        id: roomIdString,
+        name: updatedRoom.name,
+        description: updatedRoom.description,
+        userCount: updatedRoom.users.size,
+        owner: updatedRoom.owner,
+        isPrivate: updatedRoom.isPrivate,
+        isHidden: updatedRoom.isHidden,
+        updatedAt: new Date().toISOString()
+      };
+
+      // Emit to main namespace (for any connected clients)
+      this.io.emit('room_updated_broadcast', roomUpdateData);
+
+      // Also emit to lobby-monitor namespace (for lobby clients)
+      const lobbyNamespace = this.namespaceManager.getLobbyMonitorNamespace();
+      if (lobbyNamespace) {
+        lobbyNamespace.emit('room_updated_broadcast', roomUpdateData);
+      }
+
+      res.json({
+        success: true,
+        message: 'Room settings updated successfully',
+        room: {
+          ...updatedRoom,
+          users: this.roomService.getRoomUsers(roomIdString),
+          pendingMembers: this.roomService.getPendingMembers(roomIdString)
+        }
+      });
+    } catch (error) {
+      console.error('Error updating room settings:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to update room settings'
+      });
+    }
   }
 }

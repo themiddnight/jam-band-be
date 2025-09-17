@@ -604,4 +604,27 @@ export class RoomService {
       lastTickTimestamp: room.metronome.lastTickTimestamp,
     };
   }
+
+  // Update room settings with proper cache invalidation
+  updateRoomSettings(roomId: string, settings: {
+    name?: string;
+    description?: string;
+    isPrivate?: boolean;
+    isHidden?: boolean;
+  }): boolean {
+    const room = this.rooms.get(roomId);
+    if (!room) return false;
+
+    // Apply updates
+    if (settings.name !== undefined) room.name = settings.name;
+    if (settings.description !== undefined) room.description = settings.description;
+    if (settings.isPrivate !== undefined) room.isPrivate = settings.isPrivate;
+    if (settings.isHidden !== undefined) room.isHidden = settings.isHidden;
+
+    // Invalidate caches to ensure room list updates reflect the changes
+    this.cacheService.invalidateRoom(roomId);
+    this.cacheService.invalidateRoomCaches();
+
+    return true;
+  }
 }

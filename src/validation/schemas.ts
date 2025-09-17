@@ -132,4 +132,13 @@ export const approvalResponseSchema = Joi.object({
 export const approvalCancelSchema = Joi.object({
   userId: Joi.string().min(1).max(100).required(),
   roomId: Joi.string().uuid().required(),
+});
+
+// Room settings update validation
+export const updateRoomSettingsSchema = Joi.object({
+  name: Joi.string().min(1).max(100).optional(),
+  description: Joi.string().max(500).optional().allow(''),
+  isPrivate: Joi.boolean().optional(),
+  isHidden: Joi.boolean().optional(),
+  updatedBy: Joi.string().min(1).max(100).required(),
 }); 
