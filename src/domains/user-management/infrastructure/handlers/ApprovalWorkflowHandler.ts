@@ -9,7 +9,6 @@ import {
   ApprovalRequestData,
   ApprovalResponseData,
   ApprovalCancelData,
-  ApprovalTimeoutData,
   User
 } from '../../../../types';
 
@@ -47,7 +46,8 @@ export class ApprovalWorkflowHandler {
     loggingService.logInfo('User connected to approval namespace', {
       socketId: socket.id,
       roomId,
-      namespacePath: `/approval/${roomId}`
+      namespacePath: `/approval/${roomId}`,
+      namespace: approvalNamespace.name
     });
   }
 
@@ -57,6 +57,13 @@ export class ApprovalWorkflowHandler {
    */
   handleApprovalRequest(socket: Socket, data: ApprovalRequestData, approvalNamespace: Namespace): void {
     const { roomId, userId, username, role } = data;
+
+    loggingService.logInfo('Approval request received', {
+      roomId,
+      userId,
+      socketId: socket.id,
+      namespace: approvalNamespace.name
+    });
 
     // Validate room exists
     const room = this.roomService.getRoom(roomId);
@@ -271,6 +278,12 @@ export class ApprovalWorkflowHandler {
     // Confirm cancellation to user
     socket.emit('approval_cancelled', {
       message: 'Your request has been cancelled'
+    });
+
+    loggingService.logInfo('Approval request cancelled by user', {
+      roomId,
+      userId,
+      namespace: approvalNamespace.name
     });
 
     // Clean up approval session

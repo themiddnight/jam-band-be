@@ -135,7 +135,7 @@ export class AudioCommunicationService {
     if (strategy) {
       // Disconnect all users in the room
       const roomUsers = Array.from(this.userConnections.entries())
-        .filter(([userId, connection]) => {
+        .filter(([ _userId, connection]) => {
           // Check if user is in this room (simplified check)
           return connection.strategy === strategy;
         });
@@ -175,11 +175,11 @@ export class AudioCommunicationService {
     // Get room sessions to count users by role
     const roomSessions = this.roomSessionManager.getRoomSessions(roomId);
     
-    let bandMemberCount = 0;
-    let audienceCount = 0;
+  let bandMemberCount = 0;
+  const audienceCount = 0;
 
     // Count users by role (simplified - in real implementation would check actual user roles)
-    roomSessions.forEach((session: any) => {
+    roomSessions.forEach((_session: any) => {
       // For now, assume all users are band members
       // In real implementation, would check user.role from database
       bandMemberCount++;
@@ -202,7 +202,7 @@ export class DefaultCommunicationStrategyFactory implements CommunicationStrateg
     private roomSessionManager: RoomSessionManager
   ) {}
 
-  createStrategy(role: UserRole, roomContext: RoomContext): AudioCommunicationStrategy {
+  createStrategy(role: UserRole, _roomContext: RoomContext): AudioCommunicationStrategy {
     // Strategy selection logic
     if (role === UserRole.BAND_MEMBER || role === UserRole.ROOM_OWNER) {
       // Use mesh WebRTC for band members (low latency required)

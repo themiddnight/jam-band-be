@@ -1,5 +1,4 @@
 import { EventBus } from '../../../../shared/domain/events/EventBus';
-import { DomainEvent } from '../../../../shared/domain/events/DomainEvent';
 import { 
   RoomCreated, 
   MemberJoined, 
@@ -675,7 +674,7 @@ export class LobbyEventHandlers {
     try {
       const lobbyNamespace = this.lobbyIntegrationService['io'].of('/lobby');
       return lobbyNamespace.sockets.size;
-    } catch (error) {
+    } catch {
       return 0;
     }
   }

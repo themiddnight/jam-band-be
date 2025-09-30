@@ -1,4 +1,4 @@
-import { RoomListing, RoomCapacityStatus, RoomActivityStatus } from '../models/RoomListing';
+import { RoomListing, RoomActivityStatus } from '../models/RoomListing';
 import { SearchCriteria, SortBy, SortOrder, SearchResult } from '../models/SearchCriteria';
 import { UserId } from '../../../../shared/domain/models/ValueObjects';
 

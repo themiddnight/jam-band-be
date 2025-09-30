@@ -119,7 +119,7 @@ export class MetronomeHandler {
    * Handle request for current metronome state through namespace
    * Requirements: 4.1, 4.6
    */
-  handleRequestMetronomeStateNamespace(socket: Socket, namespace: Namespace): void {
+  handleRequestMetronomeStateNamespace(socket: Socket, _namespace: Namespace): void {
     const session = this.roomSessionManager.getRoomSession(socket.id);
     if (!session) return;
 

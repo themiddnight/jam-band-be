@@ -200,8 +200,6 @@ export class RoomListingCache {
    * Get cache statistics
    */
   getCacheStats(): CacheStatistics {
-    const now = Date.now();
-    
     const roomListingsValid = this.roomListingsCache.has('all') && 
       !this.isExpired(this.roomListingsCache.get('all')!.timestamp, this.ROOM_LISTING_TTL);
     
@@ -254,7 +252,6 @@ export class RoomListingCache {
    * Clean up expired cache entries
    */
   private cleanupExpiredEntries(): void {
-    const now = Date.now();
     let cleanedCount = 0;
 
     // Clean up room listings

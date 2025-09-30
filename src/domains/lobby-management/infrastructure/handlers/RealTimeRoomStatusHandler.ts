@@ -1,6 +1,6 @@
 import { EventBus } from '../../../../shared/domain/events/EventBus';
 import { LobbyIntegrationService } from '../LobbyIntegrationService';
-import { RoomLobbyStatusChanged, LobbyMetricsCollected } from '../../domain/events/LobbyEvents';
+import { RoomLobbyStatusChanged } from '../../domain/events/LobbyEvents';
 import { loggingService } from '../../../../services/LoggingService';
 
 /**

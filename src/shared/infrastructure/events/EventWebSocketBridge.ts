@@ -7,7 +7,7 @@
  * Requirements: 5.1, 5.4
  */
 
-import { Server, Namespace } from 'socket.io';
+import { Server } from 'socket.io';
 import { EventBus, EventHandler } from '../../domain/events/EventBus';
 import { NamespaceManager } from '../../../services/NamespaceManager';
 import { 

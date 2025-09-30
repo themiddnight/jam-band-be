@@ -27,7 +27,6 @@ import {
   requestVoiceParticipantsSchema,
   updateMetronomeSchema,
   approvalRequestSchema,
-  approvalResponseSchema,
   approvalCancelSchema
 } from '../validation/schemas';
 
@@ -231,7 +230,7 @@ export class NamespaceEventHandlers {
       // Register connection for health monitoring
       if (this.connectionHealth) {
         // We'll need to get userId from session after it's established
-        socket.on('join_room', (data) => {
+  socket.on('join_room', (_data) => {
           const session = this.roomSessionManager.getRoomSession(socket.id);
           if (session) {
             this.connectionHealth!.registerConnection(socket, session.userId, roomId, `/room/${roomId}`);

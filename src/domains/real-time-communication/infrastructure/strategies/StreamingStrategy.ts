@@ -74,7 +74,7 @@ export class StreamingStrategy implements AudioCommunicationStrategy {
     }
   }
 
-  async sendAudio(connectionId: ConnectionId, audioData: AudioBuffer): Promise<void> {
+  async sendAudio(_connectionId: ConnectionId, _audioData: AudioBuffer): Promise<void> {
     // Audience members cannot send audio in streaming strategy
     throw new UnsupportedOperationError('sendAudio', 'streaming');
   }

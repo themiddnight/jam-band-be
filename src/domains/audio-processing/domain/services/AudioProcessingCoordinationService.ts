@@ -2,9 +2,8 @@ import { AudioBus } from '../models/AudioBus';
 import { MixerChannel } from '../models/MixerChannel';
 import { InstrumentSwapSession, UserAudioState } from '../models/InstrumentSwapSession';
 import { EffectChain } from '../models/EffectChain';
-import { AudioRouting } from '../models/AudioRouting';
 import { AudioEffect } from '../models/AudioEffect';
-import { UserId, AudioBusId, EffectType } from '../value-objects/AudioValueObjects';
+import { UserId, EffectType } from '../value-objects/AudioValueObjects';
 import { 
   UserAudioSetupResult, 
   SwapValidationResult, 

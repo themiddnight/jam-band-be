@@ -3,7 +3,7 @@
  * Requirements: 8.3, 11.4
  */
 
-import { Container, ServiceFactory, ServiceDefinition } from './Container';
+import { Container, ServiceFactory } from './Container';
 import { performanceMetrics } from '../monitoring/PerformanceMetrics';
 import { getHighResolutionTime, calculateProcessingTime } from '../../utils/timing';
 
@@ -368,7 +368,10 @@ export class OptimizedContainer extends Container {
         'service.preload.error',
         1,
         'optimized-container',
-        { service: name }
+        {
+          service: name,
+          reason: (error as Error).message
+        }
       );
     }
   }

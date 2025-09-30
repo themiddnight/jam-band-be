@@ -3,7 +3,6 @@ import { LobbyApplicationService } from '../../application/LobbyApplicationServi
 import { SearchCriteria } from '../../domain/models/SearchCriteria';
 import { UserId } from '../../../../shared/domain/models/ValueObjects';
 import { loggingService } from '../../../../services/LoggingService';
-import { secureSocketEvent } from '../../../../middleware/security';
 import { checkSocketRateLimit } from '../../../../middleware/rateLimit';
 
 /**
@@ -51,7 +50,7 @@ export class LobbyNamespaceHandlers {
   /**
    * Bind lobby-specific event handlers to the socket
    */
-  private bindLobbyEventHandlers(socket: Socket, namespace: Namespace): void {
+  private bindLobbyEventHandlers(socket: Socket, _namespace: Namespace): void {
     // Room browsing and search events
     socket.on('browse_rooms', async (data) => {
       const rateLimitCheck = checkSocketRateLimit(socket, 'browse_rooms');
@@ -401,7 +400,7 @@ export class LobbyNamespaceHandlers {
     });
 
     // Real-time room updates subscription
-    socket.on('subscribe_room_updates', (data) => {
+    socket.on('subscribe_room_updates', () => {
       try {
         // Join a room for real-time updates
         socket.join('lobby_updates');
@@ -411,6 +410,10 @@ export class LobbyNamespaceHandlers {
           message: 'Subscribed to room updates'
         });
       } catch (error) {
+        loggingService.logError(error as Error, {
+          context: 'Subscribe room updates failure',
+          socketId: socket.id
+        });
         socket.emit('subscribed_room_updates', {
           success: false,
           error: 'Failed to subscribe to room updates'
@@ -418,7 +421,7 @@ export class LobbyNamespaceHandlers {
       }
     });
 
-    socket.on('unsubscribe_room_updates', (data) => {
+    socket.on('unsubscribe_room_updates', () => {
       try {
         socket.leave('lobby_updates');
         
@@ -427,6 +430,10 @@ export class LobbyNamespaceHandlers {
           message: 'Unsubscribed from room updates'
         });
       } catch (error) {
+        loggingService.logError(error as Error, {
+          context: 'Unsubscribe room updates failure',
+          socketId: socket.id
+        });
         socket.emit('unsubscribed_room_updates', {
           success: false,
           error: 'Failed to unsubscribe from room updates'

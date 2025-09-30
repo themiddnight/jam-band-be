@@ -277,7 +277,7 @@ export class NotePlayingHandler {
   /**
    * Handle change instrument through namespace - Requirements: 7.1, 7.2
    */
-  handleChangeInstrumentNamespace(socket: Socket, data: ChangeInstrumentData, namespace: Namespace): void {
+  handleChangeInstrumentNamespace(socket: Socket, data: ChangeInstrumentData, _namespace: Namespace): void {
     const session = this.roomSessionManager.getRoomSession(socket.id);
     if (!session) return;
 
@@ -324,7 +324,7 @@ export class NotePlayingHandler {
    * Handle stop all notes through namespace
    * Requirements: 7.1, 7.2
    */
-  handleStopAllNotesNamespace(socket: Socket, data: { instrument: string; category: string }, namespace: Namespace): void {
+  handleStopAllNotesNamespace(socket: Socket, data: { instrument: string; category: string }, _namespace: Namespace): void {
     const session = this.roomSessionManager.getRoomSession(socket.id);
     if (!session) return;
 

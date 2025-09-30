@@ -1,5 +1,4 @@
 import dotenv from 'dotenv';
-import path from 'path';
 
 // Load environment variables based on NODE_ENV
 // In Railway, environment variables are injected directly, so we only load local files in development
