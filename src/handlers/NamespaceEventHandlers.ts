@@ -397,6 +397,19 @@ export class NamespaceEventHandlers {
       console.log('✅ Calling handleUpdateSynthParamsNamespace');
       this.audioRoutingHandler.handleUpdateSynthParamsNamespace(socket, data, namespace);
     });
+
+    socket.on('update_effects_chain', (data) => {
+      const rateLimitCheck = checkSocketRateLimit(socket, 'update_effects_chain');
+      if (!rateLimitCheck.allowed) {
+        socket.emit('error', {
+          message: `Rate limit exceeded for update_effects_chain. Try again in ${rateLimitCheck.retryAfter} seconds.`,
+          retryAfter: rateLimitCheck.retryAfter
+        });
+        return;
+      }
+
+      this.audioRoutingHandler.handleUpdateEffectsChainNamespace(socket, data, namespace);
+    });
     
     socket.on('request_synth_params', () => {
       secureSocketEvent('request_synth_params', undefined, 

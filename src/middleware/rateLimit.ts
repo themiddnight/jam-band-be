@@ -92,6 +92,13 @@ export const socketRateLimits: Record<string, RateLimitConfig> = {
     maxEvents: 3600, // 3600 updates per minute per user (60 per second)
     windowMs: 60 * 1000, // 1 minute
     eventType: 'general'
+  },
+
+  // Effects chain updates - allow frequent tweaks similar to synth params
+  'update_effects_chain': {
+    maxEvents: 1800, // 1800 updates per minute per user (30 per second)
+    windowMs: 60 * 1000, // 1 minute
+    eventType: 'general'
   }
 };
 

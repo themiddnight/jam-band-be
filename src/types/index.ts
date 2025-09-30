@@ -1,3 +1,34 @@
+export type EffectChainType = 'virtual_instrument' | 'audio_voice_input';
+
+export interface EffectParameterState {
+  id: string;
+  name: string;
+  value: number;
+  min?: number;
+  max?: number;
+  step?: number;
+  unit?: string;
+  curve?: 'linear' | 'logarithmic';
+}
+
+export interface EffectInstanceState {
+  id: string;
+  type: string;
+  name?: string;
+  bypassed: boolean;
+  order: number;
+  parameters: EffectParameterState[];
+}
+
+export interface EffectChainState {
+  type: EffectChainType;
+  effects: EffectInstanceState[];
+}
+
+export interface UpdateEffectsChainData {
+  chains: Record<EffectChainType, EffectChainState>;
+}
+
 export interface User {
   id: string;
   username: string;
@@ -7,6 +38,7 @@ export interface User {
   synthParams?: Record<string, any>;
   isReady: boolean;
   followRoomOwner?: boolean;
+  effectChains?: Record<EffectChainType, EffectChainState>;
 }
 
 export interface Room {

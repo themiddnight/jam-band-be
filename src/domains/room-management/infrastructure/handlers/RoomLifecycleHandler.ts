@@ -546,6 +546,7 @@ export class RoomLifecycleHandler {
 
     if (existingUser) {
       // User already exists in room, join them directly (e.g., page refresh)
+      this.roomService.ensureUserEffectChains(user);
       socket.join(roomIdString);
 
       // Get or create the room namespace for proper isolation
@@ -563,6 +564,7 @@ export class RoomLifecycleHandler {
           room,
           users: this.roomService.getRoomUsers(roomIdString),
           pendingMembers: this.roomService.getPendingMembers(roomIdString),
+          effectChains: user.effectChains
         });
 
         // Send updated room state to all users to ensure UI consistency
@@ -580,6 +582,7 @@ export class RoomLifecycleHandler {
       this.roomService.addUserToRoom(roomIdString, user);
       this.roomService.removeFromGracePeriod(userIdString);
 
+      this.roomService.ensureUserEffectChains(user);
       socket.join(roomIdString);
 
       // Get or create the room namespace for proper isolation
@@ -596,7 +599,8 @@ export class RoomLifecycleHandler {
         socket.emit('room_joined', {
           room,
           users: this.roomService.getRoomUsers(roomIdString),
-          pendingMembers: this.roomService.getPendingMembers(roomIdString)
+          pendingMembers: this.roomService.getPendingMembers(roomIdString),
+          effectChains: user.effectChains
         });
 
         // Send updated room state to all users to ensure UI consistency
@@ -620,6 +624,7 @@ export class RoomLifecycleHandler {
       // New audience member or band member in public room - join directly
       this.roomService.addUserToRoom(roomIdString, user);
 
+      this.roomService.ensureUserEffectChains(user);
       // Publish domain events for user joining
       if (this.eventBus) {
         const memberJoinedEvent = new MemberJoined(
@@ -670,7 +675,8 @@ export class RoomLifecycleHandler {
         socket.emit('room_joined', {
           room,
           users: this.roomService.getRoomUsers(roomIdString),
-          pendingMembers: this.roomService.getPendingMembers(roomIdString)
+          pendingMembers: this.roomService.getPendingMembers(roomIdString),
+          effectChains: user.effectChains
         });
 
         // Send updated room state to all users to ensure UI consistency
