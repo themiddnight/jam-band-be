@@ -92,7 +92,7 @@ export class AudioProcessingService {
    */
   async updateAudioRouting(command: UpdateAudioRoutingCommand): Promise<void> {
     const userId = UserId.fromString(command.userId);
-    const roomId = RoomId.fromString(command.roomId);
+    const _roomId = RoomId.fromString(command.roomId);
 
     // TODO: Implement audio routing logic
     // This would update the user's AudioBus routing configuration
@@ -186,7 +186,7 @@ export class AudioProcessingService {
   /**
    * Validate effect parameters
    */
-  private validateEffectParams(effectType: string, params: Record<string, any>): boolean {
+  private validateEffectParams(_effectType: string, _params: Record<string, any>): boolean {
     // TODO: Implement parameter validation based on effect type
     // Each effect type would have its own parameter schema
     return true;

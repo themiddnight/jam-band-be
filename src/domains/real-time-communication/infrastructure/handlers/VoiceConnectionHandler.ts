@@ -205,14 +205,14 @@ export class VoiceConnectionHandler {
 
     const voiceRoomMap = this.getVoiceRoomMap(data.roomId);
     const allParticipants = Array.from(voiceRoomMap.entries());
-    const otherParticipants = allParticipants.filter(([id, p]) => p.userId !== data.userId);
+     const otherParticipants = allParticipants.filter(([ _socketId, p]) => p.userId !== data.userId);
 
     console.log(`[MESH] Connection request from ${data.userId}. Other participants:`,
-      otherParticipants.map(([id, p]) => p.userId));
+      otherParticipants.map(([ _socketId, p]) => p.userId));
 
     // For full mesh: respond with all other participants this user should connect to
     socket.emit('mesh_participants', {
-      participants: otherParticipants.map(([id, p]) => ({
+      participants: otherParticipants.map(([ _socketId, p]) => ({
         userId: p.userId,
         username: p.username,
         isMuted: p.isMuted,
@@ -222,7 +222,7 @@ export class VoiceConnectionHandler {
     });
 
     // Notify each existing participant about the new user they should connect to
-    otherParticipants.forEach(([id, participant]) => {
+      otherParticipants.forEach(([ _socketId, participant]) => {
       const participantSocketId = this.roomSessionManager.findSocketByUserId(session.roomId, participant.userId);
       if (participantSocketId) {
         const participantSocket = this.io.sockets.sockets.get(participantSocketId);
@@ -526,7 +526,7 @@ export class VoiceConnectionHandler {
   /**
    * Handle request for voice participants
    */
-  handleRequestVoiceParticipants(socket: Socket, data: { roomId?: string }): void {
+  handleRequestVoiceParticipants(socket: Socket, _data: { roomId?: string }): void {
     const session = this.roomSessionManager.getRoomSession(socket.id);
     if (!session) {
       console.log(`Socket ${socket.id} not in any room`);
@@ -565,7 +565,7 @@ export class VoiceConnectionHandler {
 
     // Check for failed connections and notify other participants
     const failedConnections = Object.entries(data.connectionStates)
-      .filter(([peerId, state]) => 
+      .filter(([ _peerId, state]) => 
         state.connectionState === 'failed' || 
         state.iceConnectionState === 'failed' ||
         state.iceConnectionState === 'disconnected'
@@ -643,7 +643,7 @@ export class VoiceConnectionHandler {
   /**
    * Handle request voice participants through namespace
    */
-  handleRequestVoiceParticipantsNamespace(socket: Socket, data: RequestVoiceParticipantsData, namespace: Namespace): void {
+  handleRequestVoiceParticipantsNamespace(socket: Socket, _data: RequestVoiceParticipantsData, _namespace: Namespace): void {
     const session = this.roomSessionManager.getRoomSession(socket.id);
     if (!session) {
       console.log(`Socket ${socket.id} not in any room`);
@@ -727,7 +727,7 @@ export class VoiceConnectionHandler {
 
     // Check for failed connections and notify other participants through namespace
     const failedConnections = Object.entries(data.connectionStates)
-      .filter(([peerId, state]) => 
+      .filter(([ _peerId, state]) => 
         state.connectionState === 'failed' || 
         state.iceConnectionState === 'failed' ||
         state.iceConnectionState === 'disconnected'

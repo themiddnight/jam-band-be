@@ -162,7 +162,7 @@ export class RoomServiceBridge {
     try {
       // Try repository first
       const userIdObj = UserId.fromString(userId);
-      let user = await this.userRepository.findById(userIdObj);
+  const user = await this.userRepository.findById(userIdObj);
       
       if (user) {
         return user;
@@ -190,7 +190,7 @@ export class RoomServiceBridge {
           await this.syncLegacyRoomToRepository(legacyRoom);
           
           // Sync all users in the room
-          for (const [userId, legacyUser] of legacyRoom.users.entries()) {
+          for (const [ _userId, legacyUser] of legacyRoom.users.entries()) {
             await this.syncLegacyUserToRepository(legacyUser);
           }
         }

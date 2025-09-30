@@ -130,13 +130,23 @@ export class MonitoringDashboard {
 
     // Get event type breakdown
     const eventTypes = new Set<string>();
-    // This would need to be implemented based on actual event tracking
+    bottlenecks.slowEvents.forEach(event => eventTypes.add(event.eventType));
+    bottlenecks.highErrorRateEvents.forEach(eventType => eventTypes.add(eventType));
+
     const eventTypeBreakdown: Array<{
       eventType: string;
       count: number;
       averageTime: number;
       errorRate: number;
-    }> = [];
+    }> = Array.from(eventTypes).map(eventType => {
+      const typeStats = eventProcessingMonitor.getEventStats(eventType);
+      return {
+        eventType,
+        count: typeStats.totalEvents,
+        averageTime: typeStats.averageProcessingTime,
+        errorRate: typeStats.totalEvents > 0 ? 1 - typeStats.successRate : 0
+      };
+    });
 
     return {
       totalEvents: stats.totalEvents,

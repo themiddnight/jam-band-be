@@ -316,7 +316,7 @@ export class ConnectionHealthService {
   /**
    * Get namespace for a connection
    */
-  private getNamespaceForConnection(namespacePath: string): any {
+  private getNamespaceForConnection(_namespacePath: string): any {
     // This would need to be injected or accessed through the namespace manager
     // For now, we'll return null and handle this in the integration
     return null;

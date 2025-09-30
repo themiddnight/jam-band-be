@@ -268,5 +268,11 @@ export class RoomHandlers {
         ownerId: room.owner
       });
     }
+
+    // Notify room participants about follow state change for awareness
+    namespace.emit('room_member_follow_state_changed', {
+      userId: session.userId,
+      followRoomOwner: data.followRoomOwner
+    });
   }
 }

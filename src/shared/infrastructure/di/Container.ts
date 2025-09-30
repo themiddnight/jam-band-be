@@ -88,7 +88,7 @@ export class Container {
 
     try {
       // Resolve dependencies first
-      const dependencies = await this.resolveDependencies(definition.dependencies || []);
+  await this.resolveDependencies(definition.dependencies || []);
       
       // Create instance
       const instance = await definition.factory();

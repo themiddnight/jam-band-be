@@ -389,7 +389,7 @@ export class DependencyAnalyzer {
         suggestedFix = 'Consider breaking into smaller services or using event sourcing';
       }
 
-      return { cycle, suggestedFix };
+      return { cycle, suggestedFix: `${suggestedFix} (cycle: ${cycleStr})` };
     });
   }
 }

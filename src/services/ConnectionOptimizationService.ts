@@ -354,7 +354,10 @@ export class ConnectionOptimizationService {
         (socket.conn as any).maxHttpBufferSize = 1e6; // 1MB
       }
     } catch (error) {
-      // Ignore optimization errors - not critical
+      loggingService.logInfo('Socket optimization skipped', {
+        reason: (error as Error).message,
+        socketId: socket.id
+      });
     }
 
     this.metrics.optimizationsSaved++;

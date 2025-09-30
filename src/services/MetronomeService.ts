@@ -1,6 +1,6 @@
 import { Server, Namespace } from 'socket.io';
 import { RoomService } from './RoomService';
-import { MetronomeState, MetronomeTickData } from '../types';
+import { MetronomeTickData } from '../types';
 
 /**
  * Room-specific metronome instance for namespace-isolated broadcasting
@@ -74,7 +74,7 @@ export class RoomMetronome {
    * Update metronome tempo and restart with new BPM
    * Requirements: 8.2
    */
-  updateTempo(newBpm: number): void {
+  updateTempo(_newBpm: number): void {
     // Always restart with new tempo since metronome is always running
     this.start();
   }
@@ -209,7 +209,7 @@ export class MetronomeService {
    * Requirements: 8.5
    */
   shutdown(): void {
-    for (const [roomId, metronome] of this.roomMetronomes.entries()) {
+  for (const [ _roomId, metronome] of this.roomMetronomes.entries()) {
       metronome.cleanup();
     }
     this.roomMetronomes.clear();

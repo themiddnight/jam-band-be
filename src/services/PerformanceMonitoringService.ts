@@ -30,6 +30,12 @@ export interface SystemPerformanceMetrics {
     external: number;
     arrayBuffers: number;
   };
+  sessionSummary: {
+    totalSessions: number;
+    roomSessions: number;
+    approvalSessions: number;
+    lobbySessions: number;
+  };
 }
 
 export interface ConnectionHealthMetrics {
@@ -107,6 +113,12 @@ export class PerformanceMonitoringService {
         heapTotal: 0,
         external: 0,
         arrayBuffers: 0
+      },
+      sessionSummary: {
+        totalSessions: 0,
+        roomSessions: 0,
+        approvalSessions: 0,
+        lobbySessions: 0
       }
     };
   }
@@ -285,6 +297,12 @@ export class PerformanceMonitoringService {
         heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024),
         external: Math.round(memUsage.external / 1024 / 1024),
         arrayBuffers: Math.round(memUsage.arrayBuffers / 1024 / 1024)
+      },
+      sessionSummary: {
+        totalSessions: sessionStats.totalSessions,
+        roomSessions: sessionStats.roomSessions,
+        approvalSessions: sessionStats.approvalSessions,
+        lobbySessions: sessionStats.lobbySessions
       }
     };
 
@@ -292,7 +310,8 @@ export class PerformanceMonitoringService {
     loggingService.logPerformanceMetric('system_memory_usage', this.systemMetrics.totalMemoryUsage, {
       gcMetrics: this.systemMetrics.gcMetrics,
       totalRooms: this.systemMetrics.totalRooms,
-      totalConnections: this.systemMetrics.totalConnections
+      totalConnections: this.systemMetrics.totalConnections,
+      sessionSummary: this.systemMetrics.sessionSummary
     });
   }
 
@@ -360,7 +379,7 @@ export class PerformanceMonitoringService {
 
     // Check connection health
     let unhealthyConnections = 0;
-    for (const [socketId, health] of this.connectionHealth.entries()) {
+  for (const [ _socketId, health] of this.connectionHealth.entries()) {
       if (health.connectionState === 'error' || health.errorCount > 5) {
         unhealthyConnections++;
       }

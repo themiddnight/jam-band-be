@@ -7,7 +7,7 @@
  * Requirements: 10.2, 10.3
  */
 
-import { Socket, Server } from 'socket.io';
+import { Server } from 'socket.io';
 import { 
   AudioCommunicationStrategy, 
   InvalidRoleError, 
@@ -176,7 +176,7 @@ export class MeshWebRTCStrategy implements AudioCommunicationStrategy {
   /**
    * Setup mesh connections with existing participants
    */
-  private async setupMeshConnections(userId: string, connectionId: ConnectionId): Promise<void> {
+  private async setupMeshConnections(userId: string, _connectionId: ConnectionId): Promise<void> {
     // Get existing participants in the room
     const existingUsers = Array.from(this.userConnections.keys())
       .filter(id => id !== userId);

@@ -2,7 +2,6 @@
  * Decorator for automatic performance monitoring of methods
  */
 
-import { performanceMetrics } from './PerformanceMetrics';
 import { boundedContextMonitor } from './BoundedContextMonitor';
 
 export interface MonitoringOptions {
@@ -41,7 +40,7 @@ export function Monitor(options: MonitoringOptions) {
 /**
  * Class decorator that automatically monitors all public methods
  */
-export function MonitorClass(context: string, tags?: Record<string, string>) {
+export function MonitorClass(context: string, _tags?: Record<string, string>) {
   return function <T extends { new (...args: any[]): {} }>(constructor: T) {
     const prototype = constructor.prototype;
     const methodNames = Object.getOwnPropertyNames(prototype)

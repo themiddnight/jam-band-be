@@ -1,4 +1,4 @@
-import { RoomListing, RoomCapacityStatus, RoomActivityStatus } from '../../domain/models/RoomListing';
+import { RoomListing, RoomActivityStatus } from '../../domain/models/RoomListing';
 import { SearchCriteria, SearchResult, SortBy, SortOrder } from '../../domain/models/SearchCriteria';
 import { RoomListingRepository, RoomListingStatistics, GenreStatistic } from '../../domain/repositories/RoomListingRepository';
 import { RoomId, UserId } from '../../../../shared/domain/models/ValueObjects';
@@ -173,26 +173,26 @@ export class RoomServiceRoomListingRepository implements RoomListingRepository {
     };
   }
 
-  async save(roomListing: RoomListing): Promise<void> {
+  async save(_roomListing: RoomListing): Promise<void> {
     // Note: This is a read-only adapter for the existing RoomService
     // Actual room updates should go through the room management domain
     throw new Error('RoomServiceRoomListingRepository is read-only. Use room management domain for updates.');
   }
 
-  async saveMany(roomListings: RoomListing[]): Promise<void> {
+  async saveMany(_roomListings: RoomListing[]): Promise<void> {
     throw new Error('RoomServiceRoomListingRepository is read-only. Use room management domain for updates.');
   }
 
-  async remove(roomId: RoomId): Promise<void> {
+  async remove(_roomId: RoomId): Promise<void> {
     throw new Error('RoomServiceRoomListingRepository is read-only. Use room management domain for updates.');
   }
 
-  async updateActivity(roomId: RoomId, lastActivity: Date): Promise<void> {
+  async updateActivity(_roomId: RoomId, _lastActivity: Date): Promise<void> {
     // This could be implemented if needed, but for now it's read-only
     throw new Error('RoomServiceRoomListingRepository is read-only. Use room management domain for updates.');
   }
 
-  async updateMemberCount(roomId: RoomId, memberCount: number): Promise<void> {
+  async updateMemberCount(_roomId: RoomId, _memberCount: number): Promise<void> {
     throw new Error('RoomServiceRoomListingRepository is read-only. Use room management domain for updates.');
   }
 
@@ -201,7 +201,7 @@ export class RoomServiceRoomListingRepository implements RoomListingRepository {
     // In a real implementation, this might sync with a database
   }
 
-  async clearInactive(olderThan: Date): Promise<number> {
+  async clearInactive(_olderThan: Date): Promise<number> {
     // This would need to be implemented in coordination with the RoomService
     // For now, return 0 as no cleanup is performed
     return 0;

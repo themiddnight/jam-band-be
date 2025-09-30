@@ -14,7 +14,7 @@ import {
   UserSession
 } from '../../../../types';
 import { EventBus } from '../../../../shared/domain/events/EventBus';
-import { RoomCreated, MemberJoined, MemberLeft } from '../../../../shared/domain/events/RoomEvents';
+import { RoomCreated, MemberJoined } from '../../../../shared/domain/events/RoomEvents';
 import { UserJoinedRoom } from '../../../../shared/domain/events/UserOnboardingEvents';
 
 /**

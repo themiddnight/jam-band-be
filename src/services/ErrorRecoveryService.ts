@@ -342,7 +342,7 @@ export class BackendErrorRecoveryService {
     const stats = this.getErrorStats();
     
     // Check if any error type is flooding
-    for (const [errorType, rate] of Object.entries(stats.errorRates)) {
+  for (const [ _errorType, rate] of Object.entries(stats.errorRates)) {
       if (rate > this.ERROR_THRESHOLD * 0.8) { // 80% of threshold
         return false;
       }

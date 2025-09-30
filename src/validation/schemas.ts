@@ -1,12 +1,6 @@
 import Joi from 'joi';
 import { METRONOME_CONSTANTS } from '../constants';
 
-// Base user validation
-const userBaseSchema = Joi.object({
-  userId: Joi.string().min(1).max(100).required(),
-  username: Joi.string().min(1).max(50).required(),
-});
-
 // Room creation validation
 export const createRoomSchema = Joi.object({
   name: Joi.string().min(1).max(100).required(),

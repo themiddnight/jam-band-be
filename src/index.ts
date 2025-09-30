@@ -54,7 +54,6 @@ const app = express();
 
 // Determine server type based on environment
 let server;
-let io;
 
 if (config.nodeEnv === 'development' && config.ssl.enabled) {
   // Development mode - use HTTPS for WebRTC
@@ -87,7 +86,7 @@ if (config.nodeEnv === 'development' && config.ssl.enabled) {
   }
 }
 
-io = createSocketServer(server);
+const io = createSocketServer(server);
 
 // Initialize services
 const namespaceManager = new NamespaceManager(io);
@@ -101,7 +100,6 @@ const eventBus = eventSystemInitializer.initialize();
 // Initialize repository services and bridge
 const repositoryFactory = RepositoryServiceFactory.getInstance();
 const roomApplicationService = repositoryFactory.getRoomApplicationService();
-const roomServiceBridge = repositoryFactory.getRoomServiceBridge(roomService);
 
 // Initialize repositories with existing data (async operation)
 repositoryFactory.initializeWithLegacyData(roomService).catch(error => {

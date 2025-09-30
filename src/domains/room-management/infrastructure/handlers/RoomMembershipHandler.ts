@@ -6,7 +6,6 @@ import { RoomSessionManager } from '../../../../services/RoomSessionManager';
 import { loggingService } from '../../../../services/LoggingService';
 import {
   User,
-  ApprovalResponseData,
   TransferOwnershipData
 } from '../../../../types';
 

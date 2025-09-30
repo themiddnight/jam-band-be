@@ -83,7 +83,10 @@ export class LazyServiceFactory<T> {
         'service.preload.failure',
         1,
         'lazy-service-factory',
-        { service: this.serviceName }
+        {
+          service: this.serviceName,
+          reason: (error as Error).message
+        }
       );
     }
   }

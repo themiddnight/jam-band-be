@@ -102,7 +102,7 @@ export class User extends AggregateRoot {
     return this._permissions.has(permission);
   }
 
-  canKickUser(targetUser: User, room: any): boolean {
+  canKickUser(targetUser: User, _room: any): boolean {
     // Basic permission check - can be extended with more complex logic
     return this.hasPermission(Permission.KICK_USERS) && !targetUser.id.equals(this.id);
   }
