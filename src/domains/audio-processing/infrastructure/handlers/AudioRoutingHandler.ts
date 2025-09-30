@@ -3,7 +3,7 @@ import { Server } from 'socket.io';
 import { RoomService } from '../../../../services/RoomService';
 import { RoomSessionManager } from '../../../../services/RoomSessionManager';
 import { NamespaceManager } from '../../../../services/NamespaceManager';
-import { UpdateSynthParamsData } from '../../../../types';
+import { UpdateSynthParamsData, UpdateEffectsChainData } from '../../../../types';
 import { loggingService } from '../../../../services/LoggingService';
 
 /**
@@ -310,6 +310,46 @@ export class AudioRoutingHandler {
     });
     
     loggingService.logInfo('Audio routing - successfully broadcasted synth_params_changed (namespace)');
+  }
+
+  handleUpdateEffectsChainNamespace(socket: Socket, data: UpdateEffectsChainData, namespace: Namespace): void {
+    const session = this.roomSessionManager.getRoomSession(socket.id);
+    if (!session) {
+      loggingService.logInfo('Audio routing - no session found for namespace effects update', {
+        socketId: socket.id
+      });
+      return;
+    }
+
+    const room = this.roomService.getRoom(session.roomId);
+    if (!room) {
+      loggingService.logInfo('Audio routing - no room found for namespace effects update', {
+        roomId: session.roomId
+      });
+      return;
+    }
+
+    const user = room.users.get(session.userId);
+    if (!user) {
+      loggingService.logInfo('Audio routing - no user found for namespace effects update', {
+        userId: session.userId
+      });
+      return;
+    }
+
+    this.roomService.updateUserEffectChains(session.roomId, session.userId, data.chains);
+
+    loggingService.logInfo('Audio routing - broadcasting effects_chain_changed (namespace)', {
+      namespaceName: namespace.name,
+      userId: session.userId,
+      username: user.username
+    });
+
+    socket.broadcast.emit('effects_chain_changed', {
+      userId: session.userId,
+      username: user.username,
+      chains: data.chains
+    });
   }
 
   /**

@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
-import { Room, User, UserSession } from "../types";
+import { Room, User, UserSession, EffectChainType, EffectChainState } from "../types";
 import { CacheService } from "./CacheService";
 import { RoomSessionManager } from "./RoomSessionManager";
 import { namespaceGracePeriodManager } from "./NamespaceGracePeriodManager";
@@ -14,9 +14,39 @@ export class RoomService {
   private readonly INTENTIONAL_LEAVE_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
   private cacheService = CacheService.getInstance();
   private roomSessionManager: RoomSessionManager;
+  private readonly EFFECT_CHAIN_TYPES: EffectChainType[] = [
+    'virtual_instrument',
+    'audio_voice_input'
+  ];
 
   constructor(roomSessionManager: RoomSessionManager) {
     this.roomSessionManager = roomSessionManager;
+  }
+
+  getDefaultEffectChains(): Record<EffectChainType, EffectChainState> {
+    return this.EFFECT_CHAIN_TYPES.reduce((acc, type) => {
+      acc[type] = {
+        type,
+        effects: []
+      };
+      return acc;
+    }, {} as Record<EffectChainType, EffectChainState>);
+  }
+
+  ensureUserEffectChains(user: User): void {
+    if (!user.effectChains) {
+      user.effectChains = this.getDefaultEffectChains();
+      return;
+    }
+
+    this.EFFECT_CHAIN_TYPES.forEach((type) => {
+      if (!user.effectChains![type]) {
+        user.effectChains![type] = {
+          type,
+          effects: []
+        };
+      }
+    });
   }
 
   // Room management
@@ -56,6 +86,8 @@ export class RoomService {
       // Don't set default instruments - let frontend send user's preferences
       // currentInstrument and currentCategory will be set when user sends change_instrument
     };
+
+    this.ensureUserEffectChains(user);
 
     room.users.set(userId, user);
     this.rooms.set(roomId, room);
@@ -169,6 +201,7 @@ export class RoomService {
     const room = this.rooms.get(roomId);
     if (!room) return false;
 
+    this.ensureUserEffectChains(user);
     room.users.set(user.id, user);
 
     // Remove from intentionally left list if they were there
@@ -515,6 +548,38 @@ export class RoomService {
     if (!user) return false;
 
     user.synthParams = synthParams;
+    return true;
+  }
+
+  updateUserEffectChains(
+    roomId: string,
+    userId: string,
+    chains: Record<EffectChainType, EffectChainState>
+  ): boolean {
+    const room = this.rooms.get(roomId);
+    if (!room) return false;
+
+    const user = room.users.get(userId);
+    if (!user) return false;
+
+    const sanitizedChains = this.getDefaultEffectChains();
+    this.EFFECT_CHAIN_TYPES.forEach((type) => {
+      const incoming = chains?.[type];
+      if (incoming) {
+        sanitizedChains[type] = {
+          type: incoming.type,
+          effects: (incoming.effects || []).map((effect) => ({
+            ...effect,
+            parameters: (effect.parameters || []).map((param) => ({ ...param }))
+          }))
+        };
+      }
+    });
+
+    user.effectChains = sanitizedChains;
+
+    // Invalidate cache to propagate updated state
+    this.cacheService.invalidateRoom(roomId);
     return true;
   }
 
