@@ -56,11 +56,11 @@ export class NamespaceEventHandlers {
   setPerformanceServices(
     performanceMonitoring: PerformanceMonitoringService,
     connectionHealth: ConnectionHealthService,
-    connectionOptimization: ConnectionOptimizationService
+    connectionOptimization?: ConnectionOptimizationService
   ): void {
     this.performanceMonitoring = performanceMonitoring;
     this.connectionHealth = connectionHealth;
-    this.connectionOptimization = connectionOptimization;
+    this.connectionOptimization = connectionOptimization || null;
   }
 
   /**
@@ -266,7 +266,7 @@ export class NamespaceEventHandlers {
           // Handle user leaving room through lifecycle handler
           const roomLifecycleHandler = (this.roomHandlers as any).roomLifecycleHandler;
           if (roomLifecycleHandler) {
-            roomLifecycleHandler.handleLeaveRoom(socket, false);
+            await roomLifecycleHandler.handleLeaveRoom(socket, false);
           }
           
           // Clean up pending instrument swaps
@@ -330,10 +330,10 @@ export class NamespaceEventHandlers {
     
     socket.on('leave_room', (data) => {
       secureSocketEvent('leave_room', undefined, 
-        (socket, data) => {
+        async (socket, data) => {
           const roomLifecycleHandler = (this.roomHandlers as any).roomLifecycleHandler;
           if (roomLifecycleHandler) {
-            roomLifecycleHandler.handleLeaveRoom(socket, data?.isIntendedLeave || false);
+            await roomLifecycleHandler.handleLeaveRoom(socket, data?.isIntendedLeave || false);
           }
         })(socket, data);
     });
