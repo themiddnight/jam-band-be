@@ -125,7 +125,7 @@ export class RoomHandlers {
    * Handle socket disconnection - coordinates between domain handlers
    * This is cross-domain coordination logic with type safety
    */
-  handleDisconnect(socket: Socket): void {
+  async handleDisconnect(socket: Socket): Promise<void> {
     const session = this.roomSessionManager.getRoomSession(socket.id);
     if (!session) return;
 
@@ -151,7 +151,7 @@ export class RoomHandlers {
 
     // Handle regular member disconnection through lifecycle handler
     if (user) {
-      this.roomLifecycleHandler.handleLeaveRoom(socket, false);
+      await this.roomLifecycleHandler.handleLeaveRoom(socket, false);
     }
 
     this.roomSessionManager.removeSession(socket.id);

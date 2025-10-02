@@ -14,7 +14,7 @@ import {
   UserSession
 } from '../../../../types';
 import { EventBus } from '../../../../shared/domain/events/EventBus';
-import { RoomCreated, MemberJoined } from '../../../../shared/domain/events/RoomEvents';
+import { RoomCreated, MemberJoined, MemberLeft } from '../../../../shared/domain/events/RoomEvents';
 import { UserJoinedRoom } from '../../../../shared/domain/events/UserOnboardingEvents';
 
 /**
@@ -86,7 +86,7 @@ export class RoomLifecycleHandler {
   /**
    * Private method to handle room owner leaving
    */
-  private handleRoomOwnerLeaving(roomId: string | RoomId, leavingUserId: string | UserId, isIntendedLeave: boolean = false): void {
+  private async handleRoomOwnerLeaving(roomId: string | RoomId, leavingUserId: string | UserId, isIntendedLeave: boolean = false): Promise<void> {
     const roomIdTyped = this.ensureRoomId(roomId);
     const leavingUserIdTyped = this.ensureUserId(leavingUserId);
     const roomIdString = this.roomIdToString(roomIdTyped);
@@ -103,6 +103,17 @@ export class RoomLifecycleHandler {
 
     // Remove the leaving user from room
     this.roomService.removeUserFromRoom(roomIdString, leavingUserIdString, isIntendedLeave);
+
+    // Publish MemberLeft event for intentional leaves to notify lobby
+    // For unintentional leaves, we don't publish immediately as the user might rejoin
+    if (isIntendedLeave && this.eventBus) {
+      const memberLeftEvent = new MemberLeft(
+        roomIdString,
+        leavingUserIdString,
+        leavingUser.username
+      );
+      await this.eventBus.publish(memberLeftEvent);
+    }
 
     // For unintentional leave (like page refresh), keep the room alive if owner is alone
     if (!isIntendedLeave) {
@@ -698,7 +709,7 @@ export class RoomLifecycleHandler {
    * Handle user leaving room - coordinates cleanup and state updates
    * Requirements: 6.5, 6.6, 6.7 - Grace period management, session cleanup, state restoration
    */
-  handleLeaveRoom(socket: Socket, isIntendedLeave: boolean = false): void {
+  async handleLeaveRoom(socket: Socket, isIntendedLeave: boolean = false): Promise<void> {
     const session = this.roomSessionManager.getRoomSession(socket.id);
     if (!session) {
       // No session found - user might have already left or never joined properly
@@ -745,15 +756,26 @@ export class RoomLifecycleHandler {
 
     // If room owner leaves, handle ownership transfer or room closure
     if (user.role === 'room_owner') {
-      this.handleRoomOwnerLeaving(session.roomId, session.userId, isIntendedLeave);
+      await this.handleRoomOwnerLeaving(session.roomId, session.userId, isIntendedLeave);
     } else {
       // Regular user leaving - remove them from room
       this.roomService.removeUserFromRoom(session.roomId, session.userId, isIntendedLeave);
 
+      // Publish MemberLeft event for intentional leaves to notify lobby
+      if (isIntendedLeave && this.eventBus) {
+        const memberLeftEvent = new MemberLeft(
+          session.roomId,
+          session.userId,
+          user.username
+        );
+        await this.eventBus.publish(memberLeftEvent);
+      }
+
+      // Get or create the room namespace for proper isolation
+      const roomNamespace = this.getOrCreateRoomNamespace(session.roomId);
+
       // Check if room should be closed after regular user leaves
       if (this.roomService.shouldCloseRoom(session.roomId)) {
-        // Get or create the room namespace for proper isolation
-        const roomNamespace = this.getOrCreateRoomNamespace(session.roomId);
         if (roomNamespace) {
           roomNamespace.emit('room_closed', { message: 'Room is empty and has been closed' });
         }
@@ -761,9 +783,12 @@ export class RoomLifecycleHandler {
         // Attempt to close room
         this.roomService.deleteRoom(session.roomId);
       } else {
-        // Room still has users, broadcast updated state
-        const roomNamespace = this.getOrCreateRoomNamespace(session.roomId);
+        // Room still has users, notify others and broadcast updated state
         if (roomNamespace) {
+          // First, emit user_left event so frontend can clean up immediately
+          roomNamespace.emit('user_left', { user });
+
+          // Then, send updated room state to all users to ensure UI consistency
           const updatedRoomData = {
             room: {
               ...room,
