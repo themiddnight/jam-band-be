@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, jest, afterEach } from '@jest/globals
 import { Socket, Namespace } from 'socket.io';
 import { Server } from 'socket.io';
 
-import { NotePlayingHandler } from '../domains/audio-processing/infrastructure/handlers/NotePlayingHandler';
+import { NotePlayingHandler } from '../../domains/audio-processing/infrastructure/handlers/NotePlayingHandler';
 import { RoomService } from '../../services/RoomService';
 import { NamespaceManager } from '../../services/NamespaceManager';
 import { RoomSessionManager, NamespaceSession } from '../../services/RoomSessionManager';
@@ -54,7 +54,8 @@ describe('NotePlayingHandler', () => {
     isPrivate: false,
     isHidden: false,
     createdAt: new Date(),
-    metronome: mockMetronome
+    metronome: mockMetronome,
+    roomType: 'perform'
   };
 
   beforeEach(() => {
@@ -304,7 +305,8 @@ describe('NotePlayingHandler', () => {
           instrument: 'synth',
           category: 'synthesizer',
           eventType: 'note_on',
-          isKeyHeld: true
+          isKeyHeld: true,
+          sampleNotes: undefined
         });
       });
 

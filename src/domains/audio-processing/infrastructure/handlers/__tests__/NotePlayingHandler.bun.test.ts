@@ -49,7 +49,8 @@ describe('NotePlayingHandler - Bun Test Suite', () => {
     isPrivate: false,
     isHidden: false,
     createdAt: new Date(),
-    metronome: mockMetronome
+    metronome: mockMetronome,
+    roomType: 'perform'
   };
 
   beforeEach(() => {
@@ -455,7 +456,8 @@ describe('NotePlayingHandler - Bun Test Suite', () => {
           instrument: 'synth',
           category: 'synthesizer',
           eventType: 'note_on',
-          isKeyHeld: true
+          isKeyHeld: true,
+          sampleNotes: undefined
         });
       });
 

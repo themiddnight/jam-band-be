@@ -268,7 +268,8 @@ export class NotePlayingHandler {
       instrument: data.instrument,
       category: data.category,
       eventType: data.eventType,
-      isKeyHeld: data.isKeyHeld
+      isKeyHeld: data.isKeyHeld,
+      sampleNotes: data.sampleNotes
     });
 
     console.log('📤 Note broadcast completed using socket.broadcast.emit()');

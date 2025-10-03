@@ -96,6 +96,7 @@ export interface PlayNoteData {
   category: string;
   eventType: 'note_on' | 'note_off' | 'sustain_on' | 'sustain_off';
   isKeyHeld?: boolean;
+  sampleNotes?: string[];
 }
 
 export interface ChangeInstrumentData {
