@@ -9,6 +9,8 @@ import { MetronomeTickData } from '../types';
 export class RoomMetronome {
   private intervalId: NodeJS.Timeout | null = null;
   private isRunning = false;
+  private pendingBpm: number | null = null;
+  private tempoUpdateTimeout: NodeJS.Timeout | null = null;
 
   constructor(
     private roomId: string,
@@ -33,6 +35,25 @@ export class RoomMetronome {
       if (!currentState) {
         this.stop();
         return;
+      }
+
+      // Check if there's a pending tempo update and apply it after this tick
+      if (this.pendingBpm !== null) {
+        this.pendingBpm = null;
+        
+        // Clear any pending timeout
+        if (this.tempoUpdateTimeout) {
+          clearTimeout(this.tempoUpdateTimeout);
+          this.tempoUpdateTimeout = null;
+        }
+        
+        // Apply the new tempo by restarting with new BPM
+        // This will happen after the current tick is broadcast
+        setTimeout(() => {
+          if (this.isRunning) {
+            this.start();
+          }
+        }, 0);
       }
 
       const tickTimestamp = Date.now();
@@ -67,16 +88,44 @@ export class RoomMetronome {
       clearInterval(this.intervalId);
       this.intervalId = null;
     }
+    if (this.tempoUpdateTimeout) {
+      clearTimeout(this.tempoUpdateTimeout);
+      this.tempoUpdateTimeout = null;
+    }
     this.isRunning = false;
+    this.pendingBpm = null;
   }
 
   /**
    * Update metronome tempo and restart with new BPM
+   * Uses debouncing to wait for the next tick before applying changes
    * Requirements: 8.2
    */
-  updateTempo(_newBpm: number): void {
-    // Always restart with new tempo since metronome is always running
-    this.start();
+  updateTempo(newBpm: number): void {
+    // Get current metronome state to calculate debounce time
+    const currentState = this.roomService.getMetronomeState(this.roomId);
+    if (!currentState) return;
+
+    // Store the pending BPM update
+    this.pendingBpm = newBpm;
+
+    // Clear any existing timeout
+    if (this.tempoUpdateTimeout) {
+      clearTimeout(this.tempoUpdateTimeout);
+    }
+
+    // Calculate time until next tick based on current BPM
+    // This ensures we wait for at least one tick cycle before applying the change
+    const currentIntervalMs = (60 / currentState.bpm) * 1000;
+    
+    // Set a timeout to apply the tempo change after the current tick cycle
+    // Add a small buffer (50ms) to ensure we're past the tick
+    this.tempoUpdateTimeout = setTimeout(() => {
+      if (this.isRunning && this.pendingBpm !== null) {
+        // The actual restart will happen on the next tick
+        // No need to do anything here - the tick function will handle it
+      }
+    }, currentIntervalMs + 50);
   }
 
   /**
