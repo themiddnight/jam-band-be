@@ -8,6 +8,7 @@ import { configureLobbyServices, initializeLobbyContext } from '../../domains/lo
 import { configureRoomServices, initializeRoomContext } from '../../domains/room-management/infrastructure/ServiceConfiguration';
 import { performanceMetrics } from './monitoring';
 import { getHighResolutionTime, calculateProcessingTime } from '../utils/timing';
+import { loggingService } from '../../services/LoggingService';
 
 /**
  * Configure shared services used across all bounded contexts
@@ -79,7 +80,7 @@ export async function initializeAllContexts(): Promise<void> {
       { status: 'success' }
     );
     
-    console.log(`✅ All contexts initialized successfully in ${duration.toFixed(2)}ms`);
+    loggingService.logInfo(`All contexts initialized successfully in ${duration.toFixed(2)}ms`, { duration });
     
   } catch (error) {
     const duration = calculateProcessingTime(startTime);
@@ -91,7 +92,7 @@ export async function initializeAllContexts(): Promise<void> {
       { status: 'error' }
     );
     
-    console.error('❌ Failed to initialize contexts:', error);
+    loggingService.logError(error instanceof Error ? error : new Error('Failed to initialize contexts'), { context: 'service-initialization', duration });
     throw error;
   }
 }
@@ -153,7 +154,7 @@ export async function shutdownServices(): Promise<void> {
       { status: 'success' }
     );
     
-    console.log(`✅ Services shutdown completed in ${duration.toFixed(2)}ms`);
+    loggingService.logInfo(`Services shutdown completed in ${duration.toFixed(2)}ms`, { duration });
     
   } catch (error) {
     const duration = calculateProcessingTime(startTime);
@@ -165,7 +166,7 @@ export async function shutdownServices(): Promise<void> {
       { status: 'error' }
     );
     
-    console.error('❌ Failed to shutdown services:', error);
+    loggingService.logError(error instanceof Error ? error : new Error('Failed to shutdown services'), { context: 'service-shutdown', duration });
     throw error;
   }
 }

@@ -342,13 +342,7 @@ export class NamespaceEventHandlers {
 
     // Music events - Requirements: 7.1, 7.2
     socket.on('play_note', (data) => {
-      console.log('🎹 Namespace received play_note event:', {
-        socketId: socket.id,
-        namespaceName: namespace.name,
-        data: data
-      });
-
-      console.log('✅ Calling handlePlayNoteNamespace');
+      loggingService.logSocketEvent('play_note', socket, data);
       this.notePlayingHandler.handlePlayNoteNamespace(socket, data, namespace);
     });
     
@@ -377,15 +371,11 @@ export class NamespaceEventHandlers {
     });
     
     socket.on('update_synth_params', (data) => {
-      console.log('🎛️ Namespace received update_synth_params event:', {
-        socketId: socket.id,
-        namespaceName: namespace.name,
-        data: data
-      });
+      loggingService.logSocketEvent('update_synth_params', socket, data);
       
       const rateLimitCheck = checkSocketRateLimit(socket, 'update_synth_params');
       if (!rateLimitCheck.allowed) {
-        console.log('🚫 Rate limit exceeded for update_synth_params');
+        loggingService.logRateLimitViolation(socket.id, 'update_synth_params', 0, 0);
         socket.emit('error', { 
           message: `Rate limit exceeded for update_synth_params. Try again in ${rateLimitCheck.retryAfter} seconds.`,
           retryAfter: rateLimitCheck.retryAfter 
@@ -393,7 +383,6 @@ export class NamespaceEventHandlers {
         return;
       }
       
-      console.log('✅ Calling handleUpdateSynthParamsNamespace');
       this.audioRoutingHandler.handleUpdateSynthParamsNamespace(socket, data, namespace);
     });
 
@@ -416,11 +405,7 @@ export class NamespaceEventHandlers {
     });
 
     socket.on('auto_send_synth_params_to_new_user', (data) => {
-      console.log('🎛️ Namespace received auto_send_synth_params_to_new_user event:', {
-        socketId: socket.id,
-        namespaceName: namespace.name,
-        data
-      });
+      loggingService.logSocketEvent('auto_send_synth_params_to_new_user', socket, data);
       
       secureSocketEvent('auto_send_synth_params_to_new_user', undefined, 
         () => this.audioRoutingHandler.autoRequestSynthParamsForNewUserNamespace(namespace, data.roomId || '', data.newUserId))(socket, data);
@@ -712,7 +697,6 @@ export class NamespaceEventHandlers {
    */
   setupLobbyMonitorNamespaceHandlers(namespace: Namespace): void {
     namespace.on('connection', (socket: Socket) => {
-      console.log('🔌 Backend: Socket connected to lobby-monitor namespace', socket.id);
       loggingService.logInfo('Socket connected to lobby monitor namespace', {
         socketId: socket.id,
         namespacePath: '/lobby-monitor'
@@ -720,7 +704,7 @@ export class NamespaceEventHandlers {
 
       // Lobby monitor event handlers
       socket.on('ping_measurement', (data) => {
-        console.log('🏓 Backend (lobby-monitor): Received ping_measurement', { socketId: socket.id, data });
+        loggingService.logSocketEvent('ping_measurement', socket, data);
         // Simple ping-pong response for latency measurement
         if (data && data.pingId && data.timestamp) {
           const response = {
@@ -728,15 +712,14 @@ export class NamespaceEventHandlers {
             timestamp: data.timestamp,
             serverTimestamp: Date.now()
           };
-          console.log('🏓 Backend (lobby-monitor): Sending ping_response', response);
+          loggingService.logInfo('Sending ping_response', { socketId: socket.id, response });
           socket.emit('ping_response', response);
         } else {
-          console.log('🏓 Backend (lobby-monitor): Invalid ping data', data);
+          loggingService.logInfo('Invalid ping data received', { socketId: socket.id, data });
         }
       });
 
       socket.on('disconnect', (reason) => {
-        console.log('🔌 Backend: Socket disconnected from lobby-monitor namespace', socket.id, reason);
         loggingService.logInfo('Socket disconnected from lobby monitor namespace', {
           socketId: socket.id,
           reason,

@@ -1,23 +1,30 @@
 import cors from 'cors';
 import { config } from '../config/environment';
 
+import { loggingService } from '../services/LoggingService';
+
 export const corsOptions = {
   origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
     // Log the origin for debugging
-    console.log('🔒 CORS: Request origin:', origin);
-    console.log('🔒 CORS: NODE_ENV:', config.nodeEnv);
-    console.log('🔒 CORS: Strict mode:', config.cors.strictMode);
-    console.log('🔒 CORS: FRONTEND_URL env var:', process.env.FRONTEND_URL);
-    console.log('🔒 CORS: Config frontendUrl:', config.cors.frontendUrl);
+    loggingService.logSecurityEvent('CORS request', {
+      origin,
+      nodeEnv: config.nodeEnv,
+      strictMode: config.cors.strictMode,
+      frontendUrlEnv: process.env.FRONTEND_URL,
+      configFrontendUrl: config.cors.frontendUrl
+    });
     
     if (config.nodeEnv === 'production') {
       // Production mode - only allow the configured frontend URL
       if (!origin || origin === config.cors.frontendUrl) {
-        console.log('✅ CORS: Production origin allowed:', origin);
+        loggingService.logSecurityEvent('CORS origin allowed', { origin, mode: 'production' });
         callback(null, true);
       } else {
-        console.log('❌ CORS: Production origin blocked:', origin);
-        console.log('❌ CORS: Expected origin:', config.cors.frontendUrl);
+        loggingService.logSecurityEvent('CORS origin blocked', {
+          origin,
+          expectedOrigin: config.cors.frontendUrl,
+          mode: 'production'
+        }, 'warn');
         callback(new Error('Not allowed by CORS'));
       }
     } else {
@@ -26,19 +33,22 @@ export const corsOptions = {
       
       if (config.cors.strictMode) {
         // Strict development mode - only allow specified origins
-        console.log('🔓 CORS: Strict development mode - allowed origins:', allowedOrigins);
+        loggingService.logSecurityEvent('CORS strict development mode', { allowedOrigins });
         
         if (!origin || allowedOrigins.includes(origin)) {
-          console.log('✅ CORS: Development origin allowed:', origin);
+          loggingService.logSecurityEvent('CORS origin allowed', { origin, mode: 'development-strict' });
           callback(null, true);
         } else {
-          console.log('❌ CORS: Development origin blocked:', origin);
-          console.log('❌ CORS: Allowed development origins:', allowedOrigins);
-          callback(new Error('Not allowed by CORS in strict development mode'));
+          loggingService.logSecurityEvent('CORS origin blocked', {
+            origin,
+            allowedOrigins,
+            mode: 'development-strict'
+          }, 'warn');
+          callback(new Error('Not allowed by CORS'));
         }
       } else {
-        // Flexible development mode - allow all origins
-        console.log('🔓 CORS: Flexible development mode - allowing all origins');
+        // Permissive development mode - allow all origins
+        loggingService.logSecurityEvent('CORS permissive mode', { origin, mode: 'development-permissive' });
         callback(null, true);
       }
     }
@@ -58,9 +68,11 @@ export const corsMiddleware = cors(corsOptions);
 
 // Simple CORS debugging middleware (no preflight handling)
 export const corsDebugMiddleware = (req: any, res: any, next: any) => {
-  console.log('🔍 CORS Debug: Request method:', req.method);
-  console.log('🔍 CORS Debug: Request origin:', req.get('Origin'));
-  console.log('🔍 CORS Debug: Request headers:', req.headers);
+  loggingService.logSecurityEvent('CORS debug', {
+    method: req.method,
+    origin: req.get('Origin'),
+    headers: req.headers
+  });
   
   // Let the main CORS middleware handle everything
   next();

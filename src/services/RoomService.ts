@@ -4,6 +4,7 @@ import { CacheService } from "./CacheService";
 import { RoomSessionManager } from "./RoomSessionManager";
 import { namespaceGracePeriodManager } from "./NamespaceGracePeriodManager";
 import { METRONOME_CONSTANTS } from "../constants";
+import { loggingService } from "./LoggingService";
 
 export class RoomService {
   private rooms = new Map<string, Room>();
@@ -635,7 +636,7 @@ export class RoomService {
     // Delete rooms and return list for external cleanup (namespaces, etc.)
     allRoomsToDelete.forEach((roomId) => {
       this.deleteRoom(roomId);
-      console.log(`Deleted empty room: ${roomId}`);
+      loggingService.logInfo(`Deleted empty room: ${roomId}`, { roomId });
     });
 
     return allRoomsToDelete;

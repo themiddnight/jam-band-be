@@ -1,5 +1,6 @@
 import { createServer, IncomingMessage, ServerResponse } from 'http';
 import { MigrationDashboard } from './MigrationDashboard';
+import { loggingService } from '../services/LoggingService';
 
 export interface DashboardServerConfig {
   port: number;
@@ -88,7 +89,7 @@ export class DashboardServer {
       } else if (method === 'POST' && url === '/api/rollback') {
         this.handleRollback(req, res);
       } else if (method === 'GET' && url === '/api/stream') {
-        this.handleEventStream(res);
+        this.handleEventStream(req, res);
       } else {
         this.serve404(res);
       }
@@ -199,7 +200,7 @@ export class DashboardServer {
   /**
    * Handle Server-Sent Events stream
    */
-  private handleEventStream(res: ServerResponse): void {
+  private handleEventStream(req: IncomingMessage, res: ServerResponse): void {
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
@@ -237,7 +238,7 @@ export class DashboardServer {
       const message = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
       res.write(message);
     } catch (error) {
-      console.error('Error sending SSE message:', error);
+      loggingService.logError(error instanceof Error ? error : new Error('Error sending SSE message'), { event, context: 'dashboard-sse' });
     }
   }
 
@@ -307,9 +308,11 @@ export class DashboardServer {
         if (err) {
           reject(err);
         } else {
-          console.log(`Migration dashboard server started on port ${this.config.port}`);
-          console.log(`Dashboard URL: http://localhost:${this.config.port}`);
-          console.log(`API URL: http://localhost:${this.config.port}/api/dashboard`);
+          loggingService.logInfo('Migration dashboard server started', {
+            port: this.config.port,
+            dashboardURL: `http://localhost:${this.config.port}`,
+            apiURL: `http://localhost:${this.config.port}/api/dashboard`
+          });
           resolve();
         }
       });
@@ -332,7 +335,7 @@ export class DashboardServer {
       this.clients.clear();
 
       this.server.close(() => {
-        console.log('Migration dashboard server stopped');
+        loggingService.logInfo('Migration dashboard server stopped');
         resolve();
       });
     });

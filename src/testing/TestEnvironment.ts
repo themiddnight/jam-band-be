@@ -6,6 +6,7 @@ import { RoomSessionManager } from '../services/RoomSessionManager';
 import { RoomHandlers } from '../handlers/RoomHandlers';
 import { MockSocket, MockSocketFactory } from './MockSocket';
 import { ParallelTestHarness } from './ParallelTestHarness';
+import { loggingService } from '../services/LoggingService';
 
 import { MetronomeService } from '../services/MetronomeService';
 import { ChatHandler } from '../domains/real-time-communication/infrastructure/handlers/ChatHandler';
@@ -70,12 +71,14 @@ export class TestEnvironment {
     const { RoomLifecycleHandler, RoomMembershipHandler } = require('../domains/room-management/infrastructure/handlers');
     const { VoiceConnectionHandler } = require('../domains/real-time-communication/infrastructure/handlers');
     const { AudioRoutingHandler } = require('../domains/audio-processing/infrastructure/handlers');
+    const { ApprovalWorkflowHandler } = require('../domains/user-management/infrastructure/handlers');
     
     // Initialize extracted handlers
     const roomLifecycleHandler = new RoomLifecycleHandler(this.roomService, this.namespaceManager, this.roomSessionManager);
     const voiceConnectionHandler = new VoiceConnectionHandler(this.roomService, this.io, this.namespaceManager, this.roomSessionManager);
     const audioRoutingHandler = new AudioRoutingHandler(this.roomService, this.io, this.namespaceManager, this.roomSessionManager);
     const roomMembershipHandler = new RoomMembershipHandler(this.roomService, this.namespaceManager, this.roomSessionManager);
+    const approvalWorkflowHandler = new ApprovalWorkflowHandler(this.roomService, this.io, this.namespaceManager, this.roomSessionManager);
     
     // Initialize services needed by RoomHandlers
     const metronomeService = new MetronomeService(this.io, this.roomService);
@@ -86,9 +89,10 @@ export class TestEnvironment {
     // Initialize handlers
     this.roomHandlers = new RoomHandlers(
       this.roomService,
-      this.namespaceManager,
       this.roomSessionManager,
-      roomLifecycleHandler
+      roomLifecycleHandler,
+      roomMembershipHandler,
+      approvalWorkflowHandler
     );
     
     // Store voice handler for WebRTC testing
@@ -103,7 +107,7 @@ export class TestEnvironment {
     });
 
     if (this.config.enableLogging) {
-      console.log(`Test environment initialized on port ${this.server.address()?.port}`);
+      loggingService.logInfo('Test environment initialized', { port: this.server.address()?.port });
     }
   }
 
@@ -312,10 +316,10 @@ export class TestEnvironment {
       }
 
       if (this.config.enableLogging) {
-        console.log('Test environment cleaned up');
+        loggingService.logInfo('Test environment cleaned up');
       }
     } catch (error) {
-      console.error('Error during test environment cleanup:', error);
+      loggingService.logError(error instanceof Error ? error : new Error('Error during test environment cleanup'), { context: 'test-environment-cleanup' });
     }
   }
 

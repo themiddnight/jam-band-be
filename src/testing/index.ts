@@ -36,9 +36,6 @@ export {
   FrontendHTTPSConfig 
 } from './FrontendHTTPSConfig';
 
-// Examples
-export { MigrationTestingExample } from './examples/MigrationTestingExample';
-
 /**
  * Migration Testing Infrastructure
  * 

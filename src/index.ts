@@ -111,7 +111,7 @@ const roomApplicationService = repositoryFactory.getRoomApplicationService();
 
 // Initialize repositories with existing data (async operation)
 repositoryFactory.initializeWithLegacyData(roomService).catch((error) => {
-  console.error("Failed to initialize repositories with legacy data:", error);
+  loggingService.logError(error instanceof Error ? error : new Error("Failed to initialize repositories with legacy data"), { context: 'repository-initialization' });
 });
 
 // Initialize performance monitoring services

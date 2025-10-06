@@ -2,6 +2,7 @@ import { EventEmitter } from 'events';
 import { PerformanceMonitor, RegressionAlert, PerformanceMetric } from './PerformanceMonitor';
 import { RegressionDetector, RegressionReport } from './RegressionDetector';
 import { ParallelTestHarness } from './ParallelTestHarness';
+import { loggingService } from '../services/LoggingService';
 
 export interface AlertConfiguration {
   email?: {
@@ -167,12 +168,12 @@ export class PerformanceMonitoringService extends EventEmitter {
    */
   start = (): void => {
     if (this.isRunning) {
-      console.warn('Performance monitoring service is already running');
+      loggingService.logSystemHealth('performance-monitoring', 'warning', { message: 'Service is already running' });
       return;
     }
 
     if (!this.config.monitoring.enabled) {
-      console.log('Performance monitoring is disabled in configuration');
+      loggingService.logInfo('Performance monitoring is disabled in configuration');
       return;
     }
 
@@ -187,7 +188,7 @@ export class PerformanceMonitoringService extends EventEmitter {
       this.cleanupOldMetrics();
     }, this.config.monitoring.baselineUpdateInterval);
 
-    console.log('Performance monitoring service started');
+    loggingService.logInfo('Performance monitoring service started');
     this.emit('started');
   }
 
@@ -206,7 +207,7 @@ export class PerformanceMonitoringService extends EventEmitter {
       this.monitoringInterval = undefined;
     }
 
-    console.log('Performance monitoring service stopped');
+    loggingService.logInfo('Performance monitoring service stopped');
     this.emit('stopped');
   }
 
@@ -317,13 +318,13 @@ export class PerformanceMonitoringService extends EventEmitter {
     
     switch (logLevel) {
       case 'error':
-        console.error(message);
+        loggingService.logError(new Error(message), { alert, type });
         break;
       case 'warn':
-        console.warn(message);
+        loggingService.logSystemHealth('performance-alert', 'warning', { message, alert, type });
         break;
       default:
-        console.log(message);
+        loggingService.logInfo(message, { alert, type });
     }
   }
 
@@ -348,7 +349,7 @@ export class PerformanceMonitoringService extends EventEmitter {
 
       await fs.appendFile(logPath, JSON.stringify(logEntry) + '\n');
     } catch (error) {
-      console.error('Failed to write alert to file:', error);
+      loggingService.logError(error instanceof Error ? error : new Error('Failed to write alert to file'), { context: 'alert-logging', logPath });
     }
   }
 
@@ -366,9 +367,9 @@ export class PerformanceMonitoringService extends EventEmitter {
       };
 
       // In a real implementation, this would use fetch or axios
-      console.log(`Would send webhook to ${webhookConfig.url}:`, payload);
+      loggingService.logInfo('Would send webhook alert', { url: webhookConfig.url, payload });
     } catch (error) {
-      console.error('Failed to send webhook alert:', error);
+      loggingService.logError(error instanceof Error ? error : new Error('Failed to send webhook alert'), { context: 'webhook-alert' });
     }
   }
 
@@ -381,11 +382,9 @@ export class PerformanceMonitoringService extends EventEmitter {
       const body = this.formatAlertMessage(alert, type);
 
       // In a real implementation, this would use nodemailer or similar
-      console.log(`Would send email to ${emailConfig.recipients.join(', ')}:`);
-      console.log(`Subject: ${subject}`);
-      console.log(`Body: ${body}`);
+      loggingService.logInfo('Would send email alert', { recipients: emailConfig.recipients, subject, body });
     } catch (error) {
-      console.error('Failed to send email alert:', error);
+      loggingService.logError(error instanceof Error ? error : new Error('Failed to send email alert'), { context: 'email-alert' });
     }
   }
 
@@ -410,7 +409,7 @@ export class PerformanceMonitoringService extends EventEmitter {
     const summary = this.performanceMonitor.getPerformanceSummary();
     
     if (summary.recentAlerts > 0) {
-      console.log(`Performance monitoring: ${summary.recentAlerts} recent alerts detected`);
+      loggingService.logInfo('Performance monitoring detected recent alerts', { recentAlerts: summary.recentAlerts });
     }
   }
 
@@ -423,7 +422,7 @@ export class PerformanceMonitoringService extends EventEmitter {
 
     // This would need to be implemented in PerformanceMonitor
     // For now, we just log the cleanup intention
-    console.log(`Would clean up metrics older than ${new Date(cutoffTime).toISOString()}`);
+    loggingService.logInfo('Would clean up old metrics', { cutoffTime: new Date(cutoffTime).toISOString() });
   }
 
   /**

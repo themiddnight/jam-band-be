@@ -3,6 +3,7 @@ import { Socket, Namespace } from 'socket.io';
 
 import { RoomService } from '../services/RoomService';
 import { RoomSessionManager } from '../services/RoomSessionManager';
+import { loggingService } from '../services/LoggingService';
 
 // Domain Handlers - Following DDD best practices
 import { RoomLifecycleHandler, RoomMembershipHandler } from '../domains/room-management/infrastructure/handlers';
@@ -70,7 +71,7 @@ export class RoomHandlers {
       const healthData = getHealthCheckData();
       res.json(healthData);
     } catch (error) {
-      console.error('Health check error:', error);
+      loggingService.logError(error instanceof Error ? error : new Error('Health check error'), { context: 'health-check' });
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       res.status(500).json({
         status: 'error',

@@ -1,5 +1,6 @@
 import { PerformanceMonitor, PerformanceMetric, RegressionAlert } from './PerformanceMonitor';
 import { ParallelTestHarness, TestResult } from './ParallelTestHarness';
+import { loggingService } from '../services/LoggingService';
 
 export interface RegressionTest {
   name: string;
@@ -187,16 +188,19 @@ export class RegressionDetector {
    * Handle performance alert
    */
   private handlePerformanceAlert(alert: RegressionAlert): void {
-    console.warn(`Performance regression detected: ${alert.metricName}`);
-    console.warn(`Current: ${alert.currentValue}, Previous: ${alert.previousValue}`);
-    console.warn(`Regression: ${alert.regressionPercentage.toFixed(2)}%`);
+    loggingService.logSystemHealth('performance-regression', 'warning', {
+      metricName: alert.metricName,
+      currentValue: alert.currentValue,
+      previousValue: alert.previousValue,
+      regressionPercentage: alert.regressionPercentage.toFixed(2)
+    });
 
     // Notify registered callbacks
     this.alertCallbacks.forEach(callback => {
       try {
         callback(alert);
       } catch (error) {
-        console.error('Error in alert callback:', error);
+        loggingService.logError(error instanceof Error ? error : new Error('Error in alert callback'), { context: 'regression-alert-callback' });
       }
     });
   }
@@ -205,15 +209,18 @@ export class RegressionDetector {
    * Handle threshold violation
    */
   private handleThresholdViolation(alert: RegressionAlert): void {
-    console.warn(`Threshold violation: ${alert.metricName}`);
-    console.warn(`Value: ${alert.currentValue}, Threshold: ${alert.threshold}`);
+    loggingService.logSystemHealth('performance-threshold', 'warning', {
+      metricName: alert.metricName,
+      currentValue: alert.currentValue,
+      threshold: alert.threshold
+    });
 
     // Notify registered callbacks
     this.alertCallbacks.forEach(callback => {
       try {
         callback(alert);
       } catch (error) {
-        console.error('Error in threshold violation callback:', error);
+        loggingService.logError(error instanceof Error ? error : new Error('Error in threshold violation callback'), { context: 'threshold-violation-callback' });
       }
     });
   }
@@ -322,15 +329,20 @@ export class RegressionDetector {
   setupAutomatedAlerts(): void {
     this.onAlert((alert) => {
       if (alert.severity === 'critical') {
-        console.error(`🚨 CRITICAL REGRESSION DETECTED: ${alert.metricName}`);
-        console.error(`Regression: ${alert.regressionPercentage.toFixed(2)}%`);
-        console.error(`Current: ${alert.currentValue}, Expected: ${alert.previousValue}`);
+        loggingService.logError(new Error(`CRITICAL REGRESSION DETECTED: ${alert.metricName}`), {
+          regressionPercentage: alert.regressionPercentage.toFixed(2),
+          currentValue: alert.currentValue,
+          expectedValue: alert.previousValue
+        });
         
         // In a real system, this would send notifications (email, Slack, etc.)
         this.sendCriticalAlert(alert);
       } else {
-        console.warn(`⚠️  Performance warning: ${alert.metricName}`);
-        console.warn(`Regression: ${alert.regressionPercentage.toFixed(2)}%`);
+        loggingService.logSystemHealth('performance', 'warning', {
+          message: `Performance warning: ${alert.metricName}`,
+          regressionPercentage: alert.regressionPercentage.toFixed(2),
+          alert
+        });
       }
     });
   }
@@ -345,6 +357,6 @@ export class RegressionDetector {
     // - PagerDuty
     // - Custom monitoring dashboards
     
-    console.log(`Would send critical alert for ${alert.metricName} regression`);
+    loggingService.logInfo('Would send critical alert', { metricName: alert.metricName, type: 'regression' });
   }
 }

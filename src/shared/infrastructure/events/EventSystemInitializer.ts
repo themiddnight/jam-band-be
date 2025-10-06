@@ -13,6 +13,7 @@ import { InMemoryEventBus } from '../../domain/events/InMemoryEventBus';
 import { EventWebSocketBridge } from './EventWebSocketBridge';
 import { NamespaceManager } from '../../../services/NamespaceManager';
 import { UserOnboardingCoordinator } from './UserOnboardingCoordinator';
+import { loggingService } from '../../../services/LoggingService';
 
 export class EventSystemInitializer {
   private eventBus: EventBus;
@@ -32,14 +33,14 @@ export class EventSystemInitializer {
    * Initialize the complete event system
    */
   initialize(): EventBus {
-    console.log('🚀 Initializing event-driven architecture...');
+    loggingService.logInfo('Initializing event-driven architecture');
 
     // Initialize user onboarding coordination
     this.onboardingCoordinator.initialize();
 
-    console.log('✅ Event system initialized successfully');
-    console.log('📡 WebSocket bridge active for real-time updates');
-    console.log('🎯 User onboarding coordination active');
+    loggingService.logInfo('Event system initialized successfully', {
+      features: ['WebSocket bridge', 'User onboarding coordination']
+    });
 
     return this.eventBus;
   }
@@ -69,7 +70,7 @@ export class EventSystemInitializer {
    * Cleanup the event system
    */
   cleanup(): void {
-    console.log('🧹 Cleaning up event system...');
+    loggingService.logInfo('Cleaning up event system');
     
     this.webSocketBridge.cleanup();
     this.onboardingCoordinator.cleanup();
@@ -79,6 +80,6 @@ export class EventSystemInitializer {
       this.eventBus.clear();
     }
     
-    console.log('✅ Event system cleanup complete');
+    loggingService.logInfo('Event system cleanup complete');
   }
 }
