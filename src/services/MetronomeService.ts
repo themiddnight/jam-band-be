@@ -11,6 +11,7 @@ export class RoomMetronome {
   private isRunning = false;
   private pendingBpm: number | null = null;
   private tempoUpdateTimeout: NodeJS.Timeout | null = null;
+  private onTempoApplied: ((bpm: number) => void) | null = null;
 
   constructor(
     private roomId: string,
@@ -39,6 +40,7 @@ export class RoomMetronome {
 
       // Check if there's a pending tempo update and apply it after this tick
       if (this.pendingBpm !== null) {
+        const appliedBpm = this.pendingBpm;
         this.pendingBpm = null;
         
         // Clear any pending timeout
@@ -52,6 +54,10 @@ export class RoomMetronome {
         setTimeout(() => {
           if (this.isRunning) {
             this.start();
+            // Notify that tempo has been applied
+            if (this.onTempoApplied) {
+              this.onTempoApplied(appliedBpm);
+            }
           }
         }, 0);
       }
@@ -141,6 +147,13 @@ export class RoomMetronome {
    */
   getIsRunning(): boolean {
     return this.isRunning;
+  }
+
+  /**
+   * Set callback to be called when tempo is actually applied
+   */
+  setOnTempoApplied(callback: (bpm: number) => void): void {
+    this.onTempoApplied = callback;
   }
 
   /**

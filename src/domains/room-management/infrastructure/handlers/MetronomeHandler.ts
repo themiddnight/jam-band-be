@@ -56,17 +56,26 @@ export class MetronomeHandler {
     const updatedRoom = this.roomService.updateMetronomeBPM(session.roomId, data.bpm);
     if (!updatedRoom) return;
 
-    // Update tempo in metronome service
+    // Update tempo in metronome service (this will debounce the change)
     this.metronomeService.updateMetronomeTempo(session.roomId, data.bpm);
 
     // Get or create the room namespace for proper isolation
     const roomNamespace = this.getOrCreateRoomNamespace(session.roomId);
     if (roomNamespace) {
-      // Broadcast metronome state to all users in the room
-      roomNamespace.emit('metronome_updated', {
-        bpm: updatedRoom.metronome.bpm,
-        lastTickTimestamp: updatedRoom.metronome.lastTickTimestamp
-      });
+      // Set up callback to broadcast when tempo is actually applied
+      const roomMetronome = this.metronomeService.getRoomMetronome(session.roomId);
+      if (roomMetronome) {
+        roomMetronome.setOnTempoApplied((appliedBpm) => {
+          const currentRoom = this.roomService.getRoom(session.roomId);
+          if (currentRoom) {
+            // Broadcast metronome state ONLY when tempo is actually applied
+            roomNamespace.emit('metronome_updated', {
+              bpm: appliedBpm,
+              lastTickTimestamp: currentRoom.metronome.lastTickTimestamp
+            });
+          }
+        });
+      }
     }
   }
 
@@ -105,14 +114,23 @@ export class MetronomeHandler {
     const updatedRoom = this.roomService.updateMetronomeBPM(session.roomId, data.bpm);
     if (!updatedRoom) return;
 
-    // Update tempo in metronome service
+    // Update tempo in metronome service (this will debounce the change)
     this.metronomeService.updateMetronomeTempo(session.roomId, data.bpm);
 
-    // Broadcast metronome state to all users in namespace
-    namespace.emit('metronome_updated', {
-      bpm: updatedRoom.metronome.bpm,
-      lastTickTimestamp: updatedRoom.metronome.lastTickTimestamp
-    });
+    // Set up callback to broadcast when tempo is actually applied
+    const roomMetronome = this.metronomeService.getRoomMetronome(session.roomId);
+    if (roomMetronome) {
+      roomMetronome.setOnTempoApplied((appliedBpm) => {
+        const currentRoom = this.roomService.getRoom(session.roomId);
+        if (currentRoom) {
+          // Broadcast metronome state ONLY when tempo is actually applied
+          namespace.emit('metronome_updated', {
+            bpm: appliedBpm,
+            lastTickTimestamp: currentRoom.metronome.lastTickTimestamp
+          });
+        }
+      });
+    }
   }
 
   /**
