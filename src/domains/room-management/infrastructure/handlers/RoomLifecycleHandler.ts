@@ -486,9 +486,17 @@ export class RoomLifecycleHandler {
         const requestedRole = role || 'audience';
         const previousRole = gracePeriodUserData.role;
 
-        // If user is requesting a different role, respect their choice and create new user with new role
-        // This handles cases where user enters as audience after being a band_member, or vice versa
-        if (requestedRole !== previousRole) {
+        const shouldPreserveOwnerRole = previousRole === 'room_owner' && requestedRole !== 'room_owner';
+
+        if (shouldPreserveOwnerRole) {
+          console.log(
+            `👑 Preserving room owner role for ${username} during grace period reconnection (requested ${requestedRole})`
+          );
+          user = {
+            ...gracePeriodUserData,
+            username,
+          };
+        } else if (requestedRole !== previousRole) {
           console.log(`🔄 User ${username} changing role from ${previousRole} to ${requestedRole} during grace period`);
           user = {
             id: userIdString,
@@ -575,7 +583,8 @@ export class RoomLifecycleHandler {
           room,
           users: this.roomService.getRoomUsers(roomIdString),
           pendingMembers: this.roomService.getPendingMembers(roomIdString),
-          effectChains: user.effectChains
+          effectChains: user.effectChains,
+          self: user
         });
 
         // Send updated room state to all users to ensure UI consistency
@@ -611,7 +620,8 @@ export class RoomLifecycleHandler {
           room,
           users: this.roomService.getRoomUsers(roomIdString),
           pendingMembers: this.roomService.getPendingMembers(roomIdString),
-          effectChains: user.effectChains
+          effectChains: user.effectChains,
+          self: user
         });
 
         // Send updated room state to all users to ensure UI consistency
@@ -687,7 +697,8 @@ export class RoomLifecycleHandler {
           room,
           users: this.roomService.getRoomUsers(roomIdString),
           pendingMembers: this.roomService.getPendingMembers(roomIdString),
-          effectChains: user.effectChains
+          effectChains: user.effectChains,
+          self: user
         });
 
         // Send updated room state to all users to ensure UI consistency
