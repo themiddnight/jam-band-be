@@ -50,6 +50,11 @@ import { NamespaceCleanupService } from "./services/NamespaceCleanupService";
 import { ConnectionOptimizationService } from "./services/ConnectionOptimizationService";
 import { loggingService } from "./services/LoggingService";
 
+// DAW Services
+import { ProjectStateManager } from "./services/ProjectStateManager";
+import { AudioFileStorageService } from "./services/AudioFileStorageService";
+import { InstantSyncService } from "./services/InstantSyncService";
+
 // Event System
 import { EventSystemInitializer } from "./shared/infrastructure/events/EventSystemInitializer";
 
@@ -100,6 +105,41 @@ const io = createSocketServer(server);
 const namespaceManager = new NamespaceManager(io);
 const roomSessionManager = new RoomSessionManager();
 const roomService = new RoomService(roomSessionManager);
+
+// Initialize DAW services
+const projectStateManager = ProjectStateManager.getInstance();
+const audioFileStorageService = AudioFileStorageService.getInstance();
+const instantSyncService = InstantSyncService.getInstance();
+
+// Import and initialize audio file sync service
+import { AudioFileSyncService } from './services/AudioFileSyncService';
+const audioFileSyncService = AudioFileSyncService.getInstance();
+
+// Import real-time change services
+import { RealTimeChangeService } from "./services/RealTimeChangeService";
+import { ChangeStreamingService } from "./services/ChangeStreamingService";
+
+const realTimeChangeService = RealTimeChangeService.getInstance();
+const changeStreamingService = ChangeStreamingService.getInstance();
+
+// Initialize DAW services asynchronously
+(async () => {
+  try {
+    await projectStateManager.initialize();
+    await audioFileStorageService.initialize();
+    await audioFileSyncService.initialize();
+    await realTimeChangeService.initialize();
+    
+    // Initialize change streaming with Socket.IO
+    changeStreamingService.initialize(io);
+    
+    loggingService.logInfo('DAW services initialized successfully');
+  } catch (error) {
+    loggingService.logError(
+      error instanceof Error ? error : new Error('Failed to initialize DAW services')
+    );
+  }
+})();
 
 // Initialize event system
 const eventSystemInitializer = new EventSystemInitializer(io, namespaceManager);
@@ -315,6 +355,8 @@ setInterval(() => {
   deletedRooms.forEach((roomId) => {
     namespaceManager.cleanupRoomNamespace(roomId);
     namespaceManager.cleanupApprovalNamespace(roomId);
+    // Clean up DAW room data
+    namespaceEventHandlers.getDAWRoomHandlers().cleanupRoom(roomId);
     // Broadcast to all clients that the room was closed
     io.emit("room_closed_broadcast", { roomId });
     loggingService.logInfo(
@@ -372,7 +414,7 @@ server.listen(Number(config.port), "0.0.0.0", () => {
 const gracefulShutdown = (signal: string) => {
   loggingService.logInfo(`Received ${signal}, starting graceful shutdown`);
 
-  server.close(() => {
+  server.close(async () => {
     loggingService.logInfo("HTTP server closed");
 
     // Shutdown performance monitoring services
@@ -391,6 +433,17 @@ const gracefulShutdown = (signal: string) => {
 
     // Cleanup event system
     eventSystemInitializer.cleanup();
+
+    // Cleanup DAW real-time services
+    try {
+      await realTimeChangeService.cleanup();
+      await changeStreamingService.cleanup();
+      loggingService.logInfo("DAW real-time services cleaned up");
+    } catch (error) {
+      loggingService.logError(
+        error instanceof Error ? error : new Error('Failed to cleanup DAW services')
+      );
+    }
 
     loggingService.logInfo("Graceful shutdown complete");
     process.exit(0);

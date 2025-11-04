@@ -11,6 +11,11 @@ import { ConnectionHealthService } from '../services/ConnectionHealthService';
 import { ConnectionOptimizationService } from '../services/ConnectionOptimizationService';
 import { BackendErrorRecoveryService, BackendErrorType } from '../services/ErrorRecoveryService';
 import { loggingService } from '../services/LoggingService';
+import { DAWCollaborationHandlers } from './DAWCollaborationHandlers';
+import { DAWRoomHandlers } from './DAWRoomHandlers';
+import { ProjectStateManager } from '../services/ProjectStateManager';
+import { RealTimeChangeService } from '../services/RealTimeChangeService';
+import { CollaborationPersistenceIntegrationService } from '../services/CollaborationPersistenceIntegrationService';
 import { secureSocketEvent } from '../middleware/security';
 import { checkSocketRateLimit } from '../middleware/rateLimit';
 import {
@@ -35,6 +40,8 @@ export class NamespaceEventHandlers {
   private connectionHealth: ConnectionHealthService | null = null;
   private connectionOptimization: ConnectionOptimizationService | null = null;
   private errorRecoveryService: BackendErrorRecoveryService;
+  private dawCollaborationHandlers: DAWCollaborationHandlers;
+  private dawRoomHandlers: DAWRoomHandlers;
 
   constructor(
     private roomHandlers: RoomHandlers,
@@ -48,6 +55,25 @@ export class NamespaceEventHandlers {
     private instrumentSwapHandler: InstrumentSwapHandler
   ) {
     this.errorRecoveryService = new BackendErrorRecoveryService();
+    
+    // Initialize DAW collaboration handlers
+    const projectStateManager = ProjectStateManager.getInstance();
+    const realTimeChangeService = RealTimeChangeService.getInstance();
+    const collaborationPersistenceService = CollaborationPersistenceIntegrationService.getInstance();
+    
+    this.dawCollaborationHandlers = new DAWCollaborationHandlers(
+      this.roomHandlers.getRoomService(),
+      this.roomSessionManager,
+      projectStateManager,
+      realTimeChangeService,
+      collaborationPersistenceService
+    );
+    
+    // Initialize DAW room configuration handlers
+    this.dawRoomHandlers = new DAWRoomHandlers(
+      this.roomHandlers.getRoomService(),
+      loggingService
+    );
   }
 
   /**
@@ -68,6 +94,13 @@ export class NamespaceEventHandlers {
    */
   getErrorRecoveryService(): BackendErrorRecoveryService {
     return this.errorRecoveryService;
+  }
+
+  /**
+   * Get DAW room handlers for external access
+   */
+  getDAWRoomHandlers(): DAWRoomHandlers {
+    return this.dawRoomHandlers;
   }
 
   /**
@@ -240,6 +273,12 @@ export class NamespaceEventHandlers {
 
       // Bind all room-specific event handlers
       this.bindRoomEventHandlers(socket, roomId, namespace);
+      
+      // Set up DAW collaboration handlers only for produce rooms
+      const room = this.roomHandlers.getRoomService().getRoom(roomId);
+      if (room && room.roomType === 'produce') {
+        this.dawCollaborationHandlers.setupDAWCollaborationHandlers(namespace, roomId);
+      }
 
       socket.on('disconnect', async (reason) => {
         const disconnectTime = Date.now();
@@ -615,6 +654,16 @@ export class NamespaceEventHandlers {
         });
       }
     });
+
+    // DAW Room Configuration events - Only for produce rooms
+    const room = this.roomHandlers.getRoomService().getRoom(roomId);
+    if (room && room.roomType === 'produce') {
+      // Get session to extract userId
+      const session = this.roomSessionManager.getRoomSession(socket.id);
+      if (session) {
+        this.dawRoomHandlers.registerHandlers(socket, roomId, session.userId);
+      }
+    }
   }
 
   /**

@@ -18,15 +18,6 @@ import {
   RoomSettingsUpdated, 
   RoomClosed 
 } from '../../domain/events/RoomEvents';
-import {
-  UserJoinedRoom,
-  UserInstrumentsReady,
-  UserAudioRoutingReady,
-  UserVoiceConnectionReady,
-  UserReadyForPlayback,
-  UserOnboardingFailed,
-  UserOnboardingTimeout
-} from '../../domain/events/UserOnboardingEvents';
 import { UserCreated, UserProfileUpdated } from '../../domain/events/UserEvents';
 
 export class EventWebSocketBridge {
@@ -49,15 +40,6 @@ export class EventWebSocketBridge {
     this.eventBus.subscribe('OwnershipTransferred', this.handleOwnershipTransferred.bind(this));
     this.eventBus.subscribe('RoomSettingsUpdated', this.handleRoomSettingsUpdated.bind(this));
     this.eventBus.subscribe('RoomClosed', this.handleRoomClosed.bind(this));
-
-    // User Onboarding Events
-    this.eventBus.subscribe('UserJoinedRoom', this.handleUserJoinedRoom.bind(this));
-    this.eventBus.subscribe('UserInstrumentsReady', this.handleUserInstrumentsReady.bind(this));
-    this.eventBus.subscribe('UserAudioRoutingReady', this.handleUserAudioRoutingReady.bind(this));
-    this.eventBus.subscribe('UserVoiceConnectionReady', this.handleUserVoiceConnectionReady.bind(this));
-    this.eventBus.subscribe('UserReadyForPlayback', this.handleUserReadyForPlayback.bind(this));
-    this.eventBus.subscribe('UserOnboardingFailed', this.handleUserOnboardingFailed.bind(this));
-    this.eventBus.subscribe('UserOnboardingTimeout', this.handleUserOnboardingTimeout.bind(this));
 
     // User Management Events
     this.eventBus.subscribe('UserCreated', this.handleUserCreated.bind(this));
@@ -186,127 +168,6 @@ export class EventWebSocketBridge {
       roomId: event.aggregateId,
       reason: event.reason
     });
-  };
-
-  /**
-   * Handle UserJoinedRoom event - start onboarding coordination
-   */
-  private handleUserJoinedRoom: EventHandler<UserJoinedRoom> = async (event) => {
-    console.log('🎯 User joined room, starting onboarding coordination:', event.userId, 'in room:', event.aggregateId);
-    
-    const roomNamespace = this.namespaceManager.getRoomNamespace(event.aggregateId);
-    if (roomNamespace) {
-      roomNamespace.emit('user_onboarding_started', {
-        userId: event.userId,
-        username: event.username,
-        role: event.role,
-        onboardingId: event.eventId
-      });
-    }
-  };
-
-  /**
-   * Handle UserInstrumentsReady event - update onboarding progress
-   */
-  private handleUserInstrumentsReady: EventHandler<UserInstrumentsReady> = async (event) => {
-    console.log('🎸 User instruments ready:', event.userId, 'in room:', event.roomId);
-    
-    const roomNamespace = this.namespaceManager.getRoomNamespace(event.roomId);
-    if (roomNamespace) {
-      roomNamespace.emit('user_onboarding_progress', {
-        userId: event.userId,
-        step: 'instruments_ready',
-        instruments: event.instruments,
-        progress: 33 // 1 of 3 steps complete
-      });
-    }
-  };
-
-  /**
-   * Handle UserAudioRoutingReady event - update onboarding progress
-   */
-  private handleUserAudioRoutingReady: EventHandler<UserAudioRoutingReady> = async (event) => {
-    console.log('🔊 User audio routing ready:', event.userId, 'in room:', event.roomId);
-    
-    const roomNamespace = this.namespaceManager.getRoomNamespace(event.roomId);
-    if (roomNamespace) {
-      roomNamespace.emit('user_onboarding_progress', {
-        userId: event.userId,
-        step: 'audio_routing_ready',
-        audioBusId: event.audioBusId,
-        progress: 66 // 2 of 3 steps complete
-      });
-    }
-  };
-
-  /**
-   * Handle UserVoiceConnectionReady event - update onboarding progress
-   */
-  private handleUserVoiceConnectionReady: EventHandler<UserVoiceConnectionReady> = async (event) => {
-    console.log('🎤 User voice connection ready:', event.userId, 'in room:', event.roomId);
-    
-    const roomNamespace = this.namespaceManager.getRoomNamespace(event.roomId);
-    if (roomNamespace) {
-      roomNamespace.emit('user_onboarding_progress', {
-        userId: event.userId,
-        step: 'voice_connection_ready',
-        connectionId: event.connectionId,
-        progress: 90 // Almost complete
-      });
-    }
-  };
-
-  /**
-   * Handle UserReadyForPlayback event - complete onboarding
-   */
-  private handleUserReadyForPlayback: EventHandler<UserReadyForPlayback> = async (event) => {
-    console.log('✅ User ready for playback:', event.userId, 'in room:', event.roomId);
-    
-    const roomNamespace = this.namespaceManager.getRoomNamespace(event.roomId);
-    if (roomNamespace) {
-      roomNamespace.emit('user_onboarding_complete', {
-        userId: event.userId,
-        step: 'ready_for_playback',
-        progress: 100
-      });
-
-      // Also emit general user ready event for other room logic
-      roomNamespace.emit('user_ready', {
-        userId: event.userId,
-        isReady: true
-      });
-    }
-  };
-
-  /**
-   * Handle UserOnboardingFailed event - notify of failure
-   */
-  private handleUserOnboardingFailed: EventHandler<UserOnboardingFailed> = async (event) => {
-    console.log('❌ User onboarding failed:', event.userId, 'in room:', event.roomId);
-    
-    const roomNamespace = this.namespaceManager.getRoomNamespace(event.roomId);
-    if (roomNamespace) {
-      roomNamespace.emit('user_onboarding_failed', {
-        userId: event.userId,
-        reason: event.reason,
-        step: event.failedComponent
-      });
-    }
-  };
-
-  /**
-   * Handle UserOnboardingTimeout event - notify of timeout
-   */
-  private handleUserOnboardingTimeout: EventHandler<UserOnboardingTimeout> = async (event) => {
-    console.log('⏰ User onboarding timeout:', event.userId, 'in room:', event.roomId);
-    
-    const roomNamespace = this.namespaceManager.getRoomNamespace(event.roomId);
-    if (roomNamespace) {
-      roomNamespace.emit('user_onboarding_timeout', {
-        userId: event.userId,
-        timeoutAfter: event.timeoutAfterMs
-      });
-    }
   };
 
   /**

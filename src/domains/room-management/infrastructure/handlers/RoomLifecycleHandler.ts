@@ -15,7 +15,6 @@ import {
 } from '../../../../types';
 import { EventBus } from '../../../../shared/domain/events/EventBus';
 import { RoomCreated, MemberJoined, MemberLeft } from '../../../../shared/domain/events/RoomEvents';
-import { UserJoinedRoom } from '../../../../shared/domain/events/UserOnboardingEvents';
 
 /**
  * RoomLifecycleHandler - Handles room creation, joining, and leaving operations
@@ -656,15 +655,6 @@ export class RoomLifecycleHandler {
           user.role
         );
         await this.eventBus.publish(memberJoinedEvent);
-
-        // Also publish UserJoinedRoom event to start onboarding coordination
-        const userJoinedRoomEvent = new UserJoinedRoom(
-          roomIdString,
-          userIdString,
-          user.username,
-          user.role
-        );
-        await this.eventBus.publish(userJoinedRoomEvent);
       }
 
       socket.join(roomIdString);

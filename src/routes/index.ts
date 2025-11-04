@@ -3,6 +3,8 @@ import { RoomHandlers } from '../handlers/RoomHandlers';
 import { RoomLifecycleHandler } from '../domains/room-management/infrastructure/handlers/RoomLifecycleHandler';
 import { validateData, leaveRoomHttpSchema, createRoomSchema } from '../validation/schemas';
 import { config } from '../config/environment';
+import dawRoutes from './daw';
+import audioFilesRoutes from './audioFiles';
 
 export const createRoutes = (roomHandlers: RoomHandlers, roomLifecycleHandler: RoomLifecycleHandler): Router => {
   const router = Router();
@@ -71,6 +73,12 @@ export const createRoutes = (roomHandlers: RoomHandlers, roomLifecycleHandler: R
   router.put('/rooms/:roomId/settings', (req, res) => {
     return roomLifecycleHandler.handleUpdateRoomSettingsHttp(req, res);
   });
+
+  // DAW routes
+  router.use('/daw', dawRoutes);
+
+  // Audio files routes
+  router.use('/audio-files', audioFilesRoutes);
 
   return router;
 }; 
