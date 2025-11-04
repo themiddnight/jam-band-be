@@ -1,6 +1,5 @@
 import { EventEmitter } from 'events';
-import { promises as fs } from 'fs';
-import { join } from 'path';
+
 import { createHash } from 'crypto';
 import { gzip, gunzip } from 'zlib';
 import { promisify } from 'util';

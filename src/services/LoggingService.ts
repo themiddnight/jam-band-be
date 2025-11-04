@@ -214,11 +214,34 @@ export class LoggingService {
     });
   }
 
-  // Error logging with context
-  logError(error: Error, context: any = {}): void {
+  // Error logging with context (flexible overloads)
+  // Supported forms:
+  // - logError(error)
+  // - logError(error, context)
+  // - logError(message)
+  // - logError(message, context)
+  // - logError(message, error, context)
+  logError(arg1: Error | string, arg2?: any, arg3?: any): void {
+    let err: Error;
+    let context: any = {};
+
+    if (typeof arg1 === 'string' && arg2 instanceof Error) {
+      // logError(message, error, context?)
+      err = arg2;
+      context = { message: arg1, ...(arg3 || {}) };
+    } else if (arg1 instanceof Error) {
+      // logError(error, context?)
+      err = arg1;
+      context = arg2 || {};
+    } else {
+      // logError(message, context?)
+      err = new Error(arg1);
+      context = arg2 || {};
+    }
+
     logger.error('Application Error', {
-      message: error.message,
-      stack: error.stack,
+      message: err.message,
+      stack: err.stack,
       context,
       timestamp: new Date().toISOString(),
     });
@@ -227,6 +250,15 @@ export class LoggingService {
   // Info logging
   logInfo(message: string, context: any = {}): void {
     logger.info('Info', {
+      message,
+      context,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  // Warn logging
+  logWarn(message: string, context: any = {}): void {
+    logger.warn('Warning', {
       message,
       context,
       timestamp: new Date().toISOString(),
@@ -277,6 +309,19 @@ export class LoggingService {
         timestamp: new Date().toISOString() 
       });
     }
+  }
+
+  // Convenience aliases to support existing call sites
+  info(message: string, context: any = {}): void {
+    this.logInfo(message, context);
+  }
+
+  warn(message: string, context: any = {}): void {
+    this.logWarn(message, context);
+  }
+
+  error(arg1: Error | string, arg2?: any, arg3?: any): void {
+    this.logError(arg1 as any, arg2 as any, arg3 as any);
   }
 }
 

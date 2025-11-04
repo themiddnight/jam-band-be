@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
-import { join } from 'path';
+// import { join } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import type { UploadAudioFileRequest } from '../types/daw';
 import { AudioFileSyncService } from '../services/AudioFileSyncService';
@@ -93,7 +93,7 @@ router.post('/upload', upload.single('audioFile'), async (req: Request, res: Res
     if (error) {
       return res.status(400).json({
         success: false,
-        error: error.details[0].message,
+        error: error.details?.[0]?.message ?? 'Invalid request',
       });
     }
 
@@ -134,7 +134,7 @@ router.post('/upload', upload.single('audioFile'), async (req: Request, res: Res
       roomId
     );
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       data: audioFile,
       message: 'Audio file uploaded and distributed successfully',
@@ -148,7 +148,7 @@ router.post('/upload', upload.single('audioFile'), async (req: Request, res: Res
     });
 
     const errorMessage = error instanceof Error ? error.message : 'Failed to upload audio file';
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: errorMessage,
     });
@@ -178,7 +178,7 @@ router.post('/batch-upload', upload.array('audioFiles', 10), async (req: Request
     if (error) {
       return res.status(400).json({
         success: false,
-        error: error.details[0].message,
+        error: error.details?.[0]?.message ?? 'Invalid request',
       });
     }
 
@@ -224,18 +224,19 @@ router.post('/batch-upload', upload.array('audioFiles', 10), async (req: Request
     const successful: any[] = [];
     const failed: any[] = [];
 
+    const files = req.files as Express.Multer.File[];
     results.forEach((result, index) => {
       if (result.status === 'fulfilled') {
         successful.push(result.value);
       } else {
         failed.push({
-          filename: req.files![index].originalname,
+          filename: files[index]?.originalname,
           error: result.reason.message,
         });
       }
     });
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       data: {
         successful,
@@ -255,7 +256,7 @@ router.post('/batch-upload', upload.array('audioFiles', 10), async (req: Request
     });
 
     const errorMessage = error instanceof Error ? error.message : 'Failed to batch upload audio files';
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: errorMessage,
     });
@@ -269,7 +270,7 @@ router.post('/batch-upload', upload.array('audioFiles', 10), async (req: Request
 // Distribute audio files to a new user joining a room
 router.post('/distribute/:roomId/:userId', async (req: Request, res: Response) => {
   try {
-    const { roomId, userId } = req.params;
+    const { roomId, userId } = req.params as { roomId: string; userId: string };
     const requestingUserId = req.headers['x-user-id'] as string;
     
     if (!requestingUserId) {
@@ -282,7 +283,7 @@ router.post('/distribute/:roomId/:userId', async (req: Request, res: Response) =
     // Start distribution process
     await audioFileSyncService.distributeAudioFilesToNewUser(userId, roomId);
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Audio file distribution initiated',
       targetUserId: userId,
@@ -297,7 +298,7 @@ router.post('/distribute/:roomId/:userId', async (req: Request, res: Response) =
     });
 
     const errorMessage = error instanceof Error ? error.message : 'Failed to distribute audio files';
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: errorMessage,
     });
@@ -307,7 +308,7 @@ router.post('/distribute/:roomId/:userId', async (req: Request, res: Response) =
 // Preload audio files for a project
 router.post('/preload/:projectId', async (req: Request, res: Response) => {
   try {
-    const { projectId } = req.params;
+    const { projectId } = req.params as { projectId: string };
     const userId = req.headers['x-user-id'] as string;
     const { priority = 'medium' } = req.body;
     
@@ -327,7 +328,7 @@ router.post('/preload/:projectId', async (req: Request, res: Response) => {
 
     await audioFileSyncService.preloadAudioFilesForProject(projectId, userId, priority);
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Audio file preloading initiated',
       projectId,
@@ -342,7 +343,7 @@ router.post('/preload/:projectId', async (req: Request, res: Response) => {
     });
 
     const errorMessage = error instanceof Error ? error.message : 'Failed to preload audio files';
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: errorMessage,
     });
@@ -356,20 +357,20 @@ router.post('/preload/:projectId', async (req: Request, res: Response) => {
 // Verify audio file integrity
 router.post('/:audioFileId/verify-integrity', async (req: Request, res: Response) => {
   try {
-    const { audioFileId } = req.params;
+    const { audioFileId } = req.params as { audioFileId: string };
     
     const { error, value } = verifyIntegritySchema.validate(req.body);
     if (error) {
       return res.status(400).json({
         success: false,
-        error: error.details[0].message,
+        error: error.details?.[0]?.message ?? 'Invalid request',
       });
     }
 
     const { clientHash } = value;
     const result = await audioFileSyncService.verifyAudioFileIntegrity(audioFileId, clientHash);
 
-    res.json({
+    return res.json({
       success: true,
       data: result,
     });
@@ -381,7 +382,7 @@ router.post('/:audioFileId/verify-integrity', async (req: Request, res: Response
     });
 
     const errorMessage = error instanceof Error ? error.message : 'Failed to verify audio file integrity';
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: errorMessage,
     });
@@ -391,7 +392,7 @@ router.post('/:audioFileId/verify-integrity', async (req: Request, res: Response
 // Get audio file sync metadata
 router.get('/:audioFileId/sync-metadata', async (req: Request, res: Response) => {
   try {
-    const { audioFileId } = req.params;
+    const { audioFileId } = req.params as { audioFileId: string };
     
     const metadata = await audioFileSyncService.getAudioFileSyncMetadata(audioFileId);
     
@@ -402,7 +403,7 @@ router.get('/:audioFileId/sync-metadata', async (req: Request, res: Response) =>
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       data: metadata,
     });
@@ -414,7 +415,7 @@ router.get('/:audioFileId/sync-metadata', async (req: Request, res: Response) =>
     });
 
     const errorMessage = error instanceof Error ? error.message : 'Failed to get sync metadata';
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: errorMessage,
     });
@@ -428,7 +429,7 @@ router.get('/:audioFileId/sync-metadata', async (req: Request, res: Response) =>
 // Download audio file with compression support
 router.get('/:audioFileId/download', async (req: Request, res: Response) => {
   try {
-    const { audioFileId } = req.params;
+    const { audioFileId } = req.params as { audioFileId: string };
     const { compressed = 'false' } = req.query;
     
     const [audioFile, fileBuffer] = await Promise.all([
@@ -468,7 +469,7 @@ router.get('/:audioFileId/download', async (req: Request, res: Response) => {
     res.setHeader('X-Audio-File-Id', audioFileId);
     res.setHeader('X-Original-Size', fileBuffer.length.toString());
     
-    res.send(responseBuffer);
+  return res.send(responseBuffer);
 
   } catch (error) {
     loggingService.logError('Failed to download audio file', {
@@ -477,7 +478,7 @@ router.get('/:audioFileId/download', async (req: Request, res: Response) => {
     });
 
     const errorMessage = error instanceof Error ? error.message : 'Failed to download audio file';
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: errorMessage,
     });
@@ -487,7 +488,7 @@ router.get('/:audioFileId/download', async (req: Request, res: Response) => {
 // Stream audio file in chunks
 router.get('/:audioFileId/stream', async (req: Request, res: Response) => {
   try {
-    const { audioFileId } = req.params;
+    const { audioFileId } = req.params as { audioFileId: string };
     const range = req.headers.range;
     
     const [audioFile, fileBuffer] = await Promise.all([
@@ -506,8 +507,8 @@ router.get('/:audioFileId/stream', async (req: Request, res: Response) => {
     
     if (range) {
       // Handle range requests for streaming
-      const parts = range.replace(/bytes=/, '').split('-');
-      const start = parseInt(parts[0], 10);
+  const parts = range.replace(/bytes=/, '').split('-');
+  const start = parseInt(parts[0] || '0', 10);
       const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
       const chunkSize = (end - start) + 1;
       
@@ -519,14 +520,14 @@ router.get('/:audioFileId/stream', async (req: Request, res: Response) => {
       res.setHeader('Content-Length', chunkSize);
       res.setHeader('Content-Type', `audio/${audioFile.format}`);
       
-      res.send(chunk);
+      return res.send(chunk);
     } else {
       // Send entire file
       res.setHeader('Content-Length', fileSize);
       res.setHeader('Content-Type', `audio/${audioFile.format}`);
       res.setHeader('Accept-Ranges', 'bytes');
       
-      res.send(fileBuffer);
+      return res.send(fileBuffer);
     }
 
   } catch (error) {
@@ -536,7 +537,7 @@ router.get('/:audioFileId/stream', async (req: Request, res: Response) => {
     });
 
     const errorMessage = error instanceof Error ? error.message : 'Failed to stream audio file';
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: errorMessage,
     });

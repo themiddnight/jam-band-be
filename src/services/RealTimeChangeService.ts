@@ -322,7 +322,7 @@ export class RealTimeChangeService extends EventEmitter {
   private analyzeConflict(
     changeItem: ChangeQueueItem,
     recentChange: ProjectChangeRecord,
-    currentState: CompleteProjectState
+    _currentState: CompleteProjectState
   ): ChangeConflict | null {
     // Same user changes don't conflict
     if (changeItem.userId === recentChange.userId) {
@@ -549,7 +549,7 @@ export class RealTimeChangeService extends EventEmitter {
       this.queueChange(event.projectId, event.userId, 'project_update', event.updates);
     });
 
-    this.projectStateManager.on('track_created', (event) => {
+    this.projectStateManager.on('track_created', (_event) => {
       // Track creation is already handled by the state manager
     });
 
@@ -557,7 +557,7 @@ export class RealTimeChangeService extends EventEmitter {
       this.queueChange(event.projectId, event.userId, 'track_update', event.updates);
     });
 
-    this.projectStateManager.on('region_created', (event) => {
+    this.projectStateManager.on('region_created', (_event) => {
       // Region creation is already handled by the state manager
     });
 
@@ -612,7 +612,7 @@ export class RealTimeChangeService extends EventEmitter {
   private mergeNonConflictingFields(
     newData: any,
     currentData: any,
-    conflicts: ChangeConflict[]
+    _conflicts: ChangeConflict[]
   ): any {
     // Simple field-level merge - in a real implementation, this would be more sophisticated
     const merged = { ...currentData, ...newData };

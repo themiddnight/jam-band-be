@@ -1,5 +1,5 @@
 import { promises as fs } from 'fs';
-import { join, extname, basename } from 'path';
+import { join, extname } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import type {
   AudioFileRecord,
@@ -273,7 +273,7 @@ export class AudioFileStorageService {
       }
 
       // Read sample rate (bytes 24-27)
-      const sampleRate = buffer.readUInt32LE(24);
+      // const sampleRate = buffer.readUInt32LE(24);
       
       // Read byte rate (bytes 28-31)
       const byteRate = buffer.readUInt32LE(28);
@@ -281,7 +281,7 @@ export class AudioFileStorageService {
       // Calculate duration
       const dataSize = buffer.length - 44; // Approximate data size
       return dataSize / byteRate;
-    } catch (error) {
+    } catch {
       return 0;
     }
   }
@@ -320,7 +320,8 @@ export class AudioFileStorageService {
       
       let max = 0;
       for (let j = start; j < end; j++) {
-        max = Math.max(max, Math.abs(samples[j]));
+        const val = samples[j] ?? 0;
+        max = Math.max(max, Math.abs(val));
       }
       
       waveform.push(max);
@@ -341,7 +342,8 @@ export class AudioFileStorageService {
       
       let peak = 0;
       for (let j = start; j < end; j++) {
-        peak = Math.max(peak, Math.abs(samples[j]));
+        const val = samples[j] ?? 0;
+        peak = Math.max(peak, Math.abs(val));
       }
       
       peaks.push(peak);

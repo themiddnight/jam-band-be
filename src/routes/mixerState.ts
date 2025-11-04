@@ -15,7 +15,7 @@ const mixerStateManager = MixerStateManager.getInstance();
  */
 router.get('/projects/:projectId/mixer-state', async (req: Request, res: Response) => {
   try {
-    const { projectId } = req.params;
+    const { projectId } = req.params as { projectId: string };
     const userId = req.user?.id || 'anonymous'; // Assuming user is attached to request
 
     if (!projectId) {
@@ -41,7 +41,7 @@ router.get('/projects/:projectId/mixer-state', async (req: Request, res: Respons
       tracksCount: mixerState.mixerState?.tracks?.length || 0,
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: mixerState.mixerState,
       version: mixerState.version,
@@ -54,7 +54,7 @@ router.get('/projects/:projectId/mixer-state', async (req: Request, res: Respons
       { projectId: req.params.projectId }
     );
 
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Failed to retrieve mixer state',
       message: error instanceof Error ? error.message : 'Unknown error',
     });
@@ -67,9 +67,9 @@ router.get('/projects/:projectId/mixer-state', async (req: Request, res: Respons
  */
 router.put('/projects/:projectId/mixer-state', async (req: Request, res: Response) => {
   try {
-    const { projectId } = req.params;
+    const { projectId } = req.params as { projectId: string };
     const userId = req.user?.id || 'anonymous';
-    const { mixerState, changes, timestamp } = req.body;
+    const { mixerState, changes, timestamp: _timestamp } = req.body;
 
     if (!projectId) {
       return res.status(400).json({
@@ -107,7 +107,7 @@ router.put('/projects/:projectId/mixer-state', async (req: Request, res: Respons
       tracksCount: mixerState.tracks?.length || 0,
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: {
         id: savedState.id,
@@ -126,7 +126,7 @@ router.put('/projects/:projectId/mixer-state', async (req: Request, res: Respons
       }
     );
 
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Failed to save mixer state',
       message: error instanceof Error ? error.message : 'Unknown error',
     });
@@ -139,7 +139,7 @@ router.put('/projects/:projectId/mixer-state', async (req: Request, res: Respons
  */
 router.post('/projects/:projectId/mixer-state/force-save', async (req: Request, res: Response) => {
   try {
-    const { projectId } = req.params;
+    const { projectId } = req.params as { projectId: string };
     const userId = req.user?.id || 'anonymous';
     const { mixerState, changes } = req.body;
 
@@ -172,7 +172,7 @@ router.post('/projects/:projectId/mixer-state/force-save', async (req: Request, 
       tracksCount: mixerState.tracks?.length || 0,
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: {
         id: savedState.id,
@@ -191,7 +191,7 @@ router.post('/projects/:projectId/mixer-state/force-save', async (req: Request, 
       }
     );
 
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Failed to force save mixer state',
       message: error instanceof Error ? error.message : 'Unknown error',
     });
@@ -204,7 +204,7 @@ router.post('/projects/:projectId/mixer-state/force-save', async (req: Request, 
  */
 router.delete('/projects/:projectId/mixer-state', async (req: Request, res: Response) => {
   try {
-    const { projectId } = req.params;
+    const { projectId } = req.params as { projectId: string };
     const userId = req.user?.id || 'anonymous';
 
     if (!projectId) {
@@ -228,7 +228,7 @@ router.delete('/projects/:projectId/mixer-state', async (req: Request, res: Resp
       userId,
     });
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Mixer state deleted successfully',
     });
@@ -241,7 +241,7 @@ router.delete('/projects/:projectId/mixer-state', async (req: Request, res: Resp
       }
     );
 
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Failed to delete mixer state',
       message: error instanceof Error ? error.message : 'Unknown error',
     });
@@ -254,7 +254,7 @@ router.delete('/projects/:projectId/mixer-state', async (req: Request, res: Resp
  */
 router.get('/projects/:projectId/mixer-changes', async (req: Request, res: Response) => {
   try {
-    const { projectId } = req.params;
+    const { projectId } = req.params as { projectId: string };
     const { since, limit, trackId, effectId } = req.query;
     const userId = req.user?.id || 'anonymous';
 
@@ -307,7 +307,7 @@ router.get('/projects/:projectId/mixer-changes', async (req: Request, res: Respo
       effectId: effectId || null,
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: changes,
       count: changes.length,
@@ -318,7 +318,7 @@ router.get('/projects/:projectId/mixer-changes', async (req: Request, res: Respo
       { projectId: req.params.projectId }
     );
 
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Failed to retrieve mixer changes',
       message: error instanceof Error ? error.message : 'Unknown error',
     });
@@ -331,7 +331,7 @@ router.get('/projects/:projectId/mixer-changes', async (req: Request, res: Respo
  */
 router.get('/projects/:projectId/mixer-state/effects-sync-status', async (req: Request, res: Response) => {
   try {
-    const { projectId } = req.params;
+    const { projectId } = req.params as { projectId: string };
     const userId = req.user?.id || 'anonymous';
 
     if (!projectId) {
@@ -351,7 +351,7 @@ router.get('/projects/:projectId/mixer-state/effects-sync-status', async (req: R
       pendingEffects: syncStatus.pendingEffects,
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: syncStatus,
     });
@@ -361,7 +361,7 @@ router.get('/projects/:projectId/mixer-state/effects-sync-status', async (req: R
       { projectId: req.params.projectId }
     );
 
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Failed to retrieve effects sync status',
       message: error instanceof Error ? error.message : 'Unknown error',
     });
@@ -374,7 +374,7 @@ router.get('/projects/:projectId/mixer-state/effects-sync-status', async (req: R
  */
 router.post('/projects/:projectId/mixer-state/sync-effects', async (req: Request, res: Response) => {
   try {
-    const { projectId } = req.params;
+    const { projectId } = req.params as { projectId: string };
     const userId = req.user?.id || 'anonymous';
     const { trackId, effectId } = req.body;
 
@@ -401,7 +401,7 @@ router.post('/projects/:projectId/mixer-state/sync-effects', async (req: Request
       syncedEffects: syncResult.syncedEffects,
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: syncResult,
       message: 'Effects synchronization completed',
@@ -415,7 +415,7 @@ router.post('/projects/:projectId/mixer-state/sync-effects', async (req: Request
       }
     );
 
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Failed to force effects synchronization',
       message: error instanceof Error ? error.message : 'Unknown error',
     });
@@ -430,7 +430,7 @@ router.get('/mixer-state/stats', async (req: Request, res: Response) => {
   try {
     const stats = await mixerStateManager.getStats();
 
-    res.json({
+    return res.json({
       success: true,
       data: stats,
     });
@@ -440,7 +440,7 @@ router.get('/mixer-state/stats', async (req: Request, res: Response) => {
       {}
     );
 
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Failed to retrieve mixer state statistics',
       message: error instanceof Error ? error.message : 'Unknown error',
     });

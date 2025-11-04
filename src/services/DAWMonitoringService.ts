@@ -57,7 +57,7 @@ export class DAWMonitoringService extends EventEmitter {
   private metrics: Map<string, DAWMetrics> = new Map();
   private alerts: DAWAlert[] = [];
   private isMonitoring = false;
-  private monitoringInterval?: NodeJS.Timeout;
+  private monitoringInterval: NodeJS.Timeout | undefined;
   private logger: LoggingService;
 
   private readonly defaultThresholds: DAWPerformanceThresholds = {
@@ -174,9 +174,9 @@ export class DAWMonitoringService extends EventEmitter {
       category,
       message,
       timestamp: new Date(),
-      metadata,
+      ...(metadata !== undefined ? { metadata } : {}),
       resolved: false
-    };
+    } as DAWAlert;
 
     this.alerts.push(alert);
     this.emit('alert', alert);
@@ -423,7 +423,7 @@ export class DAWMonitoringService extends EventEmitter {
 
     const averages: Partial<DAWMetrics> = {};
     Object.keys(sums).forEach(key => {
-      (averages as any)[key] = sums[key] / metrics.length;
+      (averages as any)[key] = (sums[key] ?? 0) / metrics.length;
     });
 
     return averages;

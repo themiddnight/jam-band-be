@@ -1,9 +1,7 @@
 import { EventEmitter } from 'events';
 import type { Server as SocketIOServer, Socket } from 'socket.io';
 import type {
-  ProjectChangeRecord,
   ProjectChangeType,
-  CompleteProjectState,
 } from '../types/daw';
 import { RealTimeChangeService } from './RealTimeChangeService';
 import { ProjectStateManager } from './ProjectStateManager';
@@ -311,7 +309,7 @@ export class ChangeStreamingService extends EventEmitter {
 
   private setupEventListeners(): void {
     // Listen to real-time change service events
-    this.realTimeChangeService.on('change_queued', (event) => {
+    this.realTimeChangeService.on('change_queued', (_event) => {
       // Change is already broadcasted when received, no need to broadcast again
     });
 

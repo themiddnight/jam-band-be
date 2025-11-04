@@ -4,7 +4,6 @@ import type {
   TrackRecord,
   RegionRecord,
   AudioFileRecord,
-  MarkerRecord,
   ProjectChangeRecord,
   CompleteProjectState,
   ProjectChangeType,
@@ -14,7 +13,6 @@ import type {
   UpdateTrackRequest,
   CreateRegionRequest,
   UpdateRegionRequest,
-  ProjectSettings,
 } from '../types/daw';
 import { ProjectDatabase } from './ProjectDatabase';
 import { loggingService } from './LoggingService';

@@ -1,19 +1,11 @@
 import { Router, Request, Response } from 'express';
-import type {
-  CreateProjectRequest,
-  UpdateProjectRequest,
-  CreateTrackRequest,
-  UpdateTrackRequest,
-  CreateRegionRequest,
-  UpdateRegionRequest,
-  UploadAudioFileRequest,
-} from '../types/daw';
+import type { CreateProjectRequest } from '../types/daw';
 import { ProjectStateManager } from '../services/ProjectStateManager';
 import { AudioFileStorageService } from '../services/AudioFileStorageService';
 import { InstantSyncService } from '../services/InstantSyncService';
 import { RealTimeChangeService } from '../services/RealTimeChangeService';
 import { ChangeStreamingService } from '../services/ChangeStreamingService';
-import { TimelineStateManager } from '../services/TimelineStateManager';
+
 import { loggingService } from '../services/LoggingService';
 import Joi from 'joi';
 import midiRegionsRoutes from './midiRegions';
@@ -27,7 +19,7 @@ const audioFileStorageService = AudioFileStorageService.getInstance();
 const instantSyncService = InstantSyncService.getInstance();
 const realTimeChangeService = RealTimeChangeService.getInstance();
 const changeStreamingService = ChangeStreamingService.getInstance();
-const timelineStateManager = TimelineStateManager.getInstance();
+
 
 // Note: Audio file upload will be implemented with proper multer setup later
 
@@ -106,16 +98,16 @@ const createRegionSchema = Joi.object({
 // Get projects for a room
 router.get('/rooms/:roomId/projects', async (req: Request, res: Response) => {
   try {
-    const { roomId } = req.params;
+    const { roomId } = req.params as { roomId: string };
     const projects = await projectStateManager.getProjectsByRoom(roomId);
     
-    res.json({
+    return res.json({
       success: true,
       data: projects,
     });
   } catch (error) {
     loggingService.logError('Failed to get projects for room', { roomId: req.params.roomId, error });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Failed to get projects',
     });
@@ -125,7 +117,7 @@ router.get('/rooms/:roomId/projects', async (req: Request, res: Response) => {
 // Create new project
 router.post('/rooms/:roomId/projects', async (req: Request, res: Response) => {
   try {
-    const { roomId } = req.params;
+    const { roomId } = req.params as { roomId: string };
     const userId = req.headers['x-user-id'] as string; // Assuming user ID is in headers
     
     if (!userId) {
@@ -139,20 +131,20 @@ router.post('/rooms/:roomId/projects', async (req: Request, res: Response) => {
     if (error) {
       return res.status(400).json({
         success: false,
-        error: error.details[0].message,
+        error: error.details?.[0]?.message ?? 'Invalid request',
       });
     }
 
     const projectData: CreateProjectRequest = { ...value, roomId };
     const project = await projectStateManager.createProject(roomId, userId, projectData);
     
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       data: project,
     });
   } catch (error) {
     loggingService.logError('Failed to create project', { roomId: req.params.roomId, error });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Failed to create project',
     });
@@ -162,7 +154,7 @@ router.post('/rooms/:roomId/projects', async (req: Request, res: Response) => {
 // Get project details
 router.get('/projects/:projectId', async (req: Request, res: Response) => {
   try {
-    const { projectId } = req.params;
+    const { projectId } = req.params as { projectId: string };
     const project = await projectStateManager.getProject(projectId);
     
     if (!project) {
@@ -172,13 +164,13 @@ router.get('/projects/:projectId', async (req: Request, res: Response) => {
       });
     }
     
-    res.json({
+    return res.json({
       success: true,
       data: project,
     });
   } catch (error) {
     loggingService.logError('Failed to get project', { projectId: req.params.projectId, error });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Failed to get project',
     });
@@ -188,7 +180,7 @@ router.get('/projects/:projectId', async (req: Request, res: Response) => {
 // Get complete project state
 router.get('/projects/:projectId/complete-state', async (req: Request, res: Response) => {
   try {
-    const { projectId } = req.params;
+    const { projectId } = req.params as { projectId: string };
     const state = await projectStateManager.getCompleteProjectState(projectId);
     
     if (!state) {
@@ -198,13 +190,13 @@ router.get('/projects/:projectId/complete-state', async (req: Request, res: Resp
       });
     }
     
-    res.json({
+    return res.json({
       success: true,
       data: state,
     });
   } catch (error) {
     loggingService.logError('Failed to get complete project state', { projectId: req.params.projectId, error });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Failed to get project state',
     });
@@ -214,7 +206,7 @@ router.get('/projects/:projectId/complete-state', async (req: Request, res: Resp
 // Update project
 router.put('/projects/:projectId', async (req: Request, res: Response) => {
   try {
-    const { projectId } = req.params;
+    const { projectId } = req.params as { projectId: string };
     const userId = req.headers['x-user-id'] as string;
     
     if (!userId) {
@@ -228,7 +220,7 @@ router.put('/projects/:projectId', async (req: Request, res: Response) => {
     if (error) {
       return res.status(400).json({
         success: false,
-        error: error.details[0].message,
+        error: error.details?.[0]?.message ?? 'Invalid request',
       });
     }
 
@@ -241,13 +233,13 @@ router.put('/projects/:projectId', async (req: Request, res: Response) => {
       });
     }
     
-    res.json({
+    return res.json({
       success: true,
       data: project,
     });
   } catch (error) {
     loggingService.logError('Failed to update project', { projectId: req.params.projectId, error });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Failed to update project',
     });
@@ -257,7 +249,7 @@ router.put('/projects/:projectId', async (req: Request, res: Response) => {
 // Delete project
 router.delete('/projects/:projectId', async (req: Request, res: Response) => {
   try {
-    const { projectId } = req.params;
+    const { projectId } = req.params as { projectId: string };
     const userId = req.headers['x-user-id'] as string;
     
     if (!userId) {
@@ -276,13 +268,13 @@ router.delete('/projects/:projectId', async (req: Request, res: Response) => {
       });
     }
     
-    res.json({
+    return res.json({
       success: true,
       message: 'Project deleted successfully',
     });
   } catch (error) {
     loggingService.logError('Failed to delete project', { projectId: req.params.projectId, error });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Failed to delete project',
     });
@@ -296,16 +288,16 @@ router.delete('/projects/:projectId', async (req: Request, res: Response) => {
 // Get tracks for a project
 router.get('/projects/:projectId/tracks', async (req: Request, res: Response) => {
   try {
-    const { projectId } = req.params;
+    const { projectId } = req.params as { projectId: string };
     const tracks = await projectStateManager.getTracksByProject(projectId);
     
-    res.json({
+    return res.json({
       success: true,
       data: tracks,
     });
   } catch (error) {
     loggingService.logError('Failed to get tracks', { projectId: req.params.projectId, error });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Failed to get tracks',
     });
@@ -315,7 +307,7 @@ router.get('/projects/:projectId/tracks', async (req: Request, res: Response) =>
 // Create new track
 router.post('/projects/:projectId/tracks', async (req: Request, res: Response) => {
   try {
-    const { projectId } = req.params;
+    const { projectId } = req.params as { projectId: string };
     const userId = req.headers['x-user-id'] as string;
     
     if (!userId) {
@@ -329,19 +321,19 @@ router.post('/projects/:projectId/tracks', async (req: Request, res: Response) =
     if (error) {
       return res.status(400).json({
         success: false,
-        error: error.details[0].message,
+        error: error.details?.[0]?.message ?? 'Invalid request',
       });
     }
 
     const track = await projectStateManager.createTrack(projectId, userId, value);
     
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       data: track,
     });
   } catch (error) {
     loggingService.logError('Failed to create track', { projectId: req.params.projectId, error });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Failed to create track',
     });
@@ -351,7 +343,7 @@ router.post('/projects/:projectId/tracks', async (req: Request, res: Response) =
 // Update track
 router.put('/tracks/:trackId', async (req: Request, res: Response) => {
   try {
-    const { trackId } = req.params;
+    const { trackId } = req.params as { trackId: string };
     const userId = req.headers['x-user-id'] as string;
     
     if (!userId) {
@@ -365,7 +357,7 @@ router.put('/tracks/:trackId', async (req: Request, res: Response) => {
     if (error) {
       return res.status(400).json({
         success: false,
-        error: error.details[0].message,
+        error: error.details?.[0]?.message ?? 'Invalid request',
       });
     }
 
@@ -378,13 +370,13 @@ router.put('/tracks/:trackId', async (req: Request, res: Response) => {
       });
     }
     
-    res.json({
+    return res.json({
       success: true,
       data: track,
     });
   } catch (error) {
     loggingService.logError('Failed to update track', { trackId: req.params.trackId, error });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Failed to update track',
     });
@@ -394,7 +386,7 @@ router.put('/tracks/:trackId', async (req: Request, res: Response) => {
 // Delete track
 router.delete('/tracks/:trackId', async (req: Request, res: Response) => {
   try {
-    const { trackId } = req.params;
+    const { trackId } = req.params as { trackId: string };
     const userId = req.headers['x-user-id'] as string;
     
     if (!userId) {
@@ -413,13 +405,13 @@ router.delete('/tracks/:trackId', async (req: Request, res: Response) => {
       });
     }
     
-    res.json({
+    return res.json({
       success: true,
       message: 'Track deleted successfully',
     });
   } catch (error) {
     loggingService.logError('Failed to delete track', { trackId: req.params.trackId, error });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Failed to delete track',
     });
@@ -433,7 +425,7 @@ router.delete('/tracks/:trackId', async (req: Request, res: Response) => {
 // Create new region
 router.post('/projects/:projectId/regions', async (req: Request, res: Response) => {
   try {
-    const { projectId } = req.params;
+    const { projectId } = req.params as { projectId: string };
     const userId = req.headers['x-user-id'] as string;
     
     if (!userId) {
@@ -447,19 +439,19 @@ router.post('/projects/:projectId/regions', async (req: Request, res: Response) 
     if (error) {
       return res.status(400).json({
         success: false,
-        error: error.details[0].message,
+        error: error.details?.[0]?.message ?? 'Invalid request',
       });
     }
 
     const region = await projectStateManager.createRegion(projectId, userId, value);
     
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       data: region,
     });
   } catch (error) {
     loggingService.logError('Failed to create region', { projectId: req.params.projectId, error });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Failed to create region',
     });
@@ -469,7 +461,7 @@ router.post('/projects/:projectId/regions', async (req: Request, res: Response) 
 // Update region
 router.put('/regions/:regionId', async (req: Request, res: Response) => {
   try {
-    const { regionId } = req.params;
+    const { regionId } = req.params as { regionId: string };
     const userId = req.headers['x-user-id'] as string;
     
     if (!userId) {
@@ -488,13 +480,13 @@ router.put('/regions/:regionId', async (req: Request, res: Response) => {
       });
     }
     
-    res.json({
+    return res.json({
       success: true,
       data: region,
     });
   } catch (error) {
     loggingService.logError('Failed to update region', { regionId: req.params.regionId, error });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Failed to update region',
     });
@@ -504,7 +496,7 @@ router.put('/regions/:regionId', async (req: Request, res: Response) => {
 // Delete region
 router.delete('/regions/:regionId', async (req: Request, res: Response) => {
   try {
-    const { regionId } = req.params;
+    const { regionId } = req.params as { regionId: string };
     const userId = req.headers['x-user-id'] as string;
     
     if (!userId) {
@@ -523,13 +515,13 @@ router.delete('/regions/:regionId', async (req: Request, res: Response) => {
       });
     }
     
-    res.json({
+    return res.json({
       success: true,
       message: 'Region deleted successfully',
     });
   } catch (error) {
     loggingService.logError('Failed to delete region', { regionId: req.params.regionId, error });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Failed to delete region',
     });
@@ -552,16 +544,16 @@ router.post('/projects/:projectId/audio-files', async (req: Request, res: Respon
 // Get audio files for a project
 router.get('/projects/:projectId/audio-files', async (req: Request, res: Response) => {
   try {
-    const { projectId } = req.params;
+    const { projectId } = req.params as { projectId: string };
     const audioFiles = await audioFileStorageService.getAudioFilesByProject(projectId);
     
-    res.json({
+    return res.json({
       success: true,
       data: audioFiles,
     });
   } catch (error) {
     loggingService.logError('Failed to get audio files', { projectId: req.params.projectId, error });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Failed to get audio files',
     });
@@ -571,7 +563,7 @@ router.get('/projects/:projectId/audio-files', async (req: Request, res: Respons
 // Download audio file
 router.get('/audio-files/:audioFileId/download', async (req: Request, res: Response) => {
   try {
-    const { audioFileId } = req.params;
+    const { audioFileId } = req.params as { audioFileId: string };
     
     const [audioFile, fileBuffer] = await Promise.all([
       audioFileStorageService.getAudioFileMetadata(audioFileId),
@@ -589,10 +581,10 @@ router.get('/audio-files/:audioFileId/download', async (req: Request, res: Respo
     res.setHeader('Content-Disposition', `attachment; filename="${audioFile.originalName}"`);
     res.setHeader('Content-Length', fileBuffer.length);
     
-    res.send(fileBuffer);
+    return res.send(fileBuffer);
   } catch (error) {
     loggingService.logError('Failed to download audio file', { audioFileId: req.params.audioFileId, error });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Failed to download audio file',
     });
@@ -606,18 +598,18 @@ router.get('/audio-files/:audioFileId/download', async (req: Request, res: Respo
 // Get recent changes for a project
 router.get('/projects/:projectId/changes', async (req: Request, res: Response) => {
   try {
-    const { projectId } = req.params;
+    const { projectId } = req.params as { projectId: string };
     const limit = parseInt(req.query.limit as string) || 50;
     
     const changes = await projectStateManager.getRecentChanges(projectId, limit);
     
-    res.json({
+    return res.json({
       success: true,
       data: changes,
     });
   } catch (error) {
     loggingService.logError('Failed to get project changes', { projectId: req.params.projectId, error });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Failed to get project changes',
     });
@@ -627,12 +619,12 @@ router.get('/projects/:projectId/changes', async (req: Request, res: Response) =
 // Get changes since timestamp
 router.get('/projects/:projectId/changes/since/:timestamp', async (req: Request, res: Response) => {
   try {
-    const { projectId, timestamp } = req.params;
+    const { projectId, timestamp } = req.params as { projectId: string; timestamp: string };
     const since = new Date(parseInt(timestamp));
     
     const changes = await projectStateManager.getChangesSince(projectId, since);
     
-    res.json({
+    return res.json({
       success: true,
       data: changes,
     });
@@ -642,7 +634,7 @@ router.get('/projects/:projectId/changes/since/:timestamp', async (req: Request,
       timestamp: req.params.timestamp, 
       error 
     });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Failed to get changes',
     });
@@ -656,7 +648,7 @@ router.get('/projects/:projectId/changes/since/:timestamp', async (req: Request,
 // Trigger instant sync for a user joining a room
 router.post('/rooms/:roomId/sync-user', async (req: Request, res: Response) => {
   try {
-    const { roomId } = req.params;
+    const { roomId } = req.params as { roomId: string };
     const userId = req.headers['x-user-id'] as string;
     
     if (!userId) {
@@ -669,13 +661,13 @@ router.post('/rooms/:roomId/sync-user', async (req: Request, res: Response) => {
     // Start instant sync process
     await instantSyncService.onUserJoinRoom(userId, roomId);
     
-    res.json({
+    return res.json({
       success: true,
       message: 'Instant sync initiated',
     });
   } catch (error) {
     loggingService.logError('Failed to initiate instant sync', { roomId: req.params.roomId, error });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Failed to initiate instant sync',
     });
@@ -685,7 +677,7 @@ router.post('/rooms/:roomId/sync-user', async (req: Request, res: Response) => {
 // Verify user state consistency
 router.post('/projects/:projectId/verify-state', async (req: Request, res: Response) => {
   try {
-    const { projectId } = req.params;
+    const { projectId } = req.params as { projectId: string };
     const userId = req.headers['x-user-id'] as string;
     
     if (!userId) {
@@ -698,13 +690,13 @@ router.post('/projects/:projectId/verify-state', async (req: Request, res: Respo
     const clientState = req.body;
     const result = await instantSyncService.verifyStateConsistency(userId, projectId, clientState);
     
-    res.json({
+    return res.json({
       success: true,
       data: result,
     });
   } catch (error) {
     loggingService.logError('Failed to verify state consistency', { projectId: req.params.projectId, error });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Failed to verify state consistency',
     });
@@ -714,7 +706,7 @@ router.post('/projects/:projectId/verify-state', async (req: Request, res: Respo
 // Reconcile user state
 router.post('/projects/:projectId/reconcile-state', async (req: Request, res: Response) => {
   try {
-    const { projectId } = req.params;
+    const { projectId } = req.params as { projectId: string };
     const userId = req.headers['x-user-id'] as string;
     
     if (!userId) {
@@ -727,13 +719,13 @@ router.post('/projects/:projectId/reconcile-state', async (req: Request, res: Re
     const clientState = req.body;
     await instantSyncService.reconcileUserState(userId, projectId, clientState);
     
-    res.json({
+    return res.json({
       success: true,
       message: 'State reconciliation initiated',
     });
   } catch (error) {
     loggingService.logError('Failed to reconcile user state', { projectId: req.params.projectId, error });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Failed to reconcile user state',
     });
@@ -743,7 +735,7 @@ router.post('/projects/:projectId/reconcile-state', async (req: Request, res: Re
 // Load project progressively
 router.post('/projects/:projectId/load-progressive', async (req: Request, res: Response) => {
   try {
-    const { projectId } = req.params;
+    const { projectId } = req.params as { projectId: string };
     const userId = req.headers['x-user-id'] as string;
     
     if (!userId) {
@@ -756,13 +748,13 @@ router.post('/projects/:projectId/load-progressive', async (req: Request, res: R
     const options = req.body;
     await instantSyncService.loadProjectProgressively(userId, projectId, options);
     
-    res.json({
+    return res.json({
       success: true,
       message: 'Progressive loading initiated',
     });
   } catch (error) {
     loggingService.logError('Failed to initiate progressive loading', { projectId: req.params.projectId, error });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Failed to initiate progressive loading',
     });
@@ -772,17 +764,17 @@ router.post('/projects/:projectId/load-progressive', async (req: Request, res: R
 // Warm up project cache for a room
 router.post('/rooms/:roomId/warmup-cache', async (req: Request, res: Response) => {
   try {
-    const { roomId } = req.params;
+    const { roomId } = req.params as { roomId: string };
     
     await instantSyncService.warmupProjectCache(roomId);
     
-    res.json({
+    return res.json({
       success: true,
       message: 'Cache warmup initiated',
     });
   } catch (error) {
     loggingService.logError('Failed to warm up cache', { roomId: req.params.roomId, error });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Failed to warm up cache',
     });
@@ -792,17 +784,17 @@ router.post('/rooms/:roomId/warmup-cache', async (req: Request, res: Response) =
 // Invalidate project cache
 router.delete('/projects/:projectId/cache', async (req: Request, res: Response) => {
   try {
-    const { projectId } = req.params;
+    const { projectId } = req.params as { projectId: string };
     
     instantSyncService.invalidateProjectCache(projectId);
     
-    res.json({
+    return res.json({
       success: true,
       message: 'Project cache invalidated',
     });
   } catch (error) {
     loggingService.logError('Failed to invalidate project cache', { projectId: req.params.projectId, error });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Failed to invalidate project cache',
     });
@@ -821,7 +813,7 @@ router.get('/stats/storage', async (req: Request, res: Response) => {
       audioFileStorageService.getStorageStats(),
     ]);
     
-    res.json({
+    return res.json({
       success: true,
       data: {
         database: dbStats,
@@ -830,7 +822,7 @@ router.get('/stats/storage', async (req: Request, res: Response) => {
     });
   } catch (error) {
     loggingService.logError('Failed to get storage statistics', { error });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Failed to get statistics',
     });
@@ -842,13 +834,13 @@ router.get('/stats/instant-sync', async (req: Request, res: Response) => {
   try {
     const stats = await instantSyncService.getPerformanceStats();
     
-    res.json({
+    return res.json({
       success: true,
       data: stats,
     });
   } catch (error) {
     loggingService.logError('Failed to get instant sync statistics', { error });
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Failed to get instant sync statistics',
     });
@@ -860,7 +852,7 @@ router.delete('/stats/instant-sync', async (req: Request, res: Response) => {
   try {
     await instantSyncService.resetPerformanceStats();
     
-    res.json({
+    return res.json({
       success: true,
       message: 'Instant sync statistics reset',
     });
@@ -868,7 +860,7 @@ router.delete('/stats/instant-sync', async (req: Request, res: Response) => {
     loggingService.logError(
       error instanceof Error ? error : new Error('Failed to reset instant sync statistics')
     );
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Failed to reset instant sync statistics',
     });
@@ -882,7 +874,7 @@ router.delete('/stats/instant-sync', async (req: Request, res: Response) => {
 // Force save pending changes for a project
 router.post('/projects/:projectId/force-save', async (req: Request, res: Response) => {
   try {
-    const { projectId } = req.params;
+    const { projectId } = req.params as { projectId: string };
     const userId = req.headers['x-user-id'] as string;
     
     if (!userId) {
@@ -894,7 +886,7 @@ router.post('/projects/:projectId/force-save', async (req: Request, res: Respons
 
     await realTimeChangeService.forceSave(projectId);
     
-    res.json({
+    return res.json({
       success: true,
       message: 'Project changes saved successfully',
       timestamp: new Date(),
@@ -904,7 +896,7 @@ router.post('/projects/:projectId/force-save', async (req: Request, res: Respons
       error instanceof Error ? error : new Error('Failed to force save project'),
       { projectId: req.params.projectId }
     );
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Failed to save project changes',
     });
@@ -914,12 +906,12 @@ router.post('/projects/:projectId/force-save', async (req: Request, res: Respons
 // Get change history for a project
 router.get('/projects/:projectId/change-history', async (req: Request, res: Response) => {
   try {
-    const { projectId } = req.params;
+    const { projectId } = req.params as { projectId: string };
     const limit = parseInt(req.query.limit as string) || 100;
     
     const history = await realTimeChangeService.getChangeHistory(projectId, limit);
     
-    res.json({
+    return res.json({
       success: true,
       data: history,
     });
@@ -928,7 +920,7 @@ router.get('/projects/:projectId/change-history', async (req: Request, res: Resp
       error instanceof Error ? error : new Error('Failed to get change history'),
       { projectId: req.params.projectId }
     );
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Failed to get change history',
     });
@@ -938,7 +930,7 @@ router.get('/projects/:projectId/change-history', async (req: Request, res: Resp
 // Rollback project to a specific change
 router.post('/projects/:projectId/rollback/:changeId', async (req: Request, res: Response) => {
   try {
-    const { projectId, changeId } = req.params;
+    const { projectId, changeId } = req.params as { projectId: string; changeId: string };
     const userId = req.headers['x-user-id'] as string;
     
     if (!userId) {
@@ -957,7 +949,7 @@ router.post('/projects/:projectId/rollback/:changeId', async (req: Request, res:
       });
     }
     
-    res.json({
+    return res.json({
       success: true,
       message: 'Project rolled back successfully',
       timestamp: new Date(),
@@ -967,7 +959,7 @@ router.post('/projects/:projectId/rollback/:changeId', async (req: Request, res:
       error instanceof Error ? error : new Error('Failed to rollback project'),
       { projectId: req.params.projectId, changeId: req.params.changeId }
     );
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Failed to rollback project',
     });
@@ -977,7 +969,7 @@ router.post('/projects/:projectId/rollback/:changeId', async (req: Request, res:
 // Queue a manual change for persistence
 router.post('/projects/:projectId/queue-change', async (req: Request, res: Response) => {
   try {
-    const { projectId } = req.params;
+    const { projectId } = req.params as { projectId: string };
     const userId = req.headers['x-user-id'] as string;
     
     if (!userId) {
@@ -998,7 +990,7 @@ router.post('/projects/:projectId/queue-change', async (req: Request, res: Respo
 
     await realTimeChangeService.queueChange(projectId, userId, changeType, data, previousData);
     
-    res.json({
+    return res.json({
       success: true,
       message: 'Change queued for persistence',
       timestamp: new Date(),
@@ -1008,7 +1000,7 @@ router.post('/projects/:projectId/queue-change', async (req: Request, res: Respo
       error instanceof Error ? error : new Error('Failed to queue change'),
       { projectId: req.params.projectId }
     );
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Failed to queue change',
     });
@@ -1020,7 +1012,7 @@ router.get('/stats/real-time-changes', async (req: Request, res: Response) => {
   try {
     const stats = realTimeChangeService.getStats();
     
-    res.json({
+    return res.json({
       success: true,
       data: stats,
     });
@@ -1028,7 +1020,7 @@ router.get('/stats/real-time-changes', async (req: Request, res: Response) => {
     loggingService.logError(
       error instanceof Error ? error : new Error('Failed to get real-time change statistics')
     );
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Failed to get real-time change statistics',
     });
@@ -1040,7 +1032,7 @@ router.get('/stats/change-streaming', async (req: Request, res: Response) => {
   try {
     const stats = changeStreamingService.getConnectionStats();
     
-    res.json({
+    return res.json({
       success: true,
       data: stats,
     });
@@ -1048,7 +1040,7 @@ router.get('/stats/change-streaming', async (req: Request, res: Response) => {
     loggingService.logError(
       error instanceof Error ? error : new Error('Failed to get change streaming statistics')
     );
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Failed to get change streaming statistics',
     });
@@ -1058,7 +1050,7 @@ router.get('/stats/change-streaming', async (req: Request, res: Response) => {
 // Send system message to user
 router.post('/users/:userId/system-message', async (req: Request, res: Response) => {
   try {
-    const { userId } = req.params;
+    const { userId } = req.params as { userId: string };
     const { type, data } = req.body;
     
     if (!type || !data) {
@@ -1070,7 +1062,7 @@ router.post('/users/:userId/system-message', async (req: Request, res: Response)
 
     changeStreamingService.sendUserMessage(userId, { type, data });
     
-    res.json({
+    return res.json({
       success: true,
       message: 'System message sent',
     });
@@ -1079,7 +1071,7 @@ router.post('/users/:userId/system-message', async (req: Request, res: Response)
       error instanceof Error ? error : new Error('Failed to send system message'),
       { userId: req.params.userId }
     );
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Failed to send system message',
     });

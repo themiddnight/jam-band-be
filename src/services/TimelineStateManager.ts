@@ -422,7 +422,7 @@ export class TimelineStateManager extends EventEmitter {
    * Apply project changes to timeline state
    */
   private applyProjectChangesToTimeline(timelineState: any, changes: any[]): any {
-    let updatedState = { ...timelineState };
+    const updatedState = { ...timelineState };
 
     for (const change of changes) {
       switch (change.changeType) {

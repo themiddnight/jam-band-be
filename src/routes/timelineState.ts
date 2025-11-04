@@ -15,7 +15,7 @@ const timelineStateManager = TimelineStateManager.getInstance();
  */
 router.get('/projects/:projectId/timeline-state', async (req: Request, res: Response) => {
   try {
-    const { projectId } = req.params;
+    const { projectId } = req.params as { projectId: string };
     const userId = req.user?.id || 'anonymous'; // Assuming user is attached to request
 
     if (!projectId) {
@@ -40,7 +40,7 @@ router.get('/projects/:projectId/timeline-state', async (req: Request, res: Resp
       version: timelineState.version,
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: timelineState.timelineState,
       version: timelineState.version,
@@ -53,7 +53,7 @@ router.get('/projects/:projectId/timeline-state', async (req: Request, res: Resp
       { projectId: req.params.projectId }
     );
 
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Failed to retrieve timeline state',
       message: error instanceof Error ? error.message : 'Unknown error',
     });
@@ -66,9 +66,9 @@ router.get('/projects/:projectId/timeline-state', async (req: Request, res: Resp
  */
 router.put('/projects/:projectId/timeline-state', async (req: Request, res: Response) => {
   try {
-    const { projectId } = req.params;
+    const { projectId } = req.params as { projectId: string };
     const userId = req.user?.id || 'anonymous';
-    const { timelineState, changes, timestamp } = req.body;
+    const { timelineState, changes, timestamp: _timestamp } = req.body;
 
     if (!projectId) {
       return res.status(400).json({
@@ -105,7 +105,7 @@ router.put('/projects/:projectId/timeline-state', async (req: Request, res: Resp
       changesCount: changes?.length || 0,
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: {
         id: savedState.id,
@@ -124,7 +124,7 @@ router.put('/projects/:projectId/timeline-state', async (req: Request, res: Resp
       }
     );
 
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Failed to save timeline state',
       message: error instanceof Error ? error.message : 'Unknown error',
     });
@@ -137,7 +137,7 @@ router.put('/projects/:projectId/timeline-state', async (req: Request, res: Resp
  */
 router.post('/projects/:projectId/timeline-state/force-save', async (req: Request, res: Response) => {
   try {
-    const { projectId } = req.params;
+    const { projectId } = req.params as { projectId: string };
     const userId = req.user?.id || 'anonymous';
     const { timelineState, changes } = req.body;
 
@@ -169,7 +169,7 @@ router.post('/projects/:projectId/timeline-state/force-save', async (req: Reques
       changesCount: changes?.length || 0,
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: {
         id: savedState.id,
@@ -188,7 +188,7 @@ router.post('/projects/:projectId/timeline-state/force-save', async (req: Reques
       }
     );
 
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Failed to force save timeline state',
       message: error instanceof Error ? error.message : 'Unknown error',
     });
@@ -201,7 +201,7 @@ router.post('/projects/:projectId/timeline-state/force-save', async (req: Reques
  */
 router.delete('/projects/:projectId/timeline-state', async (req: Request, res: Response) => {
   try {
-    const { projectId } = req.params;
+    const { projectId } = req.params as { projectId: string };
     const userId = req.user?.id || 'anonymous';
 
     if (!projectId) {
@@ -225,7 +225,7 @@ router.delete('/projects/:projectId/timeline-state', async (req: Request, res: R
       userId,
     });
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Timeline state deleted successfully',
     });
@@ -238,7 +238,7 @@ router.delete('/projects/:projectId/timeline-state', async (req: Request, res: R
       }
     );
 
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Failed to delete timeline state',
       message: error instanceof Error ? error.message : 'Unknown error',
     });
@@ -251,7 +251,7 @@ router.delete('/projects/:projectId/timeline-state', async (req: Request, res: R
  */
 router.get('/projects/:projectId/timeline-changes', async (req: Request, res: Response) => {
   try {
-    const { projectId } = req.params;
+    const { projectId } = req.params as { projectId: string };
     const { since, limit } = req.query;
     const userId = req.user?.id || 'anonymous';
 
@@ -292,7 +292,7 @@ router.get('/projects/:projectId/timeline-changes', async (req: Request, res: Re
       limit: limit || null,
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: changes,
       count: changes.length,
@@ -303,7 +303,7 @@ router.get('/projects/:projectId/timeline-changes', async (req: Request, res: Re
       { projectId: req.params.projectId }
     );
 
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Failed to retrieve timeline changes',
       message: error instanceof Error ? error.message : 'Unknown error',
     });
@@ -316,7 +316,7 @@ router.get('/projects/:projectId/timeline-changes', async (req: Request, res: Re
  */
 router.get('/projects/:projectId/complete-state', async (req: Request, res: Response) => {
   try {
-    const { projectId } = req.params;
+    const { projectId } = req.params as { projectId: string };
     const userId = req.user?.id || 'anonymous';
 
     if (!projectId) {
@@ -342,7 +342,7 @@ router.get('/projects/:projectId/complete-state', async (req: Request, res: Resp
       timelineVersion: completeState.timelineVersion || 0,
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: completeState,
     });
@@ -352,7 +352,7 @@ router.get('/projects/:projectId/complete-state', async (req: Request, res: Resp
       { projectId: req.params.projectId }
     );
 
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Failed to retrieve complete project state',
       message: error instanceof Error ? error.message : 'Unknown error',
     });
@@ -367,7 +367,7 @@ router.get('/timeline-state/stats', async (req: Request, res: Response) => {
   try {
     const stats = await timelineStateManager.getStats();
 
-    res.json({
+    return res.json({
       success: true,
       data: stats,
     });
@@ -377,7 +377,7 @@ router.get('/timeline-state/stats', async (req: Request, res: Response) => {
       {}
     );
 
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Failed to retrieve timeline state statistics',
       message: error instanceof Error ? error.message : 'Unknown error',
     });

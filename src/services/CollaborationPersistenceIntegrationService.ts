@@ -120,7 +120,6 @@ export class CollaborationPersistenceIntegrationService extends EventEmitter {
   async initialize(): Promise<void> {
     await this.projectStateManager.initialize();
     await this.realTimeChangeService.initialize();
-    await this.instantSyncService.initialize();
     
     loggingService.logInfo('CollaborationPersistenceIntegrationService initialized');
   }
@@ -558,7 +557,7 @@ export class CollaborationPersistenceIntegrationService extends EventEmitter {
 
       return {
         success: true,
-        projectState,
+        ...(projectState ? { projectState } : {}),
         changes,
         conflicts: [],
       };

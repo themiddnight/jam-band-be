@@ -2,15 +2,14 @@ import { Router } from 'express';
 import { DAWMonitoringService } from '../services/DAWMonitoringService';
 import { DAWHealthDashboard } from '../services/DAWHealthDashboard';
 import { DAWAlertingService } from '../services/DAWAlertingService';
-import { LoggingService } from '../services/LoggingService';
+import { loggingService } from '../services/LoggingService';
 
 const router = Router();
 
 // Initialize services (these would typically be injected via DI)
-const logger = new LoggingService();
-const monitoringService = new DAWMonitoringService(logger);
-const healthDashboard = new DAWHealthDashboard(monitoringService, logger);
-const alertingService = new DAWAlertingService(monitoringService, logger);
+const monitoringService = new DAWMonitoringService(loggingService);
+const healthDashboard = new DAWHealthDashboard(monitoringService, loggingService);
+const alertingService = new DAWAlertingService(monitoringService, loggingService);
 
 // Start services
 monitoringService.startMonitoring();
@@ -103,7 +102,7 @@ router.get('/metrics', (req, res) => {
   try {
     // Prometheus-style metrics endpoint
     const healthStatus = healthDashboard.getHealthStatus();
-    const systemHealth = monitoringService.getSystemHealth();
+    const _systemHealth = monitoringService.getSystemHealth();
     
     let metrics = '';
     
@@ -169,13 +168,13 @@ router.get('/api/metrics/room/:roomId', (req, res) => {
       return res.status(404).json({ error: 'Room metrics not found' });
     }
     
-    res.json({
+    return res.json({
       roomId,
       metrics,
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    res.status(500).json({ 
+    return res.status(500).json({ 
       error: 'Failed to get room metrics',
       message: error instanceof Error ? error.message : 'Unknown error'
     });

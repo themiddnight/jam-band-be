@@ -77,7 +77,7 @@ router.get(
   authenticateUser,
   async (req, res) => {
     try {
-      const { projectId } = req.params;
+      const { projectId } = req.params as { projectId: string };
       const userId = req.user?.id;
 
       if (!userId) {
@@ -97,14 +97,14 @@ router.get(
       // Get private transport states for all users
       const privateStates = await stateManager.getPrivateTransportStates(projectId);
 
-      res.json({
+      return res.json({
         transport: transportState,
         privateStates,
         lastSaved: transportState.lastSaved || new Date().toISOString(),
       });
     } catch (error) {
       console.error('Failed to get transport state:', error);
-      res.status(500).json({ 
+      return res.status(500).json({ 
         error: 'Failed to get transport state',
         details: error instanceof Error ? error.message : 'Unknown error'
       });
@@ -122,7 +122,7 @@ router.put(
   validateRequest(SaveTransportStateSchema),
   async (req, res) => {
     try {
-      const { projectId } = req.params;
+      const { projectId } = req.params as { projectId: string };
       const userId = req.user?.id;
       const { transport, privateStates, changes, timestamp } = req.body;
 
@@ -143,28 +143,28 @@ router.put(
       // Save private transport states
       if (privateStates) {
         for (const [stateUserId, privateState] of Object.entries(privateStates)) {
-          await stateManager.savePrivateTransportState(projectId, stateUserId, privateState);
+      await stateManager.savePrivateTransportState(projectId, stateUserId, privateState);
         }
       }
 
       // Process and save changes for collaboration
       if (changes && changes.length > 0) {
-        await stateManager.processTransportChanges(projectId, userId, changes);
+        await stateManager.processTransportChanges(projectId, userId!, changes);
       }
 
       // Broadcast changes to other users in the room
       if (changes && changes.length > 0) {
-        await stateManager.broadcastTransportChanges(projectId, userId, changes);
+        await stateManager.broadcastTransportChanges(projectId, userId!, changes);
       }
 
-      res.json({
+      return res.json({
         success: true,
         savedAt: new Date().toISOString(),
         changesProcessed: changes?.length || 0,
       });
     } catch (error) {
       console.error('Failed to save transport state:', error);
-      res.status(500).json({ 
+      return res.status(500).json({ 
         error: 'Failed to save transport state',
         details: error instanceof Error ? error.message : 'Unknown error'
       });
@@ -181,7 +181,7 @@ router.post(
   authenticateUser,
   async (req, res) => {
     try {
-      const { projectId } = req.params;
+      const { projectId } = req.params as { projectId: string };
       const userId = req.user?.id;
 
       if (!userId) {
@@ -192,9 +192,9 @@ router.post(
       const stateManager = TimelineStateManager.getInstance();
 
       // Force sync transport state
-      const syncResult = await stateManager.forceSyncTransportState(projectId, userId);
+  const syncResult = await stateManager.forceSyncTransportState(projectId, userId!);
 
-      res.json({
+      return res.json({
         success: true,
         syncedAt: new Date().toISOString(),
         usersNotified: syncResult.usersNotified,
@@ -202,7 +202,7 @@ router.post(
       });
     } catch (error) {
       console.error('Failed to sync transport state:', error);
-      res.status(500).json({ 
+      return res.status(500).json({ 
         error: 'Failed to sync transport state',
         details: error instanceof Error ? error.message : 'Unknown error'
       });
@@ -223,7 +223,7 @@ router.post(
   })),
   async (req, res) => {
     try {
-      const { projectId } = req.params;
+      const { projectId } = req.params as { projectId: string };
       const userId = req.user?.id;
       const { action, targetUserId } = req.body;
 
@@ -237,22 +237,22 @@ router.post(
       let result;
       switch (action) {
         case 'request':
-          result = await stateManager.requestMasterControl(projectId, userId);
+          result = await stateManager.requestMasterControl(projectId, userId!);
           break;
         case 'release':
-          result = await stateManager.releaseMasterControl(projectId, userId);
+          result = await stateManager.releaseMasterControl(projectId, userId!);
           break;
         case 'handoff':
           if (!targetUserId) {
             return res.status(400).json({ error: 'Target user ID required for handoff' });
           }
-          result = await stateManager.handoffMasterControl(projectId, userId, targetUserId);
+          result = await stateManager.handoffMasterControl(projectId, userId!, targetUserId);
           break;
         default:
           return res.status(400).json({ error: 'Invalid action' });
       }
 
-      res.json({
+      return res.json({
         success: true,
         action,
         masterUserId: result.masterUserId,
@@ -260,7 +260,7 @@ router.post(
       });
     } catch (error) {
       console.error('Failed to handle master control:', error);
-      res.status(500).json({ 
+      return res.status(500).json({ 
         error: 'Failed to handle master control',
         details: error instanceof Error ? error.message : 'Unknown error'
       });
@@ -277,7 +277,7 @@ router.get(
   authenticateUser,
   async (req, res) => {
     try {
-      const { projectId } = req.params;
+      const { projectId } = req.params as { projectId: string };
       const userId = req.user?.id;
       const { limit = 50, offset = 0, since } = req.query;
 
@@ -289,20 +289,26 @@ router.get(
       const stateManager = TimelineStateManager.getInstance();
 
       // Get transport change history
-      const history = await stateManager.getTransportChangeHistory(projectId, {
+      const options: { limit?: number; offset?: number; since?: Date } = {
         limit: parseInt(limit as string),
         offset: parseInt(offset as string),
-        since: since ? new Date(since as string) : undefined,
-      });
+      };
+      if (since) {
+        const sinceDate = new Date(since as string);
+        if (!isNaN(sinceDate.getTime())) {
+          options.since = sinceDate;
+        }
+      }
+      const history = await stateManager.getTransportChangeHistory(projectId, options);
 
-      res.json({
+      return res.json({
         changes: history.changes,
         total: history.total,
         hasMore: history.hasMore,
       });
     } catch (error) {
       console.error('Failed to get transport history:', error);
-      res.status(500).json({ 
+      return res.status(500).json({ 
         error: 'Failed to get transport history',
         details: error instanceof Error ? error.message : 'Unknown error'
       });

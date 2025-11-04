@@ -458,13 +458,13 @@ export class AudioFileSyncHandlers {
   // Utility Methods
   // ============================================================================
 
-  private getNamespaceForRoom(roomId: string): Namespace | null {
+  private getNamespaceForRoom(_roomId: string): Namespace | null {
     // This would need to be implemented based on your Socket.IO setup
     // For now, returning null as placeholder
     return null;
   }
 
-  private getSocketForUser(userId: string): Socket | null {
+  private getSocketForUser(_userId: string): Socket | null {
     // This would need to be implemented based on your Socket.IO setup
     // You'd typically maintain a map of userId -> socket
     return null;

@@ -86,7 +86,7 @@ export const requireRole = (requiredRoles: string[]) => {
       });
     }
     
-    next();
+    return next();
   };
 };
 

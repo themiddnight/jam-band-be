@@ -109,7 +109,7 @@ const roomService = new RoomService(roomSessionManager);
 // Initialize DAW services
 const projectStateManager = ProjectStateManager.getInstance();
 const audioFileStorageService = AudioFileStorageService.getInstance();
-const instantSyncService = InstantSyncService.getInstance();
+const _instantSyncService = InstantSyncService.getInstance();
 
 // Import and initialize audio file sync service
 import { AudioFileSyncService } from './services/AudioFileSyncService';

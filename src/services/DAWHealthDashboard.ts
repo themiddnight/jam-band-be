@@ -49,7 +49,7 @@ export class DAWHealthDashboard extends EventEmitter {
   private config: HealthDashboardConfig;
   private healthStatus: SystemHealthStatus;
   private performanceTrends: Map<string, PerformanceTrend> = new Map();
-  private updateInterval?: NodeJS.Timeout;
+  private updateInterval: NodeJS.Timeout | undefined;
   private startTime: Date;
 
   constructor(
@@ -393,7 +393,7 @@ export class DAWHealthDashboard extends EventEmitter {
     return 0;
   }
 
-  private calculateAverageLatency(type: 'audio' | 'sync'): number {
+  private calculateAverageLatency(_type: 'audio' | 'sync'): number {
     // Would calculate average latency from metrics
     return 0;
   }

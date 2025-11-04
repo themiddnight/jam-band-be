@@ -4,8 +4,8 @@ import { z } from 'zod';
 /**
  * Validation middleware for request validation using Zod schemas
  */
-export const validateRequest = (schema: z.ZodSchema) => {
-  return (req: Request, res: Response, next: NextFunction) => {
+export const validateRequest = <T extends z.ZodTypeAny>(schema: T) => {
+  return (req: Request, res: Response, next: NextFunction): Response | void => {
     try {
       // Validate request body
       const result = schema.safeParse(req.body);
@@ -13,7 +13,7 @@ export const validateRequest = (schema: z.ZodSchema) => {
       if (!result.success) {
         return res.status(400).json({
           error: 'Validation failed',
-          details: result.error.errors.map(err => ({
+          details: result.error.issues.map(err => ({
             path: err.path.join('.'),
             message: err.message,
             code: err.code
@@ -22,11 +22,11 @@ export const validateRequest = (schema: z.ZodSchema) => {
       }
       
       // Replace req.body with validated data
-      req.body = result.data;
-      next();
+      req.body = result.data as unknown as typeof req.body;
+      return next();
     } catch (error) {
       console.error('Validation middleware error:', error);
-      res.status(500).json({
+      return res.status(500).json({
         error: 'Internal validation error'
       });
     }
@@ -36,15 +36,15 @@ export const validateRequest = (schema: z.ZodSchema) => {
 /**
  * Validate query parameters
  */
-export const validateQuery = (schema: z.ZodSchema) => {
-  return (req: Request, res: Response, next: NextFunction) => {
+export const validateQuery = <T extends z.ZodTypeAny>(schema: T) => {
+  return (req: Request, res: Response, next: NextFunction): Response | void => {
     try {
       const result = schema.safeParse(req.query);
       
       if (!result.success) {
         return res.status(400).json({
           error: 'Query validation failed',
-          details: result.error.errors.map(err => ({
+          details: result.error.issues.map(err => ({
             path: err.path.join('.'),
             message: err.message,
             code: err.code
@@ -52,11 +52,11 @@ export const validateQuery = (schema: z.ZodSchema) => {
         });
       }
       
-      req.query = result.data;
-      next();
+      req.query = result.data as unknown as typeof req.query;
+      return next();
     } catch (error) {
       console.error('Query validation middleware error:', error);
-      res.status(500).json({
+      return res.status(500).json({
         error: 'Internal validation error'
       });
     }
@@ -66,15 +66,15 @@ export const validateQuery = (schema: z.ZodSchema) => {
 /**
  * Validate route parameters
  */
-export const validateParams = (schema: z.ZodSchema) => {
-  return (req: Request, res: Response, next: NextFunction) => {
+export const validateParams = <T extends z.ZodTypeAny>(schema: T) => {
+  return (req: Request, res: Response, next: NextFunction): Response | void => {
     try {
       const result = schema.safeParse(req.params);
       
       if (!result.success) {
         return res.status(400).json({
           error: 'Parameter validation failed',
-          details: result.error.errors.map(err => ({
+          details: result.error.issues.map(err => ({
             path: err.path.join('.'),
             message: err.message,
             code: err.code
@@ -82,11 +82,11 @@ export const validateParams = (schema: z.ZodSchema) => {
         });
       }
       
-      req.params = result.data;
-      next();
+      req.params = result.data as unknown as typeof req.params;
+      return next();
     } catch (error) {
       console.error('Parameter validation middleware error:', error);
-      res.status(500).json({
+      return res.status(500).json({
         error: 'Internal validation error'
       });
     }

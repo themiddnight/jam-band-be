@@ -17,7 +17,7 @@ const timelineStateManager = TimelineStateManager.getInstance();
  */
 router.get('/projects/:projectId/midi-regions/:regionId', async (req: Request, res: Response) => {
   try {
-    const { projectId, regionId } = req.params;
+    const { projectId, regionId } = req.params as { projectId: string; regionId: string };
     const userId = req.user?.id || 'anonymous';
 
     if (!projectId || !regionId) {
@@ -39,7 +39,7 @@ router.get('/projects/:projectId/midi-regions/:regionId', async (req: Request, r
     let midiRegion = null;
     for (const track of projectState.tracks) {
       if (track.type === 'midi') {
-        const region = track.regions.find((r: any) => r.id === regionId);
+        const region = (track as any).regions?.find((r: any) => r.id === regionId);
         if (region) {
           midiRegion = region;
           break;
@@ -61,7 +61,7 @@ router.get('/projects/:projectId/midi-regions/:regionId', async (req: Request, r
       notesCount: midiRegion.notes?.length || 0,
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: midiRegion,
       metadata: {
@@ -77,7 +77,7 @@ router.get('/projects/:projectId/midi-regions/:regionId', async (req: Request, r
       { projectId: req.params.projectId, regionId: req.params.regionId }
     );
 
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Failed to retrieve MIDI region',
       message: error instanceof Error ? error.message : 'Unknown error',
     });
@@ -90,9 +90,9 @@ router.get('/projects/:projectId/midi-regions/:regionId', async (req: Request, r
  */
 router.put('/projects/:projectId/midi-regions/:regionId', async (req: Request, res: Response) => {
   try {
-    const { projectId, regionId } = req.params;
+    const { projectId, regionId } = req.params as { projectId: string; regionId: string };
     const userId = req.user?.id || 'anonymous';
-    const { region, changes, timestamp } = req.body;
+    const { region, changes, timestamp: _timestamp } = req.body;
 
     if (!projectId || !regionId) {
       return res.status(400).json({
@@ -113,48 +113,15 @@ router.put('/projects/:projectId/midi-regions/:regionId', async (req: Request, r
       });
     }
 
-    // Get current project state
-    const projectState = await projectStateManager.getCompleteProjectState(projectId);
+    // Update the region directly via manager
+    const updatedRegion = await projectStateManager.updateRegion(regionId, userId, {
+      ...(region || {}),
+      updatedAt: new Date(),
+    } as any);
 
-    if (!projectState) {
-      return res.status(404).json({
-        error: 'Project not found',
-      });
+    if (!updatedRegion) {
+      return res.status(404).json({ error: 'MIDI region not found' });
     }
-
-    // Find and update the MIDI region
-    let regionUpdated = false;
-    let trackId = null;
-
-    for (const track of projectState.tracks) {
-      if (track.type === 'midi') {
-        const regionIndex = track.regions.findIndex((r: any) => r.id === regionId);
-        if (regionIndex !== -1) {
-          // Update the region
-          track.regions[regionIndex] = {
-            ...track.regions[regionIndex],
-            ...region,
-            updatedAt: new Date(),
-          };
-          trackId = track.id;
-          regionUpdated = true;
-          break;
-        }
-      }
-    }
-
-    if (!regionUpdated) {
-      return res.status(404).json({
-        error: 'MIDI region not found in project',
-      });
-    }
-
-    // Save updated project state
-    const savedState = await projectStateManager.saveProjectState(
-      projectId,
-      userId,
-      projectState
-    );
 
     // Record changes if provided
     if (changes && changes.length > 0) {
@@ -162,17 +129,15 @@ router.put('/projects/:projectId/midi-regions/:regionId', async (req: Request, r
     }
 
     // Sync with timeline state if needed
-    if (trackId) {
-      await timelineStateManager.syncTimelineWithProjectChanges(
-        projectId,
-        userId,
-        [{
-          changeType: 'region_update',
-          data: { regionId, trackId, region },
-          timestamp: new Date(),
-        }]
-      );
-    }
+    await timelineStateManager.syncTimelineWithProjectChanges(
+      projectId,
+      userId,
+      [{
+        changeType: 'region_update',
+        data: { regionId, trackId: (updatedRegion as any).trackId, region },
+        timestamp: new Date(),
+      }]
+    );
 
     // Log save
     loggingService.logInfo('MIDI region saved', {
@@ -181,14 +146,16 @@ router.put('/projects/:projectId/midi-regions/:regionId', async (req: Request, r
       userId,
       notesCount: region.notes?.length || 0,
       changesCount: changes?.length || 0,
-      version: savedState.version,
     });
 
-    res.json({
+    // Fetch project to provide version info
+    const savedProject = await projectStateManager.getProject(projectId);
+
+    return res.json({
       success: true,
       data: {
         regionId,
-        version: savedState.version,
+        version: savedProject?.version ?? undefined,
         lastSaved: new Date(),
         notesCount: region.notes?.length || 0,
       },
@@ -204,7 +171,7 @@ router.put('/projects/:projectId/midi-regions/:regionId', async (req: Request, r
       }
     );
 
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Failed to save MIDI region',
       message: error instanceof Error ? error.message : 'Unknown error',
     });
@@ -217,7 +184,7 @@ router.put('/projects/:projectId/midi-regions/:regionId', async (req: Request, r
  */
 router.post('/projects/:projectId/midi-regions/:regionId/notes', async (req: Request, res: Response) => {
   try {
-    const { projectId, regionId } = req.params;
+    const { projectId, regionId } = req.params as { projectId: string; regionId: string };
     const userId = req.user?.id || 'anonymous';
     const { note } = req.body;
 
@@ -233,52 +200,23 @@ router.post('/projects/:projectId/midi-regions/:regionId/notes', async (req: Req
       });
     }
 
-    // Get current project state
-    const projectState = await projectStateManager.getCompleteProjectState(projectId);
-
-    if (!projectState) {
-      return res.status(404).json({
-        error: 'Project not found',
-      });
+    // Fetch region and update notes directly
+    const existingRegion = await projectStateManager.getDatabase().getRegion(regionId);
+    if (!existingRegion) {
+      return res.status(404).json({ error: 'MIDI region not found' });
     }
 
-    // Find and update the MIDI region
-    let regionUpdated = false;
-    let updatedRegion = null;
+    const newNote = {
+      ...note,
+      id: generateNoteId(),
+      createdAt: new Date(),
+      createdBy: userId,
+    };
 
-    for (const track of projectState.tracks) {
-      if (track.type === 'midi') {
-        const regionIndex = track.regions.findIndex((r: any) => r.id === regionId);
-        if (regionIndex !== -1) {
-          const region = track.regions[regionIndex];
-          
-          // Add the note
-          const newNote = {
-            ...note,
-            id: generateNoteId(),
-            createdAt: new Date(),
-            createdBy: userId,
-          };
-          
-          region.notes = region.notes || [];
-          region.notes.push(newNote);
-          region.updatedAt = new Date();
-          
-          updatedRegion = region;
-          regionUpdated = true;
-          break;
-        }
-      }
-    }
-
-    if (!regionUpdated) {
-      return res.status(404).json({
-        error: 'MIDI region not found in project',
-      });
-    }
-
-    // Save updated project state
-    await projectStateManager.saveProjectState(projectId, userId, projectState);
+    const updatedRegion = await projectStateManager.updateRegion(regionId, userId, {
+      notes: [...(existingRegion.notes || []), newNote],
+      updatedAt: new Date(),
+    } as any);
 
     // Log note addition
     loggingService.logInfo('MIDI note added', {
@@ -289,12 +227,12 @@ router.post('/projects/:projectId/midi-regions/:regionId/notes', async (req: Req
       velocity: note.velocity,
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: {
-        note: updatedRegion.notes[updatedRegion.notes.length - 1],
+        note: (updatedRegion as any).notes[(updatedRegion as any).notes.length - 1],
         regionId,
-        notesCount: updatedRegion.notes.length,
+        notesCount: (updatedRegion as any).notes.length,
       },
       message: 'Note added successfully',
     });
@@ -308,7 +246,7 @@ router.post('/projects/:projectId/midi-regions/:regionId/notes', async (req: Req
       }
     );
 
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Failed to add MIDI note',
       message: error instanceof Error ? error.message : 'Unknown error',
     });
@@ -321,7 +259,7 @@ router.post('/projects/:projectId/midi-regions/:regionId/notes', async (req: Req
  */
 router.put('/projects/:projectId/midi-regions/:regionId/notes/:noteId', async (req: Request, res: Response) => {
   try {
-    const { projectId, regionId, noteId } = req.params;
+    const { projectId, regionId, noteId } = req.params as { projectId: string; regionId: string; noteId: string };
     const userId = req.user?.id || 'anonymous';
     const { updates } = req.body;
 
@@ -337,48 +275,17 @@ router.put('/projects/:projectId/midi-regions/:regionId/notes/:noteId', async (r
       });
     }
 
-    // Get current project state
-    const projectState = await projectStateManager.getCompleteProjectState(projectId);
-
-    if (!projectState) {
-      return res.status(404).json({
-        error: 'Project not found',
-      });
+    // Fetch region and update the note
+    const existingRegion = await projectStateManager.getDatabase().getRegion(regionId);
+    if (!existingRegion || !existingRegion.notes) {
+      return res.status(404).json({ error: 'MIDI note not found' });
     }
 
-    // Find and update the note
-    let noteUpdated = false;
-    let updatedNote = null;
-
-    for (const track of projectState.tracks) {
-      if (track.type === 'midi') {
-        const region = track.regions.find((r: any) => r.id === regionId);
-        if (region && region.notes) {
-          const noteIndex = region.notes.findIndex((n: any) => n.id === noteId);
-          if (noteIndex !== -1) {
-            // Update the note
-            region.notes[noteIndex] = {
-              ...region.notes[noteIndex],
-              ...updates,
-            };
-            region.updatedAt = new Date();
-            
-            updatedNote = region.notes[noteIndex];
-            noteUpdated = true;
-            break;
-          }
-        }
-      }
-    }
-
-    if (!noteUpdated) {
-      return res.status(404).json({
-        error: 'MIDI note not found',
-      });
-    }
-
-    // Save updated project state
-    await projectStateManager.saveProjectState(projectId, userId, projectState);
+    const updatedNotes = existingRegion.notes.map((n: any) => n.id === noteId ? { ...n, ...updates } : n);
+    const updatedRegion = await projectStateManager.updateRegion(regionId, userId, {
+      notes: updatedNotes,
+      updatedAt: new Date(),
+    } as any);
 
     // Log note update
     loggingService.logInfo('MIDI note updated', {
@@ -389,10 +296,10 @@ router.put('/projects/:projectId/midi-regions/:regionId/notes/:noteId', async (r
       updates: Object.keys(updates),
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: {
-        note: updatedNote,
+        note: (updatedRegion as any).notes.find((n: any) => n.id === noteId),
         noteId,
         regionId,
       },
@@ -409,7 +316,7 @@ router.put('/projects/:projectId/midi-regions/:regionId/notes/:noteId', async (r
       }
     );
 
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Failed to update MIDI note',
       message: error instanceof Error ? error.message : 'Unknown error',
     });
@@ -422,7 +329,7 @@ router.put('/projects/:projectId/midi-regions/:regionId/notes/:noteId', async (r
  */
 router.delete('/projects/:projectId/midi-regions/:regionId/notes/:noteId', async (req: Request, res: Response) => {
   try {
-    const { projectId, regionId, noteId } = req.params;
+    const { projectId, regionId, noteId } = req.params as { projectId: string; regionId: string; noteId: string };
     const userId = req.user?.id || 'anonymous';
 
     if (!projectId || !regionId || !noteId) {
@@ -431,45 +338,23 @@ router.delete('/projects/:projectId/midi-regions/:regionId/notes/:noteId', async
       });
     }
 
-    // Get current project state
-    const projectState = await projectStateManager.getCompleteProjectState(projectId);
-
-    if (!projectState) {
-      return res.status(404).json({
-        error: 'Project not found',
-      });
+    // Fetch region and delete the note
+    const existingRegion = await projectStateManager.getDatabase().getRegion(regionId);
+    if (!existingRegion || !existingRegion.notes) {
+      return res.status(404).json({ error: 'MIDI note not found' });
     }
 
-    // Find and delete the note
-    let noteDeleted = false;
-    let deletedNote = null;
-
-    for (const track of projectState.tracks) {
-      if (track.type === 'midi') {
-        const region = track.regions.find((r: any) => r.id === regionId);
-        if (region && region.notes) {
-          const noteIndex = region.notes.findIndex((n: any) => n.id === noteId);
-          if (noteIndex !== -1) {
-            // Delete the note
-            deletedNote = region.notes[noteIndex];
-            region.notes.splice(noteIndex, 1);
-            region.updatedAt = new Date();
-            
-            noteDeleted = true;
-            break;
-          }
-        }
-      }
+    const noteIndex = existingRegion.notes.findIndex((n: any) => n.id === noteId);
+    if (noteIndex === -1) {
+      return res.status(404).json({ error: 'MIDI note not found' });
     }
+    const deletedNote = existingRegion.notes[noteIndex];
+    const updatedNotes = existingRegion.notes.filter((n: any) => n.id !== noteId);
 
-    if (!noteDeleted) {
-      return res.status(404).json({
-        error: 'MIDI note not found',
-      });
-    }
-
-    // Save updated project state
-    await projectStateManager.saveProjectState(projectId, userId, projectState);
+    await projectStateManager.updateRegion(regionId, userId, {
+      notes: updatedNotes,
+      updatedAt: new Date(),
+    } as any);
 
     // Log note deletion
     loggingService.logInfo('MIDI note deleted', {
@@ -480,7 +365,7 @@ router.delete('/projects/:projectId/midi-regions/:regionId/notes/:noteId', async
       pitch: deletedNote?.pitch,
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: {
         noteId,
@@ -500,7 +385,7 @@ router.delete('/projects/:projectId/midi-regions/:regionId/notes/:noteId', async
       }
     );
 
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Failed to delete MIDI note',
       message: error instanceof Error ? error.message : 'Unknown error',
     });
@@ -513,7 +398,7 @@ router.delete('/projects/:projectId/midi-regions/:regionId/notes/:noteId', async
  */
 router.get('/projects/:projectId/midi-regions/:regionId/changes', async (req: Request, res: Response) => {
   try {
-    const { projectId, regionId } = req.params;
+    const { projectId, regionId } = req.params as { projectId: string; regionId: string };
     const { since, limit } = req.query;
     const userId = req.user?.id || 'anonymous';
 
@@ -539,7 +424,7 @@ router.get('/projects/:projectId/midi-regions/:regionId/changes', async (req: Re
       changesCount: changes.length,
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: changes,
       count: changes.length,
@@ -553,7 +438,7 @@ router.get('/projects/:projectId/midi-regions/:regionId/changes', async (req: Re
       }
     );
 
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Failed to retrieve MIDI region changes',
       message: error instanceof Error ? error.message : 'Unknown error',
     });

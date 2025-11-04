@@ -141,8 +141,7 @@ export class DAWServerErrorHandler extends EventEmitter {
       message: originalError instanceof Error ? originalError.message : originalError,
       timestamp,
       context,
-      originalError: originalError instanceof Error ? originalError : undefined,
-      stack: originalError instanceof Error ? originalError.stack : undefined,
+      ...(originalError instanceof Error ? { originalError, stack: originalError.stack } : {}),
       userId: context.userId,
       roomId: context.roomId,
       component,
@@ -265,7 +264,7 @@ export class DAWServerErrorHandler extends EventEmitter {
           success: true,
           message: 'Database connection restored'
         };
-      } catch (err) {
+      } catch {
         return {
           success: false,
           message: 'Database reconnection failed',
@@ -288,7 +287,7 @@ export class DAWServerErrorHandler extends EventEmitter {
           success: true,
           message: 'Project saved to backup location'
         };
-      } catch (err) {
+      } catch {
         return {
           success: false,
           message: 'Project save recovery failed',
@@ -310,7 +309,7 @@ export class DAWServerErrorHandler extends EventEmitter {
           success: true,
           message: 'Audio file processed with fallback settings'
         };
-      } catch (err) {
+      } catch {
         return {
           success: false,
           message: 'Audio file processing recovery failed'
@@ -333,7 +332,7 @@ export class DAWServerErrorHandler extends EventEmitter {
           success: true,
           message: 'Socket connection restored'
         };
-      } catch (err) {
+      } catch {
         return {
           success: false,
           message: 'Socket connection recovery failed'
@@ -355,7 +354,7 @@ export class DAWServerErrorHandler extends EventEmitter {
           success: true,
           message: 'Operation sync restored'
         };
-      } catch (err) {
+      } catch {
         return {
           success: false,
           message: 'Operation sync recovery failed'
@@ -367,7 +366,7 @@ export class DAWServerErrorHandler extends EventEmitter {
   /**
    * Determine error severity based on type and context
    */
-  private determineErrorSeverity(type: DAWServerErrorType, context: Record<string, any>): DAWServerErrorSeverity {
+  private determineErrorSeverity(type: DAWServerErrorType, _context: Record<string, any>): DAWServerErrorSeverity {
     const criticalErrors = [
       DAWServerErrorType.DATABASE_CONNECTION_ERROR,
       DAWServerErrorType.MEMORY_LIMIT_ERROR,

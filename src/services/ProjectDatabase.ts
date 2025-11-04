@@ -9,7 +9,6 @@ import type {
   MarkerRecord,
   ProjectChangeRecord,
   CompleteProjectState,
-  ProjectChangeType,
 } from '../types/daw';
 import { loggingService } from './LoggingService';
 
@@ -88,7 +87,7 @@ export class ProjectDatabase {
           this.projects.set(project.id, project);
           this.addToIndex(this.projectsByRoom, project.roomId, project.id);
         });
-      } catch (error) {
+      } catch {
         // File doesn't exist yet, that's okay
       }
 
@@ -104,7 +103,7 @@ export class ProjectDatabase {
           this.tracks.set(track.id, track);
           this.addToIndex(this.tracksByProject, track.projectId, track.id);
         });
-      } catch (error) {
+      } catch {
         // File doesn't exist yet
       }
 
@@ -121,7 +120,7 @@ export class ProjectDatabase {
           this.addToIndex(this.regionsByProject, region.projectId, region.id);
           this.addToIndex(this.regionsByTrack, region.trackId, region.id);
         });
-      } catch (error) {
+      } catch {
         // File doesn't exist yet
       }
 
@@ -136,7 +135,7 @@ export class ProjectDatabase {
           this.audioFiles.set(audioFile.id, audioFile);
           this.addToIndex(this.audioFilesByProject, audioFile.projectId, audioFile.id);
         });
-      } catch (error) {
+      } catch {
         // File doesn't exist yet
       }
 
@@ -152,7 +151,7 @@ export class ProjectDatabase {
           this.markers.set(marker.id, marker);
           this.addToIndex(this.markersByProject, marker.projectId, marker.id);
         });
-      } catch (error) {
+      } catch {
         // File doesn't exist yet
       }
 
@@ -167,7 +166,7 @@ export class ProjectDatabase {
           this.changes.set(change.id, change);
           this.addToIndex(this.changesByProject, change.projectId, change.id);
         });
-      } catch (error) {
+      } catch {
         // File doesn't exist yet
       }
 

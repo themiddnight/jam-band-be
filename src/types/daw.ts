@@ -374,6 +374,10 @@ export interface UpdateRegionRequest {
   velocity?: number;
   
   // Audio-specific
+  audioFileId?: string;
+  audioFileName?: string;
+  // Optional convenience field (not stored directly on RegionRecord)
+  audioFileUrl?: string;
   fadeIn?: number;
   fadeOut?: number;
   gain?: number;

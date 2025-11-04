@@ -41,7 +41,7 @@ export class DAWAlertingService extends EventEmitter {
   private templates: Map<string, NotificationTemplate> = new Map();
   private alertHistory: DAWAlert[] = [];
   private isRunning = false;
-  private checkInterval?: NodeJS.Timeout;
+  private checkInterval: NodeJS.Timeout | undefined;
 
   constructor(monitoringService: DAWMonitoringService, logger: LoggingService) {
     super();
@@ -505,7 +505,7 @@ export class DAWAlertingService extends EventEmitter {
     if (systemHealth.systemMetrics) {
       const cpuUsage = systemHealth.systemMetrics.serverCpuUsage;
       if (cpuUsage > 85) {
-        const alert = this.monitoringService.createAlert(
+        this.monitoringService.createAlert(
           'warning',
           'system',
           `High CPU usage detected: ${cpuUsage}%`,

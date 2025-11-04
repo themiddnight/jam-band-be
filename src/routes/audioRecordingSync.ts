@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { AudioFileSyncService } from '../services/AudioFileSyncService';
 import { ProjectStateManager } from '../services/ProjectStateManager';
+import { AudioFileStorageService } from '../services/AudioFileStorageService';
 import { loggingService } from '../services/LoggingService';
 import type { 
   AudioFileRecord,
@@ -9,6 +10,7 @@ import type {
 
 const router = Router();
 const audioFileSyncService = AudioFileSyncService.getInstance();
+const audioFileStorageService = AudioFileStorageService.getInstance();
 const projectStateManager = ProjectStateManager.getInstance();
 
 /**
@@ -48,7 +50,7 @@ router.post('/upload-recording', async (req, res) => {
     );
 
     // Update the audio region with the file reference
-    await projectStateManager.updateAudioRegion(regionId, {
+    await projectStateManager.updateRegion(regionId, userId, {
       audioFileId: audioFile.id,
       audioFileName: audioFile.filename,
       audioFileUrl: audioFile.url,
@@ -63,7 +65,7 @@ router.post('/upload-recording', async (req, res) => {
       fileSize: req.file.size,
     });
 
-    res.json({
+    return res.json({
       success: true,
       audioFile: {
         id: audioFile.id,
@@ -81,7 +83,7 @@ router.post('/upload-recording', async (req, res) => {
       userId: req.headers['x-user-id'],
     });
 
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Failed to upload recording',
       details: error instanceof Error ? error.message : 'Unknown error',
     });
@@ -105,7 +107,7 @@ router.get('/sync-status/:roomId', async (req, res) => {
     const allAudioFiles: AudioFileRecord[] = [];
 
     for (const project of projects) {
-      const audioFiles = await audioFileSyncService.getAudioFilesByProject(project.id);
+      const audioFiles = await audioFileStorageService.getAudioFilesByProject(project.id);
       allAudioFiles.push(...audioFiles);
     }
 
@@ -123,7 +125,7 @@ router.get('/sync-status/:roomId', async (req, res) => {
       })
     );
 
-    res.json({
+    return res.json({
       roomId,
       totalFiles: allAudioFiles.length,
       syncedFiles: syncStatus.filter(s => s.synced).length,
@@ -137,7 +139,7 @@ router.get('/sync-status/:roomId', async (req, res) => {
       userId: req.headers['x-user-id'],
     });
 
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Failed to get sync status',
       details: error instanceof Error ? error.message : 'Unknown error',
     });
@@ -163,7 +165,7 @@ router.post('/verify-file/:fileId', async (req, res) => {
 
     const verification = await audioFileSyncService.verifyAudioFileIntegrity(fileId, clientHash);
 
-    res.json({
+    return res.json({
       fileId,
       isValid: verification.isValid,
       serverHash: verification.serverHash,
@@ -176,7 +178,7 @@ router.post('/verify-file/:fileId', async (req, res) => {
       userId: req.headers['x-user-id'],
     });
 
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Failed to verify file integrity',
       details: error instanceof Error ? error.message : 'Unknown error',
     });
@@ -197,7 +199,7 @@ router.post('/redistribute/:fileId', async (req, res) => {
     }
 
     // Get file metadata
-    const audioFile = await audioFileSyncService.getAudioFileMetadata(fileId);
+  const audioFile = await audioFileStorageService.getAudioFileMetadata(fileId);
     if (!audioFile) {
       return res.status(404).json({ error: 'Audio file not found' });
     }
@@ -213,7 +215,7 @@ router.post('/redistribute/:fileId', async (req, res) => {
       requestedBy: userId,
     });
 
-    res.json({
+    return res.json({
       success: true,
       message: 'File redistribution initiated',
       fileId,
@@ -227,7 +229,7 @@ router.post('/redistribute/:fileId', async (req, res) => {
       userId: req.headers['x-user-id'],
     });
 
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Failed to redistribute file',
       details: error instanceof Error ? error.message : 'Unknown error',
     });
@@ -250,7 +252,7 @@ router.get('/conflicts/:roomId', async (req, res) => {
     // For now, return empty array as conflicts are handled in real-time via WebSocket
     const conflicts: any[] = [];
 
-    res.json({
+    return res.json({
       roomId,
       conflicts,
     });
@@ -262,7 +264,7 @@ router.get('/conflicts/:roomId', async (req, res) => {
       userId: req.headers['x-user-id'],
     });
 
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Failed to get recording conflicts',
       details: error instanceof Error ? error.message : 'Unknown error',
     });
@@ -300,7 +302,7 @@ router.post('/resolve-conflict', async (req, res) => {
     // 2. Notify other users via WebSocket
     // 3. Take appropriate action based on resolution
 
-    res.json({
+    return res.json({
       success: true,
       conflictId,
       resolutionId,
@@ -314,7 +316,7 @@ router.post('/resolve-conflict', async (req, res) => {
       userId: req.headers['x-user-id'],
     });
 
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Failed to resolve recording conflict',
       details: error instanceof Error ? error.message : 'Unknown error',
     });

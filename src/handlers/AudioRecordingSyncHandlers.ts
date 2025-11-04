@@ -69,7 +69,7 @@ export class AudioRecordingSyncHandlers {
   /**
    * Setup recording synchronization handlers for a socket
    */
-  setupHandlers(socket: Socket, roomId: string, userId: string, username: string): void {
+  setupHandlers(socket: Socket, roomId: string, userId: string, _username: string): void {
     // Recording state update
     socket.on('recording:state_update', (data: RecordingSyncState) => {
       this.handleRecordingStateUpdate(socket, roomId, userId, data);
@@ -239,7 +239,7 @@ export class AudioRecordingSyncHandlers {
       this.activeConflicts.get(roomId)!.push(conflict);
 
       // Notify all involved users
-      conflict.users.forEach(userId => {
+      conflict.users.forEach((_userId) => {
         socket.to(roomId).emit('recording:conflict', conflict);
       });
 
@@ -280,6 +280,9 @@ export class AudioRecordingSyncHandlers {
       if (conflictIndex === -1) return;
 
       const conflict = roomConflicts[conflictIndex];
+      if (!conflict) {
+        return;
+      }
 
       // Verify user is involved in the conflict
       if (!conflict.users.includes(userId)) {
@@ -374,7 +377,7 @@ export class AudioRecordingSyncHandlers {
     socket: Socket,
     roomId: string,
     userId: string,
-    conflict: RecordingConflict
+    _conflict: RecordingConflict
   ): void {
     const roomRecordings = this.activeRecordings.get(roomId);
     if (!roomRecordings) return;
@@ -599,7 +602,7 @@ export class AudioRecordingSyncHandlers {
   /**
    * Get users in a room (placeholder - would integrate with room service)
    */
-  private async getRoomUsers(roomId: string): Promise<string[]> {
+  private async getRoomUsers(_roomId: string): Promise<string[]> {
     // This would integrate with the actual room service
     // For now, return a placeholder
     return ['user1', 'user2', 'user3'];
