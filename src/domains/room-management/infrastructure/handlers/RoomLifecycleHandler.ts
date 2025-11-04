@@ -483,10 +483,11 @@ export class RoomLifecycleHandler {
       const gracePeriodUserData = this.roomService.getGracePeriodUserData(userIdString, roomIdString);
       if (gracePeriodUserData) {
         // Check if the user is trying to join with a different role than they had before
-        const requestedRole = role || 'audience';
+        const requestedRole: 'room_owner' | 'band_member' | 'audience' = role || 'audience';
         const previousRole = gracePeriodUserData.role;
 
-        const shouldPreserveOwnerRole = previousRole === 'room_owner' && requestedRole !== 'room_owner';
+        // Preserve room owner role if user had it before (they can't request it via join)
+        const shouldPreserveOwnerRole = previousRole === 'room_owner';
 
         if (shouldPreserveOwnerRole) {
           console.log(
