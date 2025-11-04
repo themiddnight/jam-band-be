@@ -48,6 +48,13 @@ export class RoomHandlers {
     private roomApplicationService?: RoomApplicationService
   ) {}
 
+  /**
+   * Get the room service instance
+   */
+  getRoomService(): RoomService {
+    return this.roomService;
+  }
+
   // Helper methods for type safety while maintaining backward compatibility
   private ensureRoomId(roomId: string | RoomId): RoomId {
     return typeof roomId === 'string' ? RoomId.fromString(roomId) : roomId;

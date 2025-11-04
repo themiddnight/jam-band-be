@@ -10,15 +10,6 @@ export {
   RoomClosed 
 } from './RoomEvents';
 export {
-  UserJoinedRoom,
-  UserInstrumentsReady,
-  UserAudioRoutingReady,
-  UserVoiceConnectionReady,
-  UserReadyForPlayback,
-  UserOnboardingFailed,
-  UserOnboardingTimeout
-} from './UserOnboardingEvents';
-export {
   UserCreated,
   UserProfileUpdated
 } from './UserEvents';

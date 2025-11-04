@@ -242,4 +242,7 @@ export interface RoomOwnerScaleChangeData {
 
 export interface ToggleFollowRoomOwnerData {
   followRoomOwner: boolean;
-} 
+}
+
+// Re-export DAW types
+export * from './daw';

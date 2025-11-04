@@ -12,13 +12,11 @@ import { EventBus } from '../../domain/events/EventBus';
 import { InMemoryEventBus } from '../../domain/events/InMemoryEventBus';
 import { EventWebSocketBridge } from './EventWebSocketBridge';
 import { NamespaceManager } from '../../../services/NamespaceManager';
-import { UserOnboardingCoordinator } from './UserOnboardingCoordinator';
 import { loggingService } from '../../../services/LoggingService';
 
 export class EventSystemInitializer {
   private eventBus: EventBus;
   private webSocketBridge: EventWebSocketBridge;
-  private onboardingCoordinator: UserOnboardingCoordinator;
 
   constructor(
     private io: Server,
@@ -26,7 +24,6 @@ export class EventSystemInitializer {
   ) {
     this.eventBus = new InMemoryEventBus();
     this.webSocketBridge = new EventWebSocketBridge(this.eventBus, this.io, this.namespaceManager);
-    this.onboardingCoordinator = new UserOnboardingCoordinator(this.eventBus);
   }
 
   /**
@@ -35,11 +32,8 @@ export class EventSystemInitializer {
   initialize(): EventBus {
     loggingService.logInfo('Initializing event-driven architecture');
 
-    // Initialize user onboarding coordination
-    this.onboardingCoordinator.initialize();
-
     loggingService.logInfo('Event system initialized successfully', {
-      features: ['WebSocket bridge', 'User onboarding coordination']
+      features: ['WebSocket bridge']
     });
 
     return this.eventBus;
@@ -60,20 +54,12 @@ export class EventSystemInitializer {
   }
 
   /**
-   * Get the onboarding coordinator instance
-   */
-  getOnboardingCoordinator(): UserOnboardingCoordinator {
-    return this.onboardingCoordinator;
-  }
-
-  /**
    * Cleanup the event system
    */
   cleanup(): void {
     loggingService.logInfo('Cleaning up event system');
     
     this.webSocketBridge.cleanup();
-    this.onboardingCoordinator.cleanup();
     
     // Clear all event handlers
     if (this.eventBus instanceof InMemoryEventBus) {

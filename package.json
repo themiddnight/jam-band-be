@@ -55,6 +55,7 @@
   "license": "ISC",
   "dependencies": {
     "@types/compression": "^1.8.1",
+    "@types/multer": "^2.0.0",
     "@types/node-cache": "^4.2.5",
     "compression": "^1.8.1",
     "cors": "^2.8.5",
@@ -64,11 +65,13 @@
     "helmet": "^7.1.0",
     "jam-band-be": ".",
     "joi": "^17.11.0",
+    "multer": "^2.0.2",
     "node-cache": "^5.1.2",
     "socket.io": "^4.8.1",
     "uuid": "^11.1.0",
     "winston": "^3.11.0",
-    "winston-daily-rotate-file": "^4.7.1"
+    "winston-daily-rotate-file": "^4.7.1",
+    "zod": "^4.1.12"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",
