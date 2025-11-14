@@ -373,7 +373,7 @@ npm run docker:run          # Run locally
 ## Implementation Roadmap 🗺️
 
 ### Phase 1: Foundation (Current ✅)
-- ✅ **Room Types**: Support for `'perform' | 'produce'` room types
+- ✅ **Room Types**: Support for `'perform' | 'arrange'` room types
 - ✅ **Domain Architecture**: DDD structure ready for collaborative features
 - ✅ **Real-time Infrastructure**: Socket.IO namespaces for room isolation  
 - ✅ **Session Management**: User presence and room lifecycle management

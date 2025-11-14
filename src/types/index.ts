@@ -45,7 +45,7 @@ export interface Room {
   id: string;
   name: string;
   description?: string;
-  roomType: 'perform' | 'produce';
+  roomType: 'perform' | 'arrange';
   owner: string;
   users: Map<string, User>;
   pendingMembers: Map<string, User>;
@@ -74,7 +74,7 @@ export interface JoinRoomData {
 export interface CreateRoomData {
   name: string;
   description?: string;
-  roomType: 'perform' | 'produce';
+  roomType: 'perform' | 'arrange';
   username: string;
   userId: string;
   isPrivate: boolean;
@@ -116,7 +116,7 @@ export interface RoomListResponse {
   id: string;
   name: string;
   description?: string;
-  roomType: 'perform' | 'produce';
+  roomType: 'perform' | 'arrange';
   userCount: number;
   owner: string;
   isPrivate: boolean;

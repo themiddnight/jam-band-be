@@ -58,7 +58,7 @@ export class RoomService {
     isPrivate: boolean = false,
     isHidden: boolean = false,
     description?: string,
-    roomType: 'perform' | 'produce' = 'perform'
+    roomType: 'perform' | 'arrange' = 'perform'
   ): { room: Room; user: User; session: UserSession } {
     const roomId = uuidv4();
 
