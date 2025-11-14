@@ -170,18 +170,18 @@ describe('Room Management Integration Tests', () => {
       expect(hiddenRoom.room.isPrivate).toBe(false);
       expect(hiddenRoom.room.isHidden).toBe(true);
 
-      // Test produce room type
-      const produceRoom = roomService.createRoom(
-        'Produce Room',
-        'produceowner',
-        'produce123',
+      // Test Arrange room type
+      const arrangeRoom = roomService.createRoom(
+        'Arrange Room',
+        'arrangeowner',
+        'arrange123',
         false,
         false,
-        'Produce room for testing',
-        'produce'
+        'Arrange room for testing',
+        'arrange'
       );
 
-      expect(produceRoom.room.roomType).toBe('produce');
+      expect(arrangeRoom.room.roomType).toBe('arrange');
     });
 
     it('should handle effect chains properly', async () => {

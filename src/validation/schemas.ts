@@ -5,7 +5,7 @@ import { METRONOME_CONSTANTS } from '../constants';
 export const createRoomSchema = Joi.object({
   name: Joi.string().min(1).max(100).required(),
   description: Joi.string().max(500).optional(),
-  roomType: Joi.string().valid('perform', 'produce').default('perform'),
+  roomType: Joi.string().valid('perform', 'arrange').default('perform'),
   username: Joi.string().min(1).max(50).required(),
   userId: Joi.string().min(1).max(100).required(),
   isPrivate: Joi.boolean().required(),
