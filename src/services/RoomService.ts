@@ -175,6 +175,16 @@ export class RoomService {
   deleteRoom(roomId: string): boolean {
     const deleted = this.rooms.delete(roomId);
     if (deleted) {
+      // Clear grace period data for this room
+      namespaceGracePeriodManager.cleanupRoomGracePeriod(roomId);
+
+      // Remove intentionally left references for this room
+      for (const [userId, entry] of this.intentionallyLeftUsers.entries()) {
+        if (entry.roomId === roomId) {
+          this.intentionallyLeftUsers.delete(userId);
+        }
+      }
+
       // Clear room cache
       this.cacheService.invalidateRoom(roomId);
       // Invalidate room list cache
@@ -312,6 +322,18 @@ export class RoomService {
     // Remove from namespace-aware grace period
     if (roomId) {
       namespaceGracePeriodManager.removeFromGracePeriod(userId, roomId);
+      return;
+    }
+
+    // Fallback: attempt to remove from any room the user might be queued in
+    for (const currentRoomId of this.rooms.keys()) {
+      const removed = namespaceGracePeriodManager.removeFromGracePeriod(
+        userId,
+        currentRoomId
+      );
+      if (removed) {
+        break;
+      }
     }
   }
 
@@ -441,30 +463,33 @@ export class RoomService {
     const room = this.rooms.get(roomId);
     if (!room) return true;
 
-    // Check if there are ANY users currently in room (any role)
-    const hasActiveUsers = room.users.size > 0;
+    const activeMusicians = Array.from(room.users.values()).filter(
+      (user) => user.role === "room_owner" || user.role === "band_member"
+    );
 
-    // Also check users in grace period who might return (any role)
-    // but exclude users who have intentionally left
+    if (activeMusicians.length > 0) {
+      return false;
+    }
+
     const gracePeriodUsers =
       namespaceGracePeriodManager.getRoomGracePeriodUsers(roomId);
-    const validGracePeriodUsers = gracePeriodUsers.filter((entry) => {
-      // Check if this user is in the intentionally left list
+
+    const hasGracePeriodMusician = gracePeriodUsers.some((entry) => {
       const intentionallyLeft = this.intentionallyLeftUsers.get(entry.userId);
       if (intentionallyLeft && intentionallyLeft.roomId === roomId) {
-        // Check if the intentional leave is still valid (within 24 hours)
         const isStillValid =
           Date.now() - intentionallyLeft.timestamp <
           this.INTENTIONAL_LEAVE_EXPIRY_MS;
-        return !isStillValid; // Only count if the intentional leave has expired
+        if (isStillValid) {
+          return false;
+        }
       }
-      return true; // Count users who haven't intentionally left
-    });
-    const hasValidGracePeriodUsers = validGracePeriodUsers.length > 0;
 
-    // Room should only be closed if there are NO users at all (active OR valid grace period)
-    // This ensures immediate cleanup when all users leave or all grace periods expire
-    return !hasActiveUsers && !hasValidGracePeriodUsers;
+      const userRole = entry.userData?.role;
+      return userRole === "room_owner" || userRole === "band_member";
+    });
+
+    return !hasGracePeriodMusician;
   }
 
   // Get any user in the room for ownership transfer
@@ -474,6 +499,23 @@ export class RoomService {
 
     // Return the first user in the room
     return Array.from(room.users.values())[0];
+  }
+
+  getOwnershipCandidate(roomId: string): User | undefined {
+    const room = this.rooms.get(roomId);
+    if (!room) {
+      return undefined;
+    }
+
+    const candidates = Array.from(room.users.values()).filter(
+      (user) => user.role === "band_member" || user.role === "room_owner"
+    );
+
+    if (candidates.length === 0) {
+      return undefined;
+    }
+
+    return candidates[0];
   }
 
   // Session management - delegated to RoomSessionManager
