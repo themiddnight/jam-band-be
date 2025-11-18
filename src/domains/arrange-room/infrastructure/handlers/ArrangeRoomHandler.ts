@@ -3,13 +3,15 @@ import { ArrangeRoomStateService } from '../../../../services/ArrangeRoomStateSe
 import { RoomSessionManager } from '../../../../services/RoomSessionManager';
 import { RoomService } from '../../../../services/RoomService';
 import { loggingService } from '../../../../services/LoggingService';
-import type { Track, Region, LockInfo, ArrangeTimeSignature } from '../../domain/models/ArrangeRoomState';
+import { AudioRegionStorageService } from '../../../../services/AudioRegionStorageService';
+import type { Track, Region, LockInfo, ArrangeTimeSignature, AudioRegion } from '../../domain/models/ArrangeRoomState';
 
 export class ArrangeRoomHandler {
   constructor(
     private arrangeRoomStateService: ArrangeRoomStateService,
     private roomSessionManager: RoomSessionManager,
-    private roomService: RoomService
+    private roomService: RoomService,
+    private audioRegionStorageService?: AudioRegionStorageService
   ) {}
 
   /**
@@ -150,9 +152,58 @@ export class ArrangeRoomHandler {
     }
 
     try {
+      const state = this.arrangeRoomStateService.getState(data.roomId);
+      const audioRegions =
+        state?.regions.filter(
+          (region): region is AudioRegion =>
+            region.trackId === data.trackId && region.type === 'audio'
+        ) ?? [];
+
       this.arrangeRoomStateService.removeTrack(data.roomId, data.trackId);
       namespace.to(data.roomId).emit('arrange:track_deleted', { trackId: data.trackId, userId: session.userId });
       loggingService.logInfo('Track deleted', { roomId: data.roomId, trackId: data.trackId, userId: session.userId });
+
+      const storage = this.audioRegionStorageService;
+      if (audioRegions.length && storage && state) {
+        const removedIds = new Set(audioRegions.map((region) => region.id));
+        const handledStorageIds = new Set<string>();
+        const deletionPromises = audioRegions.map(async (region) => {
+          const audioUrl = region.audioUrl;
+          const hasOtherReferences =
+            !!audioUrl &&
+            state.regions.some(
+              (candidate) =>
+                !removedIds.has(candidate.id) &&
+                candidate.type === 'audio' &&
+                candidate.audioUrl === audioUrl
+            );
+
+          if (hasOtherReferences) {
+            return;
+          }
+
+          const storageRegionId =
+            (audioUrl && storage.extractRegionIdFromPlaybackPath(audioUrl)) || region.id;
+
+          if (handledStorageIds.has(storageRegionId)) {
+            return;
+          }
+
+          handledStorageIds.add(storageRegionId);
+
+          await storage
+            .deleteRegionAudio(data.roomId, storageRegionId)
+            .catch((error) =>
+              loggingService.logError(error as Error, {
+                context: 'ArrangeRoomHandler:deleteTrackAudio',
+                roomId: data.roomId,
+                regionId: storageRegionId,
+              })
+            );
+        });
+
+        void Promise.all(deletionPromises);
+      }
     } catch (error) {
       loggingService.logError(error as Error, { context: 'ArrangeRoomHandler:handleTrackDelete', roomId: data.roomId });
       socket.emit('error', { message: 'Failed to delete track' });
@@ -392,9 +443,40 @@ export class ArrangeRoomHandler {
     }
 
     try {
+      const state = this.arrangeRoomStateService.getState(data.roomId);
+      const region = state?.regions.find((r) => r.id === data.regionId);
+
       this.arrangeRoomStateService.removeRegion(data.roomId, data.regionId);
       namespace.to(data.roomId).emit('arrange:region_deleted', { regionId: data.regionId, userId: session.userId });
       loggingService.logInfo('Region deleted', { roomId: data.roomId, regionId: data.regionId, userId: session.userId });
+
+      const storage = this.audioRegionStorageService;
+      if (region?.type === 'audio' && storage && state) {
+        const audioUrl = region.audioUrl;
+        const hasOtherReferences =
+          !!audioUrl &&
+          state.regions.some(
+            (candidate) =>
+              candidate.id !== region.id &&
+              candidate.type === 'audio' &&
+              candidate.audioUrl === audioUrl
+          );
+
+        if (!hasOtherReferences) {
+          const storageRegionId =
+            (audioUrl && storage.extractRegionIdFromPlaybackPath(audioUrl)) || region.id;
+
+          storage
+            .deleteRegionAudio(data.roomId, storageRegionId)
+            .catch((error) =>
+              loggingService.logError(error as Error, {
+                context: 'ArrangeRoomHandler:handleRegionDeleteAudio',
+                roomId: data.roomId,
+                regionId: storageRegionId,
+              })
+            );
+        }
+      }
     } catch (error) {
       loggingService.logError(error as Error, { context: 'ArrangeRoomHandler:handleRegionDelete', roomId: data.roomId });
       socket.emit('error', { message: 'Failed to delete region' });

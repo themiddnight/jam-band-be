@@ -42,6 +42,8 @@ import { MetronomeHandler } from "./domains/room-management/infrastructure/handl
 import { NotePlayingHandler } from "./domains/audio-processing/infrastructure/handlers/NotePlayingHandler";
 import { ArrangeRoomStateService } from "./services/ArrangeRoomStateService";
 import { ArrangeRoomHandler } from "./domains/arrange-room/infrastructure/handlers/ArrangeRoomHandler";
+import { AudioRegionStorageService } from "./services/AudioRegionStorageService";
+import { AudioRegionController } from "./domains/arrange-room/infrastructure/controllers/AudioRegionController";
 
 import { NamespaceManager } from "./services/NamespaceManager";
 import { RoomSessionManager } from "./services/RoomSessionManager";
@@ -154,6 +156,11 @@ const metronomeService = new MetronomeService(io, roomService);
 
 // Initialize arrange room services (before room lifecycle handler)
 const arrangeRoomStateService = new ArrangeRoomStateService();
+const audioRegionStorageService = new AudioRegionStorageService();
+const audioRegionController = new AudioRegionController(
+  roomService,
+  audioRegionStorageService
+);
 
 // Initialize room lifecycle handler with event bus
 const roomLifecycleHandler = new RoomLifecycleHandler(
@@ -164,7 +171,8 @@ const roomLifecycleHandler = new RoomLifecycleHandler(
   metronomeService,
   audioRoutingHandler,
   eventBus,
-  arrangeRoomStateService
+  arrangeRoomStateService,
+  audioRegionStorageService
 );
 const roomMembershipHandler = new RoomMembershipHandler(
   roomService,
@@ -206,7 +214,8 @@ const instrumentSwapHandler = new InstrumentSwapHandler(
 const arrangeRoomHandler = new ArrangeRoomHandler(
   arrangeRoomStateService,
   roomSessionManager,
-  roomService
+  roomService,
+  audioRegionStorageService
 );
 
 const roomHandlers = new RoomHandlers(
@@ -295,7 +304,7 @@ app.use(
 app.use(sanitizeInput);
 
 // Routes
-app.use("/api", createRoutes(roomHandlers, roomLifecycleHandler));
+app.use("/api", createRoutes(roomHandlers, roomLifecycleHandler, audioRegionController));
 
 // Performance monitoring routes (skip if optimization service is disabled)
 import { createPerformanceRoutes } from "./routes/performance";
