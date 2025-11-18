@@ -6,6 +6,7 @@ import { MetronomeService } from '../../../../services/MetronomeService';
 import { NamespaceManager } from '../../../../services/NamespaceManager';
 import { RoomSessionManager } from '../../../../services/RoomSessionManager';
 import { AudioRoutingHandler } from '../../../audio-processing/infrastructure/handlers/AudioRoutingHandler';
+import { ArrangeRoomStateService } from '../../../../services/ArrangeRoomStateService';
 import { RoomId, UserId } from '../../../../shared/domain/models/ValueObjects';
 import {
   JoinRoomData,
@@ -16,6 +17,7 @@ import {
 import { EventBus } from '../../../../shared/domain/events/EventBus';
 import { RoomCreated, MemberJoined, MemberLeft } from '../../../../shared/domain/events/RoomEvents';
 import { UserJoinedRoom } from '../../../../shared/domain/events/UserOnboardingEvents';
+import { loggingService } from '../../../../services/LoggingService';
 
 /**
  * RoomLifecycleHandler - Handles room creation, joining, and leaving operations
@@ -30,7 +32,8 @@ export class RoomLifecycleHandler {
     private roomSessionManager: RoomSessionManager,
     private metronomeService: MetronomeService,
     private audioRoutingHandler?: AudioRoutingHandler,
-    private eventBus?: EventBus
+    private eventBus?: EventBus,
+    private arrangeRoomStateService?: ArrangeRoomStateService
   ) { }
 
   /**
@@ -338,6 +341,12 @@ export class RoomLifecycleHandler {
       const roomNamespace = this.namespaceManager.createRoomNamespace(this.roomIdToString(roomIdTyped));
       this.metronomeService.initializeRoomMetronome(this.roomIdToString(roomIdTyped), roomNamespace);
 
+      // Initialize arrange room state if it's an arrange room
+      if (roomType === 'arrange' && this.arrangeRoomStateService) {
+        this.arrangeRoomStateService.initializeState(this.roomIdToString(roomIdTyped));
+        loggingService.logInfo(`Initialized arrange room state for room ${this.roomIdToString(roomIdTyped)}`);
+      }
+
       // Create approval namespace for private rooms
       if (room.isPrivate) {
         this.namespaceManager.createApprovalNamespace(this.roomIdToString(roomIdTyped));
@@ -416,6 +425,12 @@ export class RoomLifecycleHandler {
     // Create room namespace and start metronome for the new room
     const roomNamespace = this.namespaceManager.createRoomNamespace(roomIdString);
     this.metronomeService.initializeRoomMetronome(roomIdString, roomNamespace);
+
+    // Initialize arrange room state if it's an arrange room
+    if (data.roomType === 'arrange' && this.arrangeRoomStateService) {
+      this.arrangeRoomStateService.initializeState(roomIdString);
+      loggingService.logInfo(`Initialized arrange room state for room ${roomIdString}`);
+    }
 
     // Create approval namespace for private rooms
     if (room.isPrivate) {
