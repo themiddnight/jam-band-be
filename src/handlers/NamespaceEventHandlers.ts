@@ -33,6 +33,7 @@ import {
   arrangeTrackUpdateSchema,
   arrangeTrackDeleteSchema,
   arrangeTrackInstrumentChangeSchema,
+  arrangeTrackReorderSchema,
   arrangeRegionAddSchema,
   arrangeRegionUpdateSchema,
   arrangeRegionMoveSchema,
@@ -666,6 +667,11 @@ export class NamespaceEventHandlers {
       socket.on('arrange:track_instrument_change', (data) => {
         secureSocketEvent('arrange:track_instrument_change', arrangeTrackInstrumentChangeSchema,
           (socket, data) => this.arrangeRoomHandler.handleTrackInstrumentChange(socket, namespace, data))(socket, data);
+      });
+
+      socket.on('arrange:track_reorder', (data) => {
+        secureSocketEvent('arrange:track_reorder', arrangeTrackReorderSchema,
+          (socket, data) => this.arrangeRoomHandler.handleTrackReorder(socket, namespace, data))(socket, data);
       });
 
       socket.on('arrange:region_add', (data) => {

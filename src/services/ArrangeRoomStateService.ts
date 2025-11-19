@@ -100,6 +100,32 @@ export class ArrangeRoomStateService {
   }
 
   /**
+   * Reorder tracks
+   */
+  reorderTracks(roomId: string, trackIds: string[]): ArrangeRoomState {
+    const state = this.getState(roomId);
+    if (!state) {
+      throw new Error(`Room state not found for room: ${roomId}`);
+    }
+
+    // Create a map of tracks by ID
+    const trackMap = new Map(state.tracks.map((track) => [track.id, track]));
+    
+    // Reorder tracks based on the provided order
+    const reorderedTracks = trackIds
+      .map((id) => trackMap.get(id))
+      .filter((track): track is Track => track !== undefined);
+    
+    // Add any tracks that weren't in the reorder list (safety check)
+    const existingIds = new Set(trackIds);
+    const remainingTracks = state.tracks.filter((track) => !existingIds.has(track.id));
+    
+    return this.updateState(roomId, {
+      tracks: [...reorderedTracks, ...remainingTracks],
+    });
+  }
+
+  /**
    * Add a region
    */
   addRegion(roomId: string, region: Region): ArrangeRoomState {

@@ -211,6 +211,35 @@ export class ArrangeRoomHandler {
   }
 
   /**
+   * Handle track reorder
+   */
+  handleTrackReorder(socket: Socket, namespace: Namespace, data: { roomId: string; trackIds: string[] }): void {
+    const session = this.getSession(socket);
+    if (!session || session.roomId !== data.roomId) {
+      return;
+    }
+
+    try {
+      this.arrangeRoomStateService.reorderTracks(data.roomId, data.trackIds);
+      namespace.to(data.roomId).emit('arrange:track_reordered', {
+        trackIds: data.trackIds,
+        userId: session.userId,
+      });
+      loggingService.logInfo('Tracks reordered', {
+        roomId: data.roomId,
+        trackCount: data.trackIds.length,
+        userId: session.userId,
+      });
+    } catch (error) {
+      loggingService.logError(error as Error, {
+        context: 'ArrangeRoomHandler:handleTrackReorder',
+        roomId: data.roomId,
+      });
+      socket.emit('error', { message: 'Failed to reorder tracks' });
+    }
+  }
+
+  /**
    * Handle track instrument change
    */
   handleTrackInstrumentChange(socket: Socket, namespace: Namespace, data: { roomId: string; trackId: string; instrumentId: string; instrumentCategory?: string }): void {

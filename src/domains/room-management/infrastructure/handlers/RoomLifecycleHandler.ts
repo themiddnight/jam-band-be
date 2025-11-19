@@ -61,7 +61,7 @@ export class RoomLifecycleHandler {
   private deleteRoomAndCleanup(roomId: string): void {
     const room = this.roomService.getRoom(roomId);
     const isArrangeRoom = room?.roomType === 'arrange';
-    this.deleteRoomAndCleanup(roomId);
+    this.roomService.deleteRoom(roomId);
     if (isArrangeRoom) {
       if (this.arrangeRoomStateService) {
         this.arrangeRoomStateService.clearState(roomId);

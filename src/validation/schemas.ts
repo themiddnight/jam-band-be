@@ -175,6 +175,11 @@ export const arrangeTrackDeleteSchema = Joi.object({
   trackId: Joi.string().required(),
 });
 
+export const arrangeTrackReorderSchema = Joi.object({
+  roomId: Joi.string().required(),
+  trackIds: Joi.array().items(Joi.string()).required(),
+});
+
 export const arrangeTrackInstrumentChangeSchema = Joi.object({
   roomId: Joi.string().uuid().required(),
   trackId: Joi.string().required(),
