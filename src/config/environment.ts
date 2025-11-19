@@ -1,11 +1,32 @@
+import fs from 'fs';
+import path from 'path';
 import dotenv from 'dotenv';
 
 // Load environment variables based on NODE_ENV
 // In Railway, environment variables are injected directly, so we only load local files in development
 if (process.env.NODE_ENV !== 'production') {
-  const envFile = '.env.local';
-  dotenv.config({ path: envFile });
+  // Try .env.local first, then fall back to .env
+  const envLocalPath = path.resolve(process.cwd(), '.env.local');
+  const envPath = path.resolve(process.cwd(), '.env');
+  
+  if (fs.existsSync(envLocalPath)) {
+    dotenv.config({ path: envLocalPath });
+  } else if (fs.existsSync(envPath)) {
+    dotenv.config({ path: envPath });
+  }
 }
+
+const resolvePath = (value?: string): string | undefined => {
+  if (!value) {
+    return undefined;
+  }
+  return path.isAbsolute(value) ? value : path.join(process.cwd(), value);
+};
+
+const volumePath =
+  resolvePath(process.env.RECORD_AUDIO_PATH) ||
+  resolvePath(process.env.RAILWAY_VOLUME_MOUNT_PATH);
+const recordingsDir = volumePath || path.join(process.cwd(), 'record-audio');
 
 export const config = {
   // Server configuration
@@ -66,6 +87,12 @@ export const config = {
     heartbeatInterval: parseInt(process.env.HEARTBEAT_INTERVAL || '30000'),
     disableSynthRateLimit: process.env.DISABLE_SYNTH_RATE_LIMIT === 'true', // Disable rate limiting for synth params
     disableVoiceRateLimit: process.env.DISABLE_VOICE_RATE_LIMIT === 'true', // Disable rate limiting for voice events
+  },
+
+  storage: {
+    recordingsDir,
+    tempDir: path.join(process.cwd(), 'tmp', 'recordings'),
+    publicBaseUrl: process.env.AUDIO_PUBLIC_BASE_URL,
   },
 } as const;
 

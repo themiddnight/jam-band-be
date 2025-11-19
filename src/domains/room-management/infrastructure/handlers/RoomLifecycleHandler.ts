@@ -6,6 +6,8 @@ import { MetronomeService } from '../../../../services/MetronomeService';
 import { NamespaceManager } from '../../../../services/NamespaceManager';
 import { RoomSessionManager } from '../../../../services/RoomSessionManager';
 import { AudioRoutingHandler } from '../../../audio-processing/infrastructure/handlers/AudioRoutingHandler';
+import { ArrangeRoomStateService } from '../../../../services/ArrangeRoomStateService';
+import { AudioRegionStorageService } from '../../../../services/AudioRegionStorageService';
 import { RoomId, UserId } from '../../../../shared/domain/models/ValueObjects';
 import {
   JoinRoomData,
@@ -16,6 +18,7 @@ import {
 import { EventBus } from '../../../../shared/domain/events/EventBus';
 import { RoomCreated, MemberJoined, MemberLeft } from '../../../../shared/domain/events/RoomEvents';
 import { UserJoinedRoom } from '../../../../shared/domain/events/UserOnboardingEvents';
+import { loggingService } from '../../../../services/LoggingService';
 
 /**
  * RoomLifecycleHandler - Handles room creation, joining, and leaving operations
@@ -30,7 +33,9 @@ export class RoomLifecycleHandler {
     private roomSessionManager: RoomSessionManager,
     private metronomeService: MetronomeService,
     private audioRoutingHandler?: AudioRoutingHandler,
-    private eventBus?: EventBus
+    private eventBus?: EventBus,
+    private arrangeRoomStateService?: ArrangeRoomStateService,
+    private audioRegionStorageService?: AudioRegionStorageService
   ) { }
 
   /**
@@ -53,6 +58,25 @@ export class RoomLifecycleHandler {
   private roomIdToString(roomId: string | RoomId): string {
     return typeof roomId === 'string' ? roomId : roomId.toString();
   }
+  private deleteRoomAndCleanup(roomId: string): void {
+    const room = this.roomService.getRoom(roomId);
+    const isArrangeRoom = room?.roomType === 'arrange';
+    this.roomService.deleteRoom(roomId);
+    if (isArrangeRoom) {
+      if (this.arrangeRoomStateService) {
+        this.arrangeRoomStateService.clearState(roomId);
+      }
+      if (this.audioRegionStorageService) {
+        void this.audioRegionStorageService.deleteRoomAudio(roomId).catch((error) => {
+          loggingService.logError(error as Error, {
+            context: 'RoomLifecycleHandler:deleteRoom',
+            roomId,
+          });
+        });
+      }
+    }
+  }
+
 
   /**
    * Helper method to convert UserId to string for legacy service calls
@@ -165,7 +189,7 @@ export class RoomLifecycleHandler {
       this.metronomeService.cleanupRoom(roomIdString);
       this.namespaceManager.cleanupRoomNamespace(roomIdString);
       this.namespaceManager.cleanupApprovalNamespace(roomIdString);
-      this.roomService.deleteRoom(roomIdString);
+      this.deleteRoomAndCleanup(roomIdString);
 
       // Broadcast to all clients that the room was closed (via main namespace)
       this.io.emit('room_closed_broadcast', { roomId: roomIdTyped.toString() });
@@ -179,7 +203,7 @@ export class RoomLifecycleHandler {
       this.metronomeService.cleanupRoom(roomIdString);
       this.namespaceManager.cleanupRoomNamespace(roomIdString);
       this.namespaceManager.cleanupApprovalNamespace(roomIdString);
-      this.roomService.deleteRoom(roomIdString);
+      this.deleteRoomAndCleanup(roomIdString);
       this.io.emit('room_closed_broadcast', { roomId: roomIdTyped.toString() });
       return;
     }
@@ -229,7 +253,7 @@ export class RoomLifecycleHandler {
       this.metronomeService.cleanupRoom(roomIdString);
       this.namespaceManager.cleanupRoomNamespace(roomIdString);
       this.namespaceManager.cleanupApprovalNamespace(roomIdString);
-      this.roomService.deleteRoom(roomIdString);
+      this.deleteRoomAndCleanup(roomIdString);
 
       // Broadcast to all clients that the room was closed (via main namespace)
       this.io.emit('room_closed_broadcast', { roomId: roomIdTyped.toString() });
@@ -243,7 +267,7 @@ export class RoomLifecycleHandler {
       this.metronomeService.cleanupRoom(roomIdString);
       this.namespaceManager.cleanupRoomNamespace(roomIdString);
       this.namespaceManager.cleanupApprovalNamespace(roomIdString);
-      this.roomService.deleteRoom(roomIdString);
+      this.deleteRoomAndCleanup(roomIdString);
       this.io.emit('room_closed_broadcast', { roomId: roomIdTyped.toString() });
       return;
     }
@@ -338,6 +362,12 @@ export class RoomLifecycleHandler {
       const roomNamespace = this.namespaceManager.createRoomNamespace(this.roomIdToString(roomIdTyped));
       this.metronomeService.initializeRoomMetronome(this.roomIdToString(roomIdTyped), roomNamespace);
 
+      // Initialize arrange room state if it's an arrange room
+      if (roomType === 'arrange' && this.arrangeRoomStateService) {
+        this.arrangeRoomStateService.initializeState(this.roomIdToString(roomIdTyped));
+        loggingService.logInfo(`Initialized arrange room state for room ${this.roomIdToString(roomIdTyped)}`);
+      }
+
       // Create approval namespace for private rooms
       if (room.isPrivate) {
         this.namespaceManager.createApprovalNamespace(this.roomIdToString(roomIdTyped));
@@ -416,6 +446,12 @@ export class RoomLifecycleHandler {
     // Create room namespace and start metronome for the new room
     const roomNamespace = this.namespaceManager.createRoomNamespace(roomIdString);
     this.metronomeService.initializeRoomMetronome(roomIdString, roomNamespace);
+
+    // Initialize arrange room state if it's an arrange room
+    if (data.roomType === 'arrange' && this.arrangeRoomStateService) {
+      this.arrangeRoomStateService.initializeState(roomIdString);
+      loggingService.logInfo(`Initialized arrange room state for room ${roomIdString}`);
+    }
 
     // Create approval namespace for private rooms
     if (room.isPrivate) {
@@ -809,7 +845,7 @@ export class RoomLifecycleHandler {
         }
 
         // Attempt to close room
-        this.roomService.deleteRoom(session.roomId);
+        this.deleteRoomAndCleanup(session.roomId);
       } else {
         // Room still has users, notify others and broadcast updated state
         if (roomNamespace) {
@@ -905,7 +941,7 @@ export class RoomLifecycleHandler {
         this.metronomeService.cleanupRoom(roomIdString);
         this.namespaceManager.cleanupRoomNamespace(roomIdString);
         this.namespaceManager.cleanupApprovalNamespace(roomIdString);
-        this.roomService.deleteRoom(roomIdString);
+        this.deleteRoomAndCleanup(roomIdString);
 
         // Broadcast to all clients that the room was closed (via main namespace)
         this.io.emit('room_closed_broadcast', { roomId: roomIdTyped.toString() });

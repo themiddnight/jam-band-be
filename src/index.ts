@@ -40,6 +40,10 @@ import { MetronomeService } from "./services/MetronomeService";
 import { ChatHandler } from "./domains/real-time-communication/infrastructure/handlers/ChatHandler";
 import { MetronomeHandler } from "./domains/room-management/infrastructure/handlers/MetronomeHandler";
 import { NotePlayingHandler } from "./domains/audio-processing/infrastructure/handlers/NotePlayingHandler";
+import { ArrangeRoomStateService } from "./services/ArrangeRoomStateService";
+import { ArrangeRoomHandler } from "./domains/arrange-room/infrastructure/handlers/ArrangeRoomHandler";
+import { AudioRegionStorageService } from "./services/AudioRegionStorageService";
+import { AudioRegionController } from "./domains/arrange-room/infrastructure/controllers/AudioRegionController";
 
 import { NamespaceManager } from "./services/NamespaceManager";
 import { RoomSessionManager } from "./services/RoomSessionManager";
@@ -150,6 +154,14 @@ const audioRoutingHandler = new AudioRoutingHandler(
 // Initialize services needed by RoomHandlers
 const metronomeService = new MetronomeService(io, roomService);
 
+// Initialize arrange room services (before room lifecycle handler)
+const arrangeRoomStateService = new ArrangeRoomStateService();
+const audioRegionStorageService = new AudioRegionStorageService();
+const audioRegionController = new AudioRegionController(
+  roomService,
+  audioRegionStorageService
+);
+
 // Initialize room lifecycle handler with event bus
 const roomLifecycleHandler = new RoomLifecycleHandler(
   roomService,
@@ -158,7 +170,9 @@ const roomLifecycleHandler = new RoomLifecycleHandler(
   roomSessionManager,
   metronomeService,
   audioRoutingHandler,
-  eventBus
+  eventBus,
+  arrangeRoomStateService,
+  audioRegionStorageService
 );
 const roomMembershipHandler = new RoomMembershipHandler(
   roomService,
@@ -196,6 +210,14 @@ const instrumentSwapHandler = new InstrumentSwapHandler(
   roomSessionManager
 );
 
+// Initialize arrange room handler
+const arrangeRoomHandler = new ArrangeRoomHandler(
+  arrangeRoomStateService,
+  roomSessionManager,
+  roomService,
+  audioRegionStorageService
+);
+
 const roomHandlers = new RoomHandlers(
   roomService,
   roomSessionManager,
@@ -213,7 +235,8 @@ const namespaceEventHandlers = new NamespaceEventHandlers(
   chatHandler,
   metronomeHandler,
   notePlayingHandler,
-  instrumentSwapHandler
+  instrumentSwapHandler,
+  arrangeRoomHandler
 );
 
 // Set up namespace event handlers
@@ -281,7 +304,7 @@ app.use(
 app.use(sanitizeInput);
 
 // Routes
-app.use("/api", createRoutes(roomHandlers, roomLifecycleHandler));
+app.use("/api", createRoutes(roomHandlers, roomLifecycleHandler, audioRegionController));
 
 // Performance monitoring routes (skip if optimization service is disabled)
 import { createPerformanceRoutes } from "./routes/performance";
