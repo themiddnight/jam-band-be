@@ -57,7 +57,7 @@ export class AudioRegionStorageService {
   }
 
   private getRegionFilePath(roomId: string, regionId: string): string {
-    return path.join(this.getRoomDir(roomId), `${regionId}.opus`);
+    return path.join(this.getRoomDir(roomId), `${regionId}.ogg`);
   }
 
   private getRegionMetadataPath(roomId: string, regionId: string): string {
@@ -107,13 +107,16 @@ export class AudioRegionStorageService {
   }
 
   async deleteRegionAudio(roomId: string, regionId: string): Promise<void> {
-    const [audioPath, metadataPath] = [
-      this.getRegionFilePath(roomId, regionId),
-      this.getRegionMetadataPath(roomId, regionId),
-    ];
+    const roomDir = this.getRoomDir(roomId);
+    const metadataPath = this.getRegionMetadataPath(roomId, regionId);
+    
+    // Delete both .ogg and .opus files (for backward compatibility)
+    const oggPath = path.join(roomDir, `${regionId}.ogg`);
+    const opusPath = path.join(roomDir, `${regionId}.opus`);
 
     await Promise.all([
-      fs.promises.unlink(audioPath).catch(() => {}),
+      fs.promises.unlink(oggPath).catch(() => {}),
+      fs.promises.unlink(opusPath).catch(() => {}),
       fs.promises.unlink(metadataPath).catch(() => {}),
     ]);
   }
@@ -124,14 +127,23 @@ export class AudioRegionStorageService {
   }
 
   resolveRegionFilePath(roomId: string, regionId: string): string | null {
-    const filePath = this.getRegionFilePath(roomId, regionId);
-    if (fs.existsSync(filePath)) {
-      return filePath;
+    // Try .ogg first (new format)
+    const oggPath = this.getRegionFilePath(roomId, regionId);
+    if (fs.existsSync(oggPath)) {
+      return oggPath;
     }
+    
+    // Fallback to .opus (old format) for backward compatibility
+    const opusPath = path.join(this.getRoomDir(roomId), `${regionId}.opus`);
+    if (fs.existsSync(opusPath)) {
+      return opusPath;
+    }
+    
     return null;
   }
 
   getRegionPlaybackPath(roomId: string, regionId: string): string {
+    // Use configured publicBaseUrl if available
     if (config.storage?.publicBaseUrl) {
       const url = new URL(
         `/api/rooms/${roomId}/audio/regions/${regionId}`,
@@ -139,7 +151,32 @@ export class AudioRegionStorageService {
       );
       return url.toString();
     }
-    return `/api/rooms/${roomId}/audio/regions/${regionId}`;
+    
+    // Auto-detect base URL from server configuration
+    const protocol = config.ssl?.enabled ? 'https' : 'http';
+    const port = config.port;
+    
+    // Try to get the host from FRONTEND_URL or Railway URL
+    let host = 'localhost';
+    if (config.cors?.frontendUrl) {
+      try {
+        const frontendUrl = new URL(config.cors.frontendUrl);
+        host = frontendUrl.hostname;
+      } catch {
+        // Ignore parse errors
+      }
+    } else if (config.railway?.url) {
+      try {
+        const railwayUrl = new URL(config.railway.url);
+        host = railwayUrl.hostname;
+      } catch {
+        // Ignore parse errors
+      }
+    }
+    
+    const baseUrl = `${protocol}://${host}:${port}`;
+    const url = new URL(`/api/rooms/${roomId}/audio/regions/${regionId}`, baseUrl);
+    return url.toString();
   }
 
   extractRegionIdFromPlaybackPath(playbackPath?: string | null): string | null {
@@ -158,7 +195,7 @@ export class AudioRegionStorageService {
         return target ? decodeURIComponent(target) : null;
       }
       const filename = path.basename(parsed.pathname);
-      return filename.replace(/\.opus$/i, '') || null;
+      return filename.replace(/\.(ogg|opus)$/i, '') || null;
     } catch {
       const match = sanitized.match(/\/regions\/([^/]+)/);
       if (match && match[1]) {
@@ -166,7 +203,7 @@ export class AudioRegionStorageService {
       }
       const filename = path.basename(sanitized);
       if (filename) {
-        return filename.replace(/\.opus$/i, '') || null;
+        return filename.replace(/\.(ogg|opus)$/i, '') || null;
       }
     }
 
@@ -177,9 +214,9 @@ export class AudioRegionStorageService {
     await new Promise<void>((resolve, reject) => {
       ffmpeg(inputPath)
         .audioCodec('libopus')
-        .audioBitrate('256k')
+        .audioBitrate('128k')
         .audioChannels(2)
-        .format('opus')
+        .format('ogg') // Use Ogg container for Opus (browser-compatible)
         .outputOptions(['-vbr', 'on'])
         .on('end', () => resolve())
         .on('error', (error: Error) => reject(error))

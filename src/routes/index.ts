@@ -6,6 +6,7 @@ import { config } from '../config/environment';
 import multer from 'multer';
 import os from 'os';
 import { AudioRegionController } from '../domains/arrange-room/infrastructure/controllers/AudioRegionController';
+import { ProjectController } from '../domains/arrange-room/infrastructure/controllers/ProjectController';
 
 const upload = multer({
   storage: multer.diskStorage({
@@ -25,7 +26,8 @@ const upload = multer({
 export const createRoutes = (
   roomHandlers: RoomHandlers,
   roomLifecycleHandler: RoomLifecycleHandler,
-  audioRegionController: AudioRegionController
+  audioRegionController: AudioRegionController,
+  projectController: ProjectController
 ): Router => {
   const router = Router();
 
@@ -104,6 +106,18 @@ export const createRoutes = (
   // Audio streaming endpoint
   router.get('/rooms/:roomId/audio/regions/:regionId', (req, res) =>
     audioRegionController.streamRegionAudio(req, res)
+  );
+
+  // Project upload endpoint
+  router.post(
+    '/rooms/:roomId/projects',
+    upload.single('project'),
+    (req, res) => projectController.uploadProject(req, res)
+  );
+
+  // Get current project for a room
+  router.get('/rooms/:roomId/projects', (req, res) =>
+    projectController.getProject(req, res)
   );
 
   return router;
