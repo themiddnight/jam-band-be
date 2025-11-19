@@ -257,7 +257,7 @@ export function isValidRoom(room: any): boolean {
     typeof room.owner === 'string' &&
     typeof room.isPrivate === 'boolean' &&
     typeof room.isHidden === 'boolean' &&
-    ['perform', 'produce'].includes(room.roomType) &&
+    ['perform', 'arrange'].includes(room.roomType) &&
     room.createdAt instanceof Date
   );
 }
