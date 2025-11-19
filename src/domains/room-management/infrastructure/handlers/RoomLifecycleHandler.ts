@@ -172,28 +172,36 @@ export class RoomLifecycleHandler {
       return;
     }
 
-    // Try to transfer ownership to any remaining user
-    const newOwner = this.roomService.getAnyUserInRoom(roomIdString);
-    if (newOwner) {
-      const result = this.roomService.transferOwnership(roomIdString, newOwner.id, oldOwner);
-      if (result) {
-        roomNamespace.emit('ownership_transferred', {
-          newOwner: result.newOwner,
-          oldOwner: result.oldOwner
-        });
+    // Try to transfer ownership to any remaining eligible musician
+    const newOwner = this.roomService.getOwnershipCandidate(roomIdString);
+    if (!newOwner) {
+      roomNamespace.emit('room_closed', { message: 'Room has no eligible owner and has been closed' });
+      this.metronomeService.cleanupRoom(roomIdString);
+      this.namespaceManager.cleanupRoomNamespace(roomIdString);
+      this.namespaceManager.cleanupApprovalNamespace(roomIdString);
+      this.roomService.deleteRoom(roomIdString);
+      this.io.emit('room_closed_broadcast', { roomId: roomIdTyped.toString() });
+      return;
+    }
 
-        // Send updated room state to all users to ensure UI consistency
-        const room = this.roomService.getRoom(roomIdString);
-        if (room) {
-          const updatedRoomData = {
-            room: {
-              ...room,
-              users: this.roomService.getRoomUsers(roomIdString),
-              pendingMembers: this.roomService.getPendingMembers(roomIdString)
-            }
-          };
-          roomNamespace.emit('room_state_updated', updatedRoomData);
-        }
+    const result = this.roomService.transferOwnership(roomIdString, newOwner.id, oldOwner);
+    if (result) {
+      roomNamespace.emit('ownership_transferred', {
+        newOwner: result.newOwner,
+        oldOwner: result.oldOwner
+      });
+
+      // Send updated room state to all users to ensure UI consistency
+      const room = this.roomService.getRoom(roomIdString);
+      if (room) {
+        const updatedRoomData = {
+          room: {
+            ...room,
+            users: this.roomService.getRoomUsers(roomIdString),
+            pendingMembers: this.roomService.getPendingMembers(roomIdString)
+          }
+        };
+        roomNamespace.emit('room_state_updated', updatedRoomData);
       }
     }
   }
@@ -228,26 +236,34 @@ export class RoomLifecycleHandler {
       return;
     }
 
-    // Try to transfer ownership to any remaining user
-    const newOwner = this.roomService.getAnyUserInRoom(roomIdString);
-    if (newOwner) {
-      const result = this.roomService.transferOwnership(roomIdString, newOwner.id, oldOwner);
-      if (result) {
-        roomNamespace.emit('ownership_transferred', {
-          newOwner: result.newOwner,
-          oldOwner: result.oldOwner
-        });
+    // Try to transfer ownership to any remaining eligible musician
+    const newOwner = this.roomService.getOwnershipCandidate(roomIdString);
+    if (!newOwner) {
+      roomNamespace.emit('room_closed', { message: 'Room has no eligible owner and has been closed' });
+      this.metronomeService.cleanupRoom(roomIdString);
+      this.namespaceManager.cleanupRoomNamespace(roomIdString);
+      this.namespaceManager.cleanupApprovalNamespace(roomIdString);
+      this.roomService.deleteRoom(roomIdString);
+      this.io.emit('room_closed_broadcast', { roomId: roomIdTyped.toString() });
+      return;
+    }
 
-        // Send updated room state to all users to ensure UI consistency
-        const updatedRoomData = {
-          room: {
-            ...room,
-            users: this.roomService.getRoomUsers(roomIdString),
-            pendingMembers: this.roomService.getPendingMembers(roomIdString)
-          }
-        };
-        roomNamespace.emit('room_state_updated', updatedRoomData);
-      }
+    const result = this.roomService.transferOwnership(roomIdString, newOwner.id, oldOwner);
+    if (result) {
+      roomNamespace.emit('ownership_transferred', {
+        newOwner: result.newOwner,
+        oldOwner: result.oldOwner
+      });
+
+      // Send updated room state to all users to ensure UI consistency
+      const updatedRoomData = {
+        room: {
+          ...room,
+          users: this.roomService.getRoomUsers(roomIdString),
+          pendingMembers: this.roomService.getPendingMembers(roomIdString)
+        }
+      };
+      roomNamespace.emit('room_state_updated', updatedRoomData);
     }
   }
 
@@ -601,7 +617,7 @@ export class RoomLifecycleHandler {
     } else if (isInGracePeriod) {
       // User is in grace period (disconnected, not intentionally left), restore them to the room
       this.roomService.addUserToRoom(roomIdString, user);
-      this.roomService.removeFromGracePeriod(userIdString);
+      this.roomService.removeFromGracePeriod(userIdString, roomIdString);
 
       this.roomService.ensureUserEffectChains(user);
       socket.join(roomIdString);
