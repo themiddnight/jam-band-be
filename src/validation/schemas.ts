@@ -251,6 +251,20 @@ export const arrangeRegionMoveSchema = Joi.object({
   deltaBeats: Joi.number().required(),
 });
 
+export const arrangeRegionDragSchema = Joi.object({
+  roomId: Joi.string().uuid().required(),
+  updates: Joi.array()
+    .items(
+      Joi.object({
+        regionId: Joi.string().required(),
+        newStart: Joi.number().min(0).required(),
+        trackId: Joi.string().optional(),
+      })
+    )
+    .min(1)
+    .required(),
+});
+
 export const arrangeRegionDeleteSchema = Joi.object({
   roomId: Joi.string().uuid().required(),
   regionId: Joi.string().required(),

@@ -32,22 +32,23 @@ import {
   arrangeTrackAddSchema,
   arrangeTrackUpdateSchema,
   arrangeTrackDeleteSchema,
-  arrangeTrackInstrumentChangeSchema,
   arrangeTrackReorderSchema,
+  arrangeTrackInstrumentChangeSchema,
   arrangeRegionAddSchema,
   arrangeRegionUpdateSchema,
   arrangeRegionMoveSchema,
+  arrangeRegionDragSchema,
   arrangeRegionDeleteSchema,
   arrangeNoteAddSchema,
   arrangeNoteUpdateSchema,
   arrangeNoteDeleteSchema,
   arrangeEffectChainUpdateSchema,
-  arrangeSelectionChangeSchema,
-  arrangeLockAcquireSchema,
-  arrangeLockReleaseSchema,
   arrangeSynthParamsUpdateSchema,
   arrangeBpmUpdateSchema,
   arrangeTimeSignatureUpdateSchema,
+  arrangeSelectionChangeSchema,
+  arrangeLockAcquireSchema,
+  arrangeLockReleaseSchema,
 } from '../validation/schemas';
 
 export class NamespaceEventHandlers {
@@ -687,6 +688,11 @@ export class NamespaceEventHandlers {
       socket.on('arrange:region_move', (data) => {
         secureSocketEvent('arrange:region_move', arrangeRegionMoveSchema,
           (socket, data) => this.arrangeRoomHandler.handleRegionMove(socket, namespace, data))(socket, data);
+      });
+
+      socket.on('arrange:region_drag', (data) => {
+        secureSocketEvent('arrange:region_drag', arrangeRegionDragSchema,
+          (socket, data) => this.arrangeRoomHandler.handleRegionDrag(socket, namespace, data))(socket, data);
       });
 
       socket.on('arrange:region_delete', (data) => {
