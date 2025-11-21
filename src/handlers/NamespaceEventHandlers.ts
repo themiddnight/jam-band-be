@@ -27,7 +27,30 @@ import {
   requestVoiceParticipantsSchema,
   updateMetronomeSchema,
   approvalRequestSchema,
-  approvalCancelSchema
+  approvalCancelSchema,
+  arrangeRequestStateSchema,
+  arrangeTrackAddSchema,
+  arrangeTrackUpdateSchema,
+  arrangeTrackDeleteSchema,
+  arrangeTrackReorderSchema,
+  arrangeTrackInstrumentChangeSchema,
+  arrangeRegionAddSchema,
+  arrangeRegionUpdateSchema,
+  arrangeRegionMoveSchema,
+  arrangeRegionDragSchema,
+  arrangeRegionDeleteSchema,
+  arrangeRecordingPreviewSchema,
+  arrangeRecordingPreviewEndSchema,
+  arrangeNoteAddSchema,
+  arrangeNoteUpdateSchema,
+  arrangeNoteDeleteSchema,
+  arrangeEffectChainUpdateSchema,
+  arrangeSynthParamsUpdateSchema,
+  arrangeBpmUpdateSchema,
+  arrangeTimeSignatureUpdateSchema,
+  arrangeSelectionChangeSchema,
+  arrangeLockAcquireSchema,
+  arrangeLockReleaseSchema,
 } from '../validation/schemas';
 
 export class NamespaceEventHandlers {
@@ -45,7 +68,8 @@ export class NamespaceEventHandlers {
     private chatHandler: ChatHandler,
     private metronomeHandler: MetronomeHandler,
     private notePlayingHandler: NotePlayingHandler,
-    private instrumentSwapHandler: InstrumentSwapHandler
+    private instrumentSwapHandler: InstrumentSwapHandler,
+    private arrangeRoomHandler?: any // ArrangeRoomHandler - optional to avoid breaking existing code
   ) {
     this.errorRecoveryService = new BackendErrorRecoveryService();
   }
@@ -273,6 +297,11 @@ export class NamespaceEventHandlers {
           const session = this.roomSessionManager.getRoomSession(socket.id);
           if (session) {
             this.instrumentSwapHandler.handleUserDisconnect(session.userId, namespace);
+            
+            // Clean up arrange room locks if this is an arrange room
+            if (this.arrangeRoomHandler) {
+              this.arrangeRoomHandler.handleUserLeave(session.roomId, session.userId, namespace);
+            }
           }
           
           // Clean up session
@@ -615,6 +644,124 @@ export class NamespaceEventHandlers {
         });
       }
     });
+
+    // Arrange room events (only if handler is available)
+    if (this.arrangeRoomHandler) {
+      socket.on('arrange:request_state', (data) => {
+        secureSocketEvent('arrange:request_state', arrangeRequestStateSchema,
+          (socket, data) => this.arrangeRoomHandler.handleRequestState(socket, data))(socket, data);
+      });
+
+      socket.on('arrange:track_add', (data) => {
+        secureSocketEvent('arrange:track_add', arrangeTrackAddSchema,
+          (socket, data) => this.arrangeRoomHandler.handleTrackAdd(socket, namespace, data))(socket, data);
+      });
+
+      socket.on('arrange:track_update', (data) => {
+        secureSocketEvent('arrange:track_update', arrangeTrackUpdateSchema,
+          (socket, data) => this.arrangeRoomHandler.handleTrackUpdate(socket, namespace, data))(socket, data);
+      });
+
+      socket.on('arrange:track_delete', (data) => {
+        secureSocketEvent('arrange:track_delete', arrangeTrackDeleteSchema,
+          (socket, data) => this.arrangeRoomHandler.handleTrackDelete(socket, namespace, data))(socket, data);
+      });
+
+      socket.on('arrange:track_instrument_change', (data) => {
+        secureSocketEvent('arrange:track_instrument_change', arrangeTrackInstrumentChangeSchema,
+          (socket, data) => this.arrangeRoomHandler.handleTrackInstrumentChange(socket, namespace, data))(socket, data);
+      });
+
+      socket.on('arrange:track_reorder', (data) => {
+        secureSocketEvent('arrange:track_reorder', arrangeTrackReorderSchema,
+          (socket, data) => this.arrangeRoomHandler.handleTrackReorder(socket, namespace, data))(socket, data);
+      });
+
+      socket.on('arrange:region_add', (data) => {
+        secureSocketEvent('arrange:region_add', arrangeRegionAddSchema,
+          (socket, data) => this.arrangeRoomHandler.handleRegionAdd(socket, namespace, data))(socket, data);
+      });
+
+      socket.on('arrange:region_update', (data) => {
+        secureSocketEvent('arrange:region_update', arrangeRegionUpdateSchema,
+          (socket, data) => this.arrangeRoomHandler.handleRegionUpdate(socket, namespace, data))(socket, data);
+      });
+
+      socket.on('arrange:region_move', (data) => {
+        secureSocketEvent('arrange:region_move', arrangeRegionMoveSchema,
+          (socket, data) => this.arrangeRoomHandler.handleRegionMove(socket, namespace, data))(socket, data);
+      });
+
+      socket.on('arrange:region_drag', (data) => {
+        secureSocketEvent('arrange:region_drag', arrangeRegionDragSchema,
+          (socket, data) => this.arrangeRoomHandler.handleRegionDrag(socket, namespace, data))(socket, data);
+      });
+
+      socket.on('arrange:region_delete', (data) => {
+        secureSocketEvent('arrange:region_delete', arrangeRegionDeleteSchema,
+          (socket, data) => this.arrangeRoomHandler.handleRegionDelete(socket, namespace, data))(socket, data);
+      });
+
+      socket.on('arrange:recording_preview', (data) => {
+        secureSocketEvent('arrange:recording_preview', arrangeRecordingPreviewSchema,
+          (socket, data) => this.arrangeRoomHandler.handleRecordingPreview(socket, namespace, data))(socket, data);
+      });
+
+      socket.on('arrange:recording_preview_end', (data) => {
+        secureSocketEvent('arrange:recording_preview_end', arrangeRecordingPreviewEndSchema,
+          (socket, data) => this.arrangeRoomHandler.handleRecordingPreviewEnd(socket, namespace, data))(socket, data);
+      });
+
+      socket.on('arrange:note_add', (data) => {
+        secureSocketEvent('arrange:note_add', arrangeNoteAddSchema,
+          (socket, data) => this.arrangeRoomHandler.handleNoteAdd(socket, namespace, data))(socket, data);
+      });
+
+      socket.on('arrange:note_update', (data) => {
+        secureSocketEvent('arrange:note_update', arrangeNoteUpdateSchema,
+          (socket, data) => this.arrangeRoomHandler.handleNoteUpdate(socket, namespace, data))(socket, data);
+      });
+
+      socket.on('arrange:note_delete', (data) => {
+        secureSocketEvent('arrange:note_delete', arrangeNoteDeleteSchema,
+          (socket, data) => this.arrangeRoomHandler.handleNoteDelete(socket, namespace, data))(socket, data);
+      });
+
+      socket.on('arrange:effect_chain_update', (data) => {
+        secureSocketEvent('arrange:effect_chain_update', arrangeEffectChainUpdateSchema,
+          (socket, data) => this.arrangeRoomHandler.handleEffectChainUpdate(socket, namespace, data))(socket, data);
+      });
+
+      socket.on('arrange:synth_params_update', (data) => {
+        secureSocketEvent('arrange:synth_params_update', arrangeSynthParamsUpdateSchema,
+          (socket, data) => this.arrangeRoomHandler.handleSynthParamsUpdate(socket, namespace, data))(socket, data);
+      });
+
+      socket.on('arrange:bpm_change', (data) => {
+        secureSocketEvent('arrange:bpm_change', arrangeBpmUpdateSchema,
+          (socket, data) => this.arrangeRoomHandler.handleBpmChange(socket, namespace, data))(socket, data);
+      });
+
+      socket.on('arrange:time_signature_change', (data) => {
+        secureSocketEvent('arrange:time_signature_change', arrangeTimeSignatureUpdateSchema,
+          (socket, data) => this.arrangeRoomHandler.handleTimeSignatureChange(socket, namespace, data))(socket, data);
+      });
+
+      socket.on('arrange:selection_change', (data) => {
+        secureSocketEvent('arrange:selection_change', arrangeSelectionChangeSchema,
+          (socket, data) => this.arrangeRoomHandler.handleSelectionChange(socket, namespace, data))(socket, data);
+      });
+
+      socket.on('arrange:lock_acquire', (data) => {
+        secureSocketEvent('arrange:lock_acquire', arrangeLockAcquireSchema,
+          (socket, data) => this.arrangeRoomHandler.handleLockAcquire(socket, namespace, data))(socket, data);
+      });
+
+      socket.on('arrange:lock_release', (data) => {
+        secureSocketEvent('arrange:lock_release', arrangeLockReleaseSchema,
+          (socket, data) => this.arrangeRoomHandler.handleLockRelease(socket, namespace, data))(socket, data);
+      });
+    }
   }
 
   /**
