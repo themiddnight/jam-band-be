@@ -7,6 +7,8 @@ import multer from 'multer';
 import os from 'os';
 import { AudioRegionController } from '../domains/arrange-room/infrastructure/controllers/AudioRegionController';
 import { ProjectController } from '../domains/arrange-room/infrastructure/controllers/ProjectController';
+import analyticsRoutes from './analytics';
+import feedbackRoutes from './feedback';
 
 const upload = multer({
   storage: multer.diskStorage({
@@ -119,6 +121,9 @@ export const createRoutes = (
   router.get('/rooms/:roomId/projects', (req, res) =>
     projectController.getProject(req, res)
   );
+  // Mount analytics and feedback routes
+  router.use(analyticsRoutes);
+  router.use(feedbackRoutes);
 
   return router;
 };
