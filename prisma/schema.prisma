@@ -1,0 +1,133 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RoomType {
+  PERFORM
+  PRODUCE
+}
+
+enum UserRole {
+  ROOM_OWNER
+  BAND_MEMBER
+  AUDIENCE
+}
+
+enum FeedbackCategory {
+  BUG_REPORT
+  FEATURE_REQUEST
+  GENERAL_FEEDBACK
+}
+
+enum ExperienceLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+model User {
+  id                String        @id @default(uuid()) @db.Uuid
+  username          String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  firstSeen         DateTime      @default(now())
+  lastSeen          DateTime      @default(now())
+  totalSessions     Int           @default(0)
+  totalRoomsCreated Int           @default(0)
+  totalRoomsJoined  Int           @default(0)
+  preferences       Json?
+
+  sessions          RoomSession[]
+  feedbacks         UserFeedback[]
+
+  @@index([username])
+  @@index([lastSeen])
+}
+
+model Room {
+  id            String       @id @default(uuid()) @db.Uuid
+  externalId    String?      @unique
+  name          String?
+  description   String?
+  ownerId       String?      @db.Uuid
+  roomType      RoomType     @default(PERFORM)
+  isPrivate     Boolean      @default(false)
+  isHidden      Boolean      @default(false)
+  createdAt     DateTime     @default(now())
+  closedAt      DateTime?
+  settings      Json?
+
+  sessions      RoomSession[]
+  feedbacks     UserFeedback[]
+
+  @@index([ownerId])
+  @@index([createdAt])
+}
+
+model RoomSession {
+  id               String     @id @default(uuid()) @db.Uuid
+  roomId           String?    @db.Uuid
+  room             Room?      @relation(fields: [roomId], references: [id])
+
+  externalRoomId   String
+
+  userId           String?    @db.Uuid
+  user             User?      @relation(fields: [userId], references: [id])
+
+  anonymousId      String
+  role             UserRole    @default(AUDIENCE)
+  joinedAt         DateTime    @default(now())
+  leftAt           DateTime?
+  durationSeconds  Int?
+  instrumentUsed   String?
+  wasKicked        Boolean     @default(false)
+
+  usernameSnapshot String?
+
+  @@index([userId])
+  @@index([anonymousId])
+  @@index([roomId])
+  @@index([externalRoomId])
+  @@index([joinedAt])
+}
+
+model UserFeedback {
+  id               String            @id @default(uuid()) @db.Uuid
+  userId           String?           @db.Uuid
+  user             User?             @relation(fields: [userId], references: [id])
+
+  anonymousId      String
+  category         FeedbackCategory
+  experienceLevel  ExperienceLevel
+  rating           Int?
+  message          String?
+  usagePurposes    String[]
+
+  submittedAt      DateTime          @default(now())
+  roomId           String?           @db.Uuid
+  room             Room?             @relation(fields: [roomId], references: [id])
+  externalRoomId   String?
+  roleUsed         UserRole?
+  usernameSnapshot String?
+
+  country          String?
+  city             String?
+  timezone         String?
+  userAgent        String?
+  ipAddress        String?
+
+  @@index([userId])
+  @@index([anonymousId])
+  @@index([category])
+  @@index([submittedAt])
+  @@index([rating])
+}
+
