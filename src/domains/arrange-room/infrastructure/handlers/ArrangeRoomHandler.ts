@@ -456,6 +456,89 @@ export class ArrangeRoomHandler {
   }
 
   /**
+   * Handle batched region drag updates
+   */
+  handleRegionDrag(socket: Socket, namespace: Namespace, data: { roomId: string; updates: Array<{ regionId: string; newStart: number; trackId?: string }> }): void {
+    const session = this.getSession(socket);
+    if (!session || session.roomId !== data.roomId) {
+      return;
+    }
+
+    if (!data.updates || data.updates.length === 0) {
+      return;
+    }
+
+    // Ensure no conflicting locks before applying updates
+    for (const update of data.updates) {
+      const lock = this.arrangeRoomStateService.isLocked(data.roomId, update.regionId);
+      if (lock && lock.userId !== session.userId) {
+        socket.emit('arrange:lock_conflict', { elementId: update.regionId, lockedBy: lock.username });
+        return;
+      }
+    }
+
+    let state = this.arrangeRoomStateService.getState(data.roomId);
+    if (!state) {
+      return;
+    }
+
+    const broadcastUpdates: Array<{ regionId: string; newStart: number; trackId?: string }> = [];
+
+    try {
+      for (const update of data.updates) {
+        const region = state.regions.find((r) => r.id === update.regionId);
+        if (!region) {
+          continue;
+        }
+
+        const sanitizedStart = Math.max(0, update.newStart);
+        const nextTrackId = update.trackId ?? region.trackId;
+
+        if (update.trackId && !state.tracks.some((track) => track.id === update.trackId)) {
+          continue;
+        }
+
+        const updatesToApply: Partial<Region> = { start: sanitizedStart };
+        if (nextTrackId && nextTrackId !== region.trackId) {
+          updatesToApply.trackId = nextTrackId;
+        }
+
+        state = this.arrangeRoomStateService.updateRegion(data.roomId, region.id, updatesToApply);
+
+        const payload: { regionId: string; newStart: number; trackId?: string } = {
+          regionId: region.id,
+          newStart: sanitizedStart,
+        };
+        if (updatesToApply.trackId) {
+          payload.trackId = updatesToApply.trackId;
+        }
+        broadcastUpdates.push(payload);
+      }
+
+      if (broadcastUpdates.length === 0) {
+        return;
+      }
+
+      namespace.to(data.roomId).emit('arrange:region_dragged', {
+        updates: broadcastUpdates,
+        userId: session.userId,
+      });
+      loggingService.logInfo('Regions dragged', {
+        roomId: data.roomId,
+        updates: broadcastUpdates.map((update) => ({
+          regionId: update.regionId,
+          newStart: update.newStart,
+          trackId: update.trackId,
+        })),
+        userId: session.userId,
+      });
+    } catch (error) {
+      loggingService.logError(error as Error, { context: 'ArrangeRoomHandler:handleRegionDrag', roomId: data.roomId });
+      socket.emit('error', { message: 'Failed to apply region drag updates' });
+    }
+  }
+
+  /**
    * Handle region delete
    */
   handleRegionDelete(socket: Socket, namespace: Namespace, data: { roomId: string; regionId: string }): void {
@@ -778,8 +861,58 @@ export class ArrangeRoomHandler {
   /**
    * Clean up locks when user leaves
    */
-  handleUserLeave(roomId: string, userId: string): void {
-    this.arrangeRoomStateService.releaseUserLocks(roomId, userId);
+  handleUserLeave(roomId: string, userId: string, namespace: Namespace): void {
+    const releasedElementIds = this.arrangeRoomStateService.releaseUserLocks(roomId, userId);
+    if (!releasedElementIds.length) {
+      return;
+    }
+
+    releasedElementIds.forEach((elementId) => {
+      namespace.to(roomId).emit('arrange:lock_released', { elementId });
+    });
   }
+
+  /**
+   * Handle realtime recording preview updates
+   */
+  handleRecordingPreview(
+    socket: Socket,
+    namespace: Namespace,
+    data: {
+      roomId: string;
+      preview: {
+        trackId: string;
+        recordingType: 'midi' | 'audio';
+        startBeat: number;
+        durationBeats: number;
+      };
+    }
+  ): void {
+    const session = this.getSession(socket);
+    if (!session || session.roomId !== data.roomId) {
+      return;
+    }
+
+    namespace.to(data.roomId).emit('arrange:recording_preview', {
+      userId: session.userId,
+      username: session.username,
+      preview: data.preview,
+    });
+  }
+
+  /**
+   * Handle recording preview end events
+   */
+  handleRecordingPreviewEnd(socket: Socket, namespace: Namespace, data: { roomId: string }): void {
+    const session = this.getSession(socket);
+    if (!session || session.roomId !== data.roomId) {
+      return;
+    }
+
+    namespace.to(data.roomId).emit('arrange:recording_preview_end', {
+      userId: session.userId,
+    });
+  }
+
 }
 

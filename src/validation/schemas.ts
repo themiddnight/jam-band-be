@@ -225,14 +225,14 @@ export const arrangeRegionUpdateSchema = Joi.object({
     notes: Joi.array().items(Joi.object({
       id: Joi.string().required(),
       pitch: Joi.number().min(0).max(127).required(),
-      start: Joi.number().min(0).required(),
+      start: Joi.number().required(), // Allow negative values for notes outside region bounds
       duration: Joi.number().min(0.01).required(),
       velocity: Joi.number().min(0).max(127).required(),
     })).optional(),
     sustainEvents: Joi.array().items(Joi.object({
       id: Joi.string().required(),
-      start: Joi.number().min(0).required(),
-      end: Joi.number().min(0).required(),
+      start: Joi.number().required(), // Allow negative values for events outside region bounds
+      end: Joi.number().required(), // Allow negative values for events outside region bounds
     })).optional(),
     // Audio region specific
     trimStart: Joi.number().min(0).optional(),
@@ -251,9 +251,37 @@ export const arrangeRegionMoveSchema = Joi.object({
   deltaBeats: Joi.number().required(),
 });
 
+export const arrangeRegionDragSchema = Joi.object({
+  roomId: Joi.string().uuid().required(),
+  updates: Joi.array()
+    .items(
+      Joi.object({
+        regionId: Joi.string().required(),
+        newStart: Joi.number().min(0).required(),
+        trackId: Joi.string().optional(),
+      })
+    )
+    .min(1)
+    .required(),
+});
+
 export const arrangeRegionDeleteSchema = Joi.object({
   roomId: Joi.string().uuid().required(),
   regionId: Joi.string().required(),
+});
+
+export const arrangeRecordingPreviewSchema = Joi.object({
+  roomId: Joi.string().uuid().required(),
+  preview: Joi.object({
+    trackId: Joi.string().required(),
+    recordingType: Joi.string().valid('midi', 'audio').required(),
+    startBeat: Joi.number().min(0).required(),
+    durationBeats: Joi.number().min(0).required(),
+  }).required(),
+});
+
+export const arrangeRecordingPreviewEndSchema = Joi.object({
+  roomId: Joi.string().uuid().required(),
 });
 
 export const arrangeNoteAddSchema = Joi.object({
@@ -263,7 +291,7 @@ export const arrangeNoteAddSchema = Joi.object({
     id: Joi.string().required(),
     pitch: Joi.number().min(0).max(127).required(),
     velocity: Joi.number().min(0).max(127).required(),
-    start: Joi.number().min(0).required(),
+    start: Joi.number().required(), // Allow negative values for notes outside region bounds
     duration: Joi.number().min(0.25).required(),
   }).required(),
 });
@@ -275,7 +303,7 @@ export const arrangeNoteUpdateSchema = Joi.object({
   updates: Joi.object({
     pitch: Joi.number().min(0).max(127).optional(),
     velocity: Joi.number().min(0).max(127).optional(),
-    start: Joi.number().min(0).optional(),
+    start: Joi.number().optional(), // Allow negative values for notes outside region bounds
     duration: Joi.number().min(0.25).optional(),
   }).min(1).required(),
 });
@@ -321,7 +349,7 @@ export const arrangeSelectionChangeSchema = Joi.object({
 export const arrangeLockAcquireSchema = Joi.object({
   roomId: Joi.string().uuid().required(),
   elementId: Joi.string().required(),
-  type: Joi.string().valid('region', 'track', 'track_property').required(),
+  type: Joi.string().valid('region', 'track', 'track_property', 'note', 'sustain', 'control').required(),
 });
 
 export const arrangeLockReleaseSchema = Joi.object({

@@ -110,9 +110,21 @@ export class AudioRegionController {
 
     const filePath = this.audioStorage.resolveRegionFilePath(roomId, regionId);
     if (!filePath) {
+      loggingService.logInfo('Audio file not found', {
+        context: 'AudioRegionController:streamRegionAudio',
+        roomId,
+        regionId,
+      });
       res.status(404).json({ success: false, message: 'Audio file not found' });
       return;
     }
+
+    loggingService.logInfo('Streaming audio region', {
+      context: 'AudioRegionController:streamRegionAudio',
+      roomId,
+      regionId,
+      filePath,
+    });
 
     try {
       const stat = await fs.promises.stat(filePath);

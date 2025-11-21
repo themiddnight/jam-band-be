@@ -44,6 +44,7 @@ import { ArrangeRoomStateService } from "./services/ArrangeRoomStateService";
 import { ArrangeRoomHandler } from "./domains/arrange-room/infrastructure/handlers/ArrangeRoomHandler";
 import { AudioRegionStorageService } from "./services/AudioRegionStorageService";
 import { AudioRegionController } from "./domains/arrange-room/infrastructure/controllers/AudioRegionController";
+import { ProjectController } from "./domains/arrange-room/infrastructure/controllers/ProjectController";
 
 import { NamespaceManager } from "./services/NamespaceManager";
 import { RoomSessionManager } from "./services/RoomSessionManager";
@@ -160,6 +161,11 @@ const audioRegionStorageService = new AudioRegionStorageService();
 const audioRegionController = new AudioRegionController(
   roomService,
   audioRegionStorageService
+);
+const projectController = new ProjectController(
+  audioRegionStorageService,
+  arrangeRoomStateService,
+  io
 );
 
 // Initialize room lifecycle handler with event bus
@@ -304,7 +310,7 @@ app.use(
 app.use(sanitizeInput);
 
 // Routes
-app.use("/api", createRoutes(roomHandlers, roomLifecycleHandler, audioRegionController));
+app.use("/api", createRoutes(roomHandlers, roomLifecycleHandler, audioRegionController, projectController));
 
 // Performance monitoring routes (skip if optimization service is disabled)
 import { createPerformanceRoutes } from "./routes/performance";

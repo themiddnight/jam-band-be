@@ -45,6 +45,26 @@ export class RoomLifecycleHandler {
     return typeof roomId === 'string' ? RoomId.fromString(roomId) : roomId;
   }
 
+  private releaseArrangeLocksForUser(roomId: string, userId: string): void {
+    if (!this.arrangeRoomStateService) {
+      return;
+    }
+
+    const releasedElementIds = this.arrangeRoomStateService.releaseUserLocks(roomId, userId);
+    if (!releasedElementIds.length) {
+      return;
+    }
+
+    const roomNamespace = this.getOrCreateRoomNamespace(roomId);
+    if (!roomNamespace) {
+      return;
+    }
+
+    releasedElementIds.forEach((elementId) => {
+      roomNamespace.to(roomId).emit('arrange:lock_released', { elementId });
+    });
+  }
+
   /**
    * Helper method to ensure UserId type safety while maintaining backward compatibility
    */
@@ -817,6 +837,9 @@ export class RoomLifecycleHandler {
       this.roomSessionManager.removeSession(socket.id);
       return;
     }
+
+    // Release arrange locks held by this user
+    this.releaseArrangeLocksForUser(roomIdString, userIdString);
 
     // If room owner leaves, handle ownership transfer or room closure
     if (user.role === 'room_owner') {

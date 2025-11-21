@@ -281,20 +281,23 @@ export class ArrangeRoomStateService {
   /**
    * Release all locks for a user (e.g., when they leave)
    */
-  releaseUserLocks(roomId: string, userId: string): void {
+  releaseUserLocks(roomId: string, userId: string): string[] {
     const state = this.getState(roomId);
     if (!state) {
-      return;
+      return [];
     }
 
     const newLocks = new Map(state.locks);
+    const releasedElementIds: string[] = [];
     for (const [elementId, lock] of state.locks.entries()) {
       if (lock.userId === userId) {
         newLocks.delete(elementId);
+        releasedElementIds.push(elementId);
       }
     }
 
     this.updateState(roomId, { locks: newLocks });
+    return releasedElementIds;
   }
 
   /**

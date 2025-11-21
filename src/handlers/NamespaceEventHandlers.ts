@@ -32,22 +32,25 @@ import {
   arrangeTrackAddSchema,
   arrangeTrackUpdateSchema,
   arrangeTrackDeleteSchema,
-  arrangeTrackInstrumentChangeSchema,
   arrangeTrackReorderSchema,
+  arrangeTrackInstrumentChangeSchema,
   arrangeRegionAddSchema,
   arrangeRegionUpdateSchema,
   arrangeRegionMoveSchema,
+  arrangeRegionDragSchema,
   arrangeRegionDeleteSchema,
+  arrangeRecordingPreviewSchema,
+  arrangeRecordingPreviewEndSchema,
   arrangeNoteAddSchema,
   arrangeNoteUpdateSchema,
   arrangeNoteDeleteSchema,
   arrangeEffectChainUpdateSchema,
-  arrangeSelectionChangeSchema,
-  arrangeLockAcquireSchema,
-  arrangeLockReleaseSchema,
   arrangeSynthParamsUpdateSchema,
   arrangeBpmUpdateSchema,
   arrangeTimeSignatureUpdateSchema,
+  arrangeSelectionChangeSchema,
+  arrangeLockAcquireSchema,
+  arrangeLockReleaseSchema,
 } from '../validation/schemas';
 
 export class NamespaceEventHandlers {
@@ -297,7 +300,7 @@ export class NamespaceEventHandlers {
             
             // Clean up arrange room locks if this is an arrange room
             if (this.arrangeRoomHandler) {
-              this.arrangeRoomHandler.handleUserLeave(session.roomId, session.userId);
+              this.arrangeRoomHandler.handleUserLeave(session.roomId, session.userId, namespace);
             }
           }
           
@@ -689,9 +692,24 @@ export class NamespaceEventHandlers {
           (socket, data) => this.arrangeRoomHandler.handleRegionMove(socket, namespace, data))(socket, data);
       });
 
+      socket.on('arrange:region_drag', (data) => {
+        secureSocketEvent('arrange:region_drag', arrangeRegionDragSchema,
+          (socket, data) => this.arrangeRoomHandler.handleRegionDrag(socket, namespace, data))(socket, data);
+      });
+
       socket.on('arrange:region_delete', (data) => {
         secureSocketEvent('arrange:region_delete', arrangeRegionDeleteSchema,
           (socket, data) => this.arrangeRoomHandler.handleRegionDelete(socket, namespace, data))(socket, data);
+      });
+
+      socket.on('arrange:recording_preview', (data) => {
+        secureSocketEvent('arrange:recording_preview', arrangeRecordingPreviewSchema,
+          (socket, data) => this.arrangeRoomHandler.handleRecordingPreview(socket, namespace, data))(socket, data);
+      });
+
+      socket.on('arrange:recording_preview_end', (data) => {
+        secureSocketEvent('arrange:recording_preview_end', arrangeRecordingPreviewEndSchema,
+          (socket, data) => this.arrangeRoomHandler.handleRecordingPreviewEnd(socket, namespace, data))(socket, data);
       });
 
       socket.on('arrange:note_add', (data) => {

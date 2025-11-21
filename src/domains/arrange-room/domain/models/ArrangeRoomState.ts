@@ -4,10 +4,18 @@ export type NoteId = string;
 
 export type TrackType = 'midi' | 'audio';
 
+export type LockType =
+  | 'region'
+  | 'track'
+  | 'track_property'
+  | 'note'
+  | 'sustain'
+  | 'control';
+
 export interface LockInfo {
   userId: string;
   username: string;
-  type: 'region' | 'track' | 'track_property';
+  type: LockType;
   timestamp: number;
 }
 
