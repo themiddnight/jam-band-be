@@ -39,6 +39,8 @@ import {
   arrangeRegionMoveSchema,
   arrangeRegionDragSchema,
   arrangeRegionDeleteSchema,
+  arrangeRecordingPreviewSchema,
+  arrangeRecordingPreviewEndSchema,
   arrangeNoteAddSchema,
   arrangeNoteUpdateSchema,
   arrangeNoteDeleteSchema,
@@ -298,7 +300,7 @@ export class NamespaceEventHandlers {
             
             // Clean up arrange room locks if this is an arrange room
             if (this.arrangeRoomHandler) {
-              this.arrangeRoomHandler.handleUserLeave(session.roomId, session.userId);
+              this.arrangeRoomHandler.handleUserLeave(session.roomId, session.userId, namespace);
             }
           }
           
@@ -698,6 +700,16 @@ export class NamespaceEventHandlers {
       socket.on('arrange:region_delete', (data) => {
         secureSocketEvent('arrange:region_delete', arrangeRegionDeleteSchema,
           (socket, data) => this.arrangeRoomHandler.handleRegionDelete(socket, namespace, data))(socket, data);
+      });
+
+      socket.on('arrange:recording_preview', (data) => {
+        secureSocketEvent('arrange:recording_preview', arrangeRecordingPreviewSchema,
+          (socket, data) => this.arrangeRoomHandler.handleRecordingPreview(socket, namespace, data))(socket, data);
+      });
+
+      socket.on('arrange:recording_preview_end', (data) => {
+        secureSocketEvent('arrange:recording_preview_end', arrangeRecordingPreviewEndSchema,
+          (socket, data) => this.arrangeRoomHandler.handleRecordingPreviewEnd(socket, namespace, data))(socket, data);
       });
 
       socket.on('arrange:note_add', (data) => {

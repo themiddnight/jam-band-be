@@ -861,8 +861,58 @@ export class ArrangeRoomHandler {
   /**
    * Clean up locks when user leaves
    */
-  handleUserLeave(roomId: string, userId: string): void {
-    this.arrangeRoomStateService.releaseUserLocks(roomId, userId);
+  handleUserLeave(roomId: string, userId: string, namespace: Namespace): void {
+    const releasedElementIds = this.arrangeRoomStateService.releaseUserLocks(roomId, userId);
+    if (!releasedElementIds.length) {
+      return;
+    }
+
+    releasedElementIds.forEach((elementId) => {
+      namespace.to(roomId).emit('arrange:lock_released', { elementId });
+    });
   }
+
+  /**
+   * Handle realtime recording preview updates
+   */
+  handleRecordingPreview(
+    socket: Socket,
+    namespace: Namespace,
+    data: {
+      roomId: string;
+      preview: {
+        trackId: string;
+        recordingType: 'midi' | 'audio';
+        startBeat: number;
+        durationBeats: number;
+      };
+    }
+  ): void {
+    const session = this.getSession(socket);
+    if (!session || session.roomId !== data.roomId) {
+      return;
+    }
+
+    namespace.to(data.roomId).emit('arrange:recording_preview', {
+      userId: session.userId,
+      username: session.username,
+      preview: data.preview,
+    });
+  }
+
+  /**
+   * Handle recording preview end events
+   */
+  handleRecordingPreviewEnd(socket: Socket, namespace: Namespace, data: { roomId: string }): void {
+    const session = this.getSession(socket);
+    if (!session || session.roomId !== data.roomId) {
+      return;
+    }
+
+    namespace.to(data.roomId).emit('arrange:recording_preview_end', {
+      userId: session.userId,
+    });
+  }
+
 }
 
