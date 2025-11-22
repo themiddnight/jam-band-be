@@ -773,6 +773,15 @@ export class NamespaceEventHandlers {
       socket.on('arrange:marker_delete', (data) => {
         this.arrangeRoomHandler.handleMarkerDelete(socket, namespace, data);
       });
+
+      // Broadcast events
+      socket.on('arrange:broadcast_state', (data) => {
+        this.arrangeRoomHandler.handleBroadcastState(socket, namespace, data);
+      });
+
+      socket.on('arrange:broadcast_note', (data) => {
+        this.arrangeRoomHandler.handleBroadcastNote(socket, namespace, data);
+      });
     }
   }
 
