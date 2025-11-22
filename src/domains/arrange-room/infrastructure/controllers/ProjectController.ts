@@ -150,7 +150,7 @@ export class ProjectController {
         regions: projectData.regions || [],
         bpm: projectData.project?.bpm || 120,
         timeSignature: projectData.project?.timeSignature || { numerator: 4, denominator: 4 },
-        synthStates: {},
+        synthStates: projectData.synthStates || {},
         selectedTrackId: null,
         selectedRegionIds: [],
       });

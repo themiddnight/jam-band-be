@@ -40,5 +40,4 @@ Thumbs.db
 .tmp/
 .cache/ 
 .selfsigned
-.env.example
 .ssl
