@@ -2,7 +2,7 @@
 
 A TypeScript Express.js backend for the Jam Band application with **dual room architecture**:
 - **Perform Rooms**: Real-time jamming sessions with ultra-low latency audio sync
-- **Produce Rooms (Future)**: Revolutionary collaborative DAW for multi-user music production
+- **Arrange Rooms**: Collaborative DAW for multi-user music production with real-time timeline editing
 
 Provides REST endpoints, WebSocket/Socket.IO handlers for real-time features, and WebRTC signaling support for voice communication.
 
@@ -13,8 +13,8 @@ Provides REST endpoints, WebSocket/Socket.IO handlers for real-time features, an
 - **Runtime**: Node.js 18+ (Bun compatible)
 - **Architecture**: Domain-Driven Design (DDD) with modular bounded contexts
 - **Room Types**: 
-  - **Perform Room** (Current): Live jamming with ephemeral sessions
-  - **Produce Room** (Future): Collaborative DAW with persistent projects
+  - **Perform Room**: Live jamming with ephemeral sessions
+  - **Arrange Room**: Collaborative DAW with real-time multi-track production
 - **Purpose**: Room management, real-time collaboration, WebRTC voice, and audio processing
 
 ## Requirements
@@ -136,51 +136,53 @@ Important variables (see `env.local.example` and `env.production.example`):
 - `ENABLE_PERFORMANCE_MONITORING` — Enable performance tracking
 - `DISABLE_SYNTH_RATE_LIMIT` — Disable synthesizer rate limiting
 
-### Future: Collaborative DAW (Produce Rooms)
-- `DATABASE_URL` — PostgreSQL connection for persistent projects
-- `REDIS_URL` — Redis cache for real-time operations
-- `ENABLE_COLLABORATIVE_FEATURES` — Feature flag for collaborative DAW
-- `PROJECT_STORAGE_PATH` — File storage path for audio files
+### Arrange Room (Collaborative DAW)
+- `AUDIO_STORAGE_PATH` — File storage path for recorded audio regions
+- `MAX_AUDIO_FILE_SIZE_MB` — Maximum audio file size limit
+- `PROJECT_STORAGE_PATH` — File storage path for project files
 - `MAX_PROJECT_SIZE_MB` — Maximum project file size limit
-- `OPERATIONAL_TRANSFORM_ENABLED` — Enable advanced conflict resolution
 
 Always store production secrets securely and do not commit `.env` files to source control.
 
 ## Room Architecture 🏗️
 
-### Current Implementation (Perform Rooms)
+### Perform Room (Live Jamming)
 - **Live Jamming**: Real-time instrument synchronization across users
 - **Ephemeral Sessions**: Temporary rooms focused on live performance
 - **WebRTC Voice**: Ultra-low latency voice chat optimized for musical timing
 - **Real-time Sync**: Metronome, instruments, effects synchronized via Socket.IO
 - **Session Management**: User presence, instrument swapping, room ownership
+- **Step Sequencer**: Collaborative pattern creation and sharing
 
-### Future Implementation (Produce Rooms)
-*See `COLLABORATIVE_DAW_BACKEND_PLAN.md` for detailed architecture*
+### Arrange Room (Collaborative DAW)
+- **🎛️ Multi-track Production**: Real-time collaborative timeline editing with multiple tracks
+- **🎹 MIDI Recording**: Record and edit MIDI notes with piano roll interface
+- **🎙️ Audio Recording**: Record audio regions with waveform visualization and storage
+- **🎚️ Track Management**: Create, reorder, and configure tracks with instrument selection
+- **🔊 Synthesizer Integration**: Per-track synthesizer parameters with real-time sync
+- **🎛️ Effect Chains**: Collaborative effect chain management per track
+- **🔒 Collaborative Locking**: Smart locking system to prevent editing conflicts
+- **👥 Presence Tracking**: Real-time user selection and activity indicators
+- **💾 Project Persistence**: Save and load complete project state with all tracks and regions
+- **📊 State Synchronization**: Real-time sync of all DAW operations across users
+- **🎤 Voice Integration**: WebRTC voice chat during production sessions
 
-- **🎯 Collaborative DAW**: Multiple users editing tracks simultaneously like Google Docs for music
-- **🎨 Canvas-style Interface**: Miro/Figma-like collaboration patterns for music production
-- **📊 Real-time Timeline Editing**: Multi-user track creation, region recording, MIDI editing
-- **👥 Presence Tracking**: Live cursors, selections, and user activity indicators
-- **🔄 Conflict Resolution**: Operational Transform for handling simultaneous edits
-- **💾 Project Persistence**: Save/load collaborative projects with version history
-- **🎚️ Collaborative Mixing**: Multiple users adjusting mix parameters in real-time
-
-#### Future Backend Extensions
+#### Arrange Room Domain Structure
 ```typescript
-// New domain structure for collaborative production
-src/domains/collaborative-production/
-├── entities/     # Project, Track, Region, TimelineEvent
-├── services/     # CollaborativeProjectService, TimelineService
-├── handlers/     # CollaborativeEditingHandler, PresenceTrackingHandler
-└── repositories/ # ProjectRepository, VersionHistoryRepository
+src/domains/arrange-room/
+├── domain/
+│   └── models/         # Track, Region, Note, ArrangeRoomState
+├── infrastructure/
+│   ├── handlers/       # ArrangeRoomHandler for Socket.IO events
+│   └── controllers/    # HTTP endpoints for arrange rooms
+└── services/           # ArrangeRoomStateService for state management
 ```
 
-#### Database Schema (Future)
-- **PostgreSQL**: Projects, tracks, regions with JSONB flexibility
-- **Redis**: Real-time operation caching and presence data
-- **File Storage**: Audio files with database references
-- **Version Control**: Project snapshots and operational transform logs
+#### Arrange Room State Management
+- **In-Memory State**: Real-time track, region, and note state per room
+- **File Storage**: Audio region files stored on disk with metadata
+- **Collaborative Locks**: Per-element locking to prevent conflicts
+- **State Synchronization**: Late-joiner support with full state sync
 
 ## API endpoints
 
@@ -197,20 +199,25 @@ The backend exposes REST endpoints and real-time Socket.IO handlers:
 
 ### Real-time Events (Socket.IO)
 
-#### Current Events (Perform Rooms)
+#### Perform Room Events
 - **Room Management**: `join_room`, `leave_room`, `room_created`, etc.
 - **Voice/WebRTC**: `voice_offer`, `voice_answer`, `ice_candidate`
 - **Chat**: `send_message`, `receive_message`
 - **Audio**: `note_played`, `metronome_sync`
 - **Instruments**: `instrument_swap`, `instrument_mute`
+- **Sequencer**: `sequencer_pattern_update`, `sequencer_sync`
 
-#### Future Events (Produce Rooms)
-- **Timeline Operations**: `timeline_track_create`, `timeline_region_move`, `timeline_region_record`
-- **Presence Tracking**: `presence_cursor_move`, `presence_selection_change`, `presence_focus_change`
-- **Collaborative Editing**: `project_save`, `project_export`, `project_version_create`
-- **Mixing**: `mixing_parameter_change`, `mixing_automation_add`
+#### Arrange Room Events
+- **State Management**: `arrange:request_state`, `arrange:state_sync`
+- **Track Operations**: `arrange:track_add`, `arrange:track_update`, `arrange:track_delete`, `arrange:track_reorder`
+- **Region Operations**: `arrange:region_add`, `arrange:region_update`, `arrange:region_move`, `arrange:region_delete`
+- **Note Operations**: `arrange:note_add`, `arrange:note_update`, `arrange:note_delete`
+- **Recording**: `arrange:recording_preview`, `arrange:recording_preview_end`
+- **Collaboration**: `arrange:lock_acquire`, `arrange:lock_release`, `arrange:selection_change`
+- **Mixing**: `arrange:synth_param_update`, `arrange:effect_chain_update`
+- **Project**: `arrange:bpm_change`, `arrange:time_signature_change`
 
-See `src/handlers/` and domain-specific handlers for complete event specifications.
+See `src/domains/arrange-room/infrastructure/handlers/` for complete event specifications.
 
 ## WebRTC / Voice rate limiting
 
@@ -309,15 +316,13 @@ src/
 │   ├── real-time-communication/# Chat and WebRTC signaling
 │   ├── room-management/        # Room lifecycle and membership (Perform Rooms)
 │   ├── user-management/        # User approval and authentication
-│   └── collaborative-production/ # 🚀 FUTURE: Collaborative DAW domain
+│   └── arrange-room/           # Collaborative DAW domain (Arrange Rooms)
 │       ├── domain/
-│       │   ├── entities/       # Project, Track, Region, TimelineEvent
-│       │   ├── services/       # CollaborativeProjectService, TimelineService
-│       │   └── repositories/   # ProjectRepository, VersionHistoryRepository
+│       │   └── models/         # Track, Region, Note, ArrangeRoomState
 │       ├── infrastructure/
-│       │   ├── handlers/       # CollaborativeEditingHandler, PresenceTrackingHandler
-│       │   └── persistence/    # PostgresProjectRepository, RedisPresenceCache
-│       └── application/        # CollaborativeProductionService
+│       │   ├── handlers/       # ArrangeRoomHandler for Socket.IO events
+│       │   └── controllers/    # HTTP endpoints for arrange rooms
+│       └── services/           # State management services
 ├── shared/                     # Shared infrastructure
 │   ├── infrastructure/         # DI container, monitoring, caching
 │   └── domain/                 # Common domain models
@@ -372,28 +377,33 @@ npm run docker:run          # Run locally
 
 ## Implementation Roadmap 🗺️
 
-### Phase 1: Foundation (Current ✅)
+### Phase 1: Foundation ✅
 - ✅ **Room Types**: Support for `'perform' | 'arrange'` room types
-- ✅ **Domain Architecture**: DDD structure ready for collaborative features
+- ✅ **Domain Architecture**: DDD structure with separate domains
 - ✅ **Real-time Infrastructure**: Socket.IO namespaces for room isolation  
 - ✅ **Session Management**: User presence and room lifecycle management
 - ✅ **WebRTC Integration**: Voice chat with rate limiting and optimization
 
-### Phase 2: Collaborative DAW Foundation (Future)
-- [ ] **Database Integration**: PostgreSQL + Redis for persistent projects
-- [ ] **Project Management**: Basic project CRUD operations
-- [ ] **Track & Region Models**: Core data structures for timeline editing
-- [ ] **Real-time Sync**: Timeline operations via Socket.IO events
-- [ ] **Basic Conflict Resolution**: Last-write-wins for MVP
+### Phase 2: Arrange Room (Collaborative DAW) ✅
+- ✅ **Track Management**: Create, update, delete, and reorder tracks
+- ✅ **Region Operations**: Add, move, resize, and delete audio/MIDI regions
+- ✅ **MIDI Editing**: Note-level editing with piano roll support
+- ✅ **Audio Recording**: Record and store audio regions with waveform data
+- ✅ **Real-time Sync**: All DAW operations synchronized via Socket.IO
+- ✅ **Collaborative Locking**: Element-level locks to prevent conflicts
+- ✅ **State Management**: In-memory state with late-joiner support
+- ✅ **Project Persistence**: Save and load complete project state
+- ✅ **Synthesizer Integration**: Per-track synth parameters
+- ✅ **Effect Chains**: Collaborative effect management
 
-### Phase 3: Advanced Collaboration (Future)
-- [ ] **Presence Tracking**: Real-time user cursors and activity indicators
-- [ ] **Operational Transform**: Google Docs-style conflict resolution
+### Phase 3: Advanced Features (Future)
+- [ ] **Database Integration**: PostgreSQL for persistent project storage
+- [ ] **Operational Transform**: Advanced conflict resolution algorithms
 - [ ] **Version History**: Project snapshots and change tracking
-- [ ] **Collaborative Mixing**: Multi-user parameter adjustments
-- [ ] **Project Export**: Save and share completed projects
-
-*See `COLLABORATIVE_DAW_BACKEND_PLAN.md` for detailed technical specifications.*
+- [ ] **Audio Processing**: Server-side audio rendering and mixing
+- [ ] **Project Export**: Export to standard DAW formats (MIDI, WAV, etc.)
+- [ ] **Cloud Storage**: S3/cloud storage for audio files
+- [ ] **Real-time Analytics**: Performance monitoring and usage metrics
 
 ## Contributing
 
@@ -441,9 +451,9 @@ For questions about the **collaborative DAW architecture**, refer to `COLLABORAT
 
 ## Architecture Documentation
 
-- **`README.md`** (this file): Current implementation and future roadmap
-- **`COLLABORATIVE_DAW_BACKEND_PLAN.md`**: Detailed technical architecture for Produce Rooms
+- **`README.md`** (this file): Current implementation and roadmap
+- **`COLLABORATIVE_DAW_BACKEND_PLAN.md`**: Original technical planning document
 - **Domain folders**: Individual domain documentation and specifications
 - **Tests**: Integration and performance test specifications
 
-This backend is architected to support both **live jamming sessions** (current) and **revolutionary collaborative music production** (future) in a single, scalable platform! 🎵✨
+This backend is architected to support both **live jamming sessions** (Perform Rooms) and **collaborative music production** (Arrange Rooms) in a single, scalable platform! 🎵✨

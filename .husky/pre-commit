@@ -1,0 +1,24 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+echo "🧪 Running backend tests before commit..."
+
+# Run integration tests
+echo "📦 Running integration tests..."
+npm test -- tests/integration/ --ci --maxWorkers=2 --bail
+
+if [ $? -ne 0 ]; then
+  echo "❌ Integration tests failed! Commit aborted."
+  exit 1
+fi
+
+# Run regression tests
+echo "🔄 Running regression tests..."
+npm test -- tests/regression/ --ci --maxWorkers=2 --bail
+
+if [ $? -ne 0 ]; then
+  echo "❌ Regression tests failed! Commit aborted."
+  exit 1
+fi
+
+echo "✅ All backend tests passed! Proceeding with commit..."

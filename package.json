@@ -43,7 +43,8 @@
     "railway:deploy": "railway up",
     "railway:logs": "railway logs",
     "railway:status": "railway status",
-    "railway:login": "railway login"
+    "railway:login": "railway login",
+    "prepare": "husky"
   },
   "keywords": [
     "express",
@@ -91,6 +92,7 @@
     "@types/supertest": "^6.0.3",
     "eslint": "^9.36.0",
     "globals": "^16.4.0",
+    "husky": "^9.1.7",
     "jest": "^30.0.5",
     "prisma": "^6.19.0",
     "selfsigned": "^3.0.1",
