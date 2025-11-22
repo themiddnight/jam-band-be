@@ -761,6 +761,18 @@ export class NamespaceEventHandlers {
         secureSocketEvent('arrange:lock_release', arrangeLockReleaseSchema,
           (socket, data) => this.arrangeRoomHandler.handleLockRelease(socket, namespace, data))(socket, data);
       });
+
+      socket.on('arrange:marker_add', (data) => {
+        this.arrangeRoomHandler.handleMarkerAdd(socket, namespace, data);
+      });
+
+      socket.on('arrange:marker_update', (data) => {
+        this.arrangeRoomHandler.handleMarkerUpdate(socket, namespace, data);
+      });
+
+      socket.on('arrange:marker_delete', (data) => {
+        this.arrangeRoomHandler.handleMarkerDelete(socket, namespace, data);
+      });
     }
   }
 

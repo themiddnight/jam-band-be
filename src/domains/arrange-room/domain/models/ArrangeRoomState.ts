@@ -82,6 +82,13 @@ export interface ArrangeTimeSignature {
   denominator: number;
 }
 
+export interface TimeMarker {
+  id: string;
+  position: number;
+  description: string;
+  color?: string;
+}
+
 export interface ArrangeRoomState {
   roomId: string;
   tracks: Track[];
@@ -92,6 +99,7 @@ export interface ArrangeRoomState {
   bpm: number;
   timeSignature: ArrangeTimeSignature;
   synthStates: Record<string, Record<string, unknown>>;
+  markers: TimeMarker[];
   lastUpdated: Date;
 }
 

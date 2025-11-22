@@ -24,6 +24,7 @@ export class ArrangeRoomStateService {
       synthStates: {},
       bpm: 120,
       timeSignature: { numerator: 4, denominator: 4 },
+      markers: [],
       lastUpdated: new Date(),
     };
     this.roomStates.set(roomId, state);
@@ -326,6 +327,50 @@ export class ArrangeRoomStateService {
       return null;
     }
     return state.locks.get(elementId) || null;
+  }
+
+  /**
+   * Add a marker
+   */
+  addMarker(roomId: string, marker: { id: string; position: number; description: string; color?: string }): ArrangeRoomState {
+    const state = this.getState(roomId);
+    if (!state) {
+      throw new Error(`Room state not found for room: ${roomId}`);
+    }
+
+    return this.updateState(roomId, {
+      markers: [...state.markers, marker].sort((a, b) => a.position - b.position),
+    });
+  }
+
+  /**
+   * Update a marker
+   */
+  updateMarker(roomId: string, markerId: string, updates: Partial<{ position: number; description: string; color: string }>): ArrangeRoomState {
+    const state = this.getState(roomId);
+    if (!state) {
+      throw new Error(`Room state not found for room: ${roomId}`);
+    }
+
+    return this.updateState(roomId, {
+      markers: state.markers
+        .map((m) => (m.id === markerId ? { ...m, ...updates } : m))
+        .sort((a, b) => a.position - b.position),
+    });
+  }
+
+  /**
+   * Remove a marker
+   */
+  removeMarker(roomId: string, markerId: string): ArrangeRoomState {
+    const state = this.getState(roomId);
+    if (!state) {
+      throw new Error(`Room state not found for room: ${roomId}`);
+    }
+
+    return this.updateState(roomId, {
+      markers: state.markers.filter((m) => m.id !== markerId),
+    });
   }
 }
 

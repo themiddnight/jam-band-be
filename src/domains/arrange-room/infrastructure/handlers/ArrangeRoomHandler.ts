@@ -54,16 +54,17 @@ export class ArrangeRoomHandler {
     if (!state) {
       // Initialize empty state
       this.arrangeRoomStateService.initializeState(data.roomId);
-    socket.emit('arrange:state_sync', {
-      tracks: [],
-      regions: [],
-      locks: [],
-      selectedTrackId: null,
-      selectedRegionIds: [],
-      bpm: 120,
-      timeSignature: { numerator: 4, denominator: 4 },
-      synthStates: {},
-    });
+      socket.emit('arrange:state_sync', {
+        tracks: [],
+        regions: [],
+        locks: [],
+        selectedTrackId: null,
+        selectedRegionIds: [],
+        bpm: 120,
+        timeSignature: { numerator: 4, denominator: 4 },
+        synthStates: {},
+        markers: [],
+      });
       return;
     }
 
@@ -79,9 +80,10 @@ export class ArrangeRoomHandler {
       locks: locksArray,
       selectedTrackId: state.selectedTrackId,
       selectedRegionIds: state.selectedRegionIds,
-    bpm: state.bpm,
-    timeSignature: state.timeSignature,
-    synthStates: state.synthStates,
+      bpm: state.bpm,
+      timeSignature: state.timeSignature,
+      synthStates: state.synthStates,
+      markers: state.markers || [],
     });
 
     loggingService.logInfo('Arrange room state requested', {
@@ -912,6 +914,118 @@ export class ArrangeRoomHandler {
     namespace.to(data.roomId).emit('arrange:recording_preview_end', {
       userId: session.userId,
     });
+  }
+
+  /**
+   * Handle marker add
+   */
+  handleMarkerAdd(
+    socket: Socket,
+    namespace: Namespace,
+    data: { roomId: string; marker: { id: string; position: number; description: string; color?: string } }
+  ): void {
+    const session = this.getSession(socket);
+    if (!session || session.roomId !== data.roomId) {
+      return;
+    }
+
+    try {
+      // Update backend state
+      this.arrangeRoomStateService.addMarker(data.roomId, data.marker);
+
+      // Broadcast to all users in the room
+      namespace.to(data.roomId).emit('arrange:marker_added', {
+        marker: data.marker,
+        userId: session.userId,
+      });
+
+      loggingService.logInfo('Marker added', {
+        roomId: data.roomId,
+        markerId: data.marker.id,
+        userId: session.userId,
+      });
+    } catch (error) {
+      loggingService.logError(error as Error, {
+        context: 'ArrangeRoomHandler:handleMarkerAdd',
+        roomId: data.roomId,
+      });
+      socket.emit('error', { message: 'Failed to add marker' });
+    }
+  }
+
+  /**
+   * Handle marker update
+   */
+  handleMarkerUpdate(
+    socket: Socket,
+    namespace: Namespace,
+    data: { roomId: string; markerId: string; updates: Partial<{ position: number; description: string; color: string }> }
+  ): void {
+    const session = this.getSession(socket);
+    if (!session || session.roomId !== data.roomId) {
+      return;
+    }
+
+    try {
+      // Update backend state
+      this.arrangeRoomStateService.updateMarker(data.roomId, data.markerId, data.updates);
+
+      // Broadcast to all users in the room
+      namespace.to(data.roomId).emit('arrange:marker_updated', {
+        markerId: data.markerId,
+        updates: data.updates,
+        userId: session.userId,
+      });
+
+      loggingService.logInfo('Marker updated', {
+        roomId: data.roomId,
+        markerId: data.markerId,
+        userId: session.userId,
+      });
+    } catch (error) {
+      loggingService.logError(error as Error, {
+        context: 'ArrangeRoomHandler:handleMarkerUpdate',
+        roomId: data.roomId,
+      });
+      socket.emit('error', { message: 'Failed to update marker' });
+    }
+  }
+
+  /**
+   * Handle marker delete
+   */
+  handleMarkerDelete(
+    socket: Socket,
+    namespace: Namespace,
+    data: { roomId: string; markerId: string }
+  ): void {
+    const session = this.getSession(socket);
+    if (!session || session.roomId !== data.roomId) {
+      return;
+    }
+
+    try {
+      // Update backend state
+      this.arrangeRoomStateService.removeMarker(data.roomId, data.markerId);
+
+      // Broadcast to all users in the room
+      namespace.to(data.roomId).emit('arrange:marker_deleted', {
+        markerId: data.markerId,
+        userId: session.userId,
+      });
+
+      loggingService.logInfo('Marker deleted', {
+        roomId: data.roomId,
+        markerId: data.markerId,
+        userId: session.userId,
+      });
+    } catch (error) {
+      loggingService.logError(error as Error, {
+        context: 'ArrangeRoomHandler:handleMarkerDelete',
+        roomId: data.roomId,
+      });
+      socket.emit('error', { message: 'Failed to delete marker' });
+    }
   }
 
 }
