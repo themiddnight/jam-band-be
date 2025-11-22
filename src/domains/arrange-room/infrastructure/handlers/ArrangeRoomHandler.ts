@@ -1028,5 +1028,94 @@ export class ArrangeRoomHandler {
     }
   }
 
+  /**
+   * Handle broadcast state change (user starts/stops broadcasting)
+   */
+  handleBroadcastState(
+    socket: Socket,
+    namespace: Namespace,
+    data: {
+      roomId: string;
+      userId: string;
+      username: string;
+      broadcasting: boolean;
+      trackId: string | null;
+    }
+  ): void {
+    const session = this.getSession(socket);
+    if (!session || session.roomId !== data.roomId) {
+      return;
+    }
+
+    try {
+      // Broadcast to all other users in the room (exclude sender)
+      socket.to(data.roomId).emit('arrange:broadcast_state', {
+        userId: data.userId,
+        username: data.username,
+        broadcasting: data.broadcasting,
+        trackId: data.trackId,
+      });
+
+      loggingService.logInfo('Broadcast state changed', {
+        roomId: data.roomId,
+        userId: data.userId,
+        broadcasting: data.broadcasting,
+        trackId: data.trackId,
+      });
+    } catch (error) {
+      loggingService.logError(error as Error, {
+        context: 'ArrangeRoomHandler:handleBroadcastState',
+        roomId: data.roomId,
+      });
+    }
+  }
+
+  /**
+   * Handle broadcast note (user plays a note while broadcasting)
+   */
+  handleBroadcastNote(
+    socket: Socket,
+    namespace: Namespace,
+    data: {
+      roomId: string;
+      userId: string;
+      trackId: string;
+      noteData: {
+        note: number;
+        velocity: number;
+        type: 'noteon' | 'noteoff';
+      };
+      timestamp: number;
+    }
+  ): void {
+    const session = this.getSession(socket);
+    if (!session || session.roomId !== data.roomId) {
+      return;
+    }
+
+    try {
+      loggingService.logInfo('Broadcasting note', {
+        roomId: data.roomId,
+        userId: data.userId,
+        trackId: data.trackId,
+        note: data.noteData.note,
+        type: data.noteData.type,
+      });
+
+      // Broadcast to all other users in the room (exclude sender)
+      socket.to(data.roomId).emit('arrange:broadcast_note', {
+        userId: data.userId,
+        trackId: data.trackId,
+        noteData: data.noteData,
+        timestamp: data.timestamp,
+      });
+    } catch (error) {
+      loggingService.logError(error as Error, {
+        context: 'ArrangeRoomHandler:handleBroadcastNote',
+        roomId: data.roomId,
+      });
+    }
+  }
+
 }
 
