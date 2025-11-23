@@ -356,3 +356,8 @@ export const arrangeLockReleaseSchema = Joi.object({
   roomId: Joi.string().uuid().required(),
   elementId: Joi.string().required(),
 }); 
+
+export const arrangeVoiceStateSchema = Joi.object({
+  roomId: Joi.string().uuid().required(),
+  isMuted: Joi.boolean().required(),
+});

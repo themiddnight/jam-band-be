@@ -25,6 +25,8 @@ export class ArrangeRoomStateService {
       bpm: 120,
       timeSignature: { numerator: 4, denominator: 4 },
       markers: [],
+      voiceStates: {},
+      broadcastStates: {},
       lastUpdated: new Date(),
     };
     this.roomStates.set(roomId, state);
@@ -44,6 +46,8 @@ export class ArrangeRoomStateService {
       ...currentState,
       ...updates,
       locks: updates.locks ?? currentState.locks,
+      voiceStates: updates.voiceStates ?? currentState.voiceStates,
+      broadcastStates: updates.broadcastStates ?? currentState.broadcastStates,
       lastUpdated: new Date(),
     };
 
@@ -316,6 +320,65 @@ export class ArrangeRoomStateService {
    */
   clearState(roomId: string): void {
     this.roomStates.delete(roomId);
+  }
+
+  setVoiceState(roomId: string, userId: string, isMuted: boolean): void {
+    const state = this.getState(roomId);
+    if (!state) {
+      throw new Error(`Room state not found for room: ${roomId}`);
+    }
+
+    this.updateState(roomId, {
+      voiceStates: {
+        ...state.voiceStates,
+        [userId]: { isMuted },
+      },
+    });
+  }
+
+  removeVoiceState(roomId: string, userId: string): boolean {
+    const state = this.getState(roomId);
+    if (!state || !state.voiceStates[userId]) {
+      return false;
+    }
+
+    const { [userId]: _removed, ...rest } = state.voiceStates;
+    this.updateState(roomId, {
+      voiceStates: rest,
+    });
+    return true;
+  }
+
+  setBroadcastState(
+    roomId: string,
+    userId: string,
+    stateData: { username: string; trackId: string | null },
+  ): void {
+    const state = this.getState(roomId);
+    if (!state) {
+      throw new Error(`Room state not found for room: ${roomId}`);
+    }
+
+    const broadcastStates = { ...state.broadcastStates };
+    if (stateData.trackId) {
+      broadcastStates[userId] = stateData;
+    } else {
+      delete broadcastStates[userId];
+    }
+
+    this.updateState(roomId, { broadcastStates });
+  }
+
+  removeBroadcastState(roomId: string, userId: string): { username: string; trackId: string | null } | null {
+    const state = this.getState(roomId);
+    const existingState = state?.broadcastStates[userId];
+    if (!state || !existingState) {
+      return null;
+    }
+
+    const { [userId]: _removed, ...rest } = state.broadcastStates;
+    this.updateState(roomId, { broadcastStates: rest });
+    return existingState;
   }
 
   /**

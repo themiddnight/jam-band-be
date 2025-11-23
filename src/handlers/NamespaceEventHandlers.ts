@@ -51,6 +51,7 @@ import {
   arrangeSelectionChangeSchema,
   arrangeLockAcquireSchema,
   arrangeLockReleaseSchema,
+  arrangeVoiceStateSchema,
 } from '../validation/schemas';
 
 export class NamespaceEventHandlers {
@@ -760,6 +761,11 @@ export class NamespaceEventHandlers {
       socket.on('arrange:lock_release', (data) => {
         secureSocketEvent('arrange:lock_release', arrangeLockReleaseSchema,
           (socket, data) => this.arrangeRoomHandler.handleLockRelease(socket, namespace, data))(socket, data);
+      });
+
+      socket.on('arrange:voice_state', (data) => {
+        secureSocketEvent('arrange:voice_state', arrangeVoiceStateSchema,
+          (socket, data) => this.arrangeRoomHandler.handleVoiceState(socket, namespace, data))(socket, data);
       });
 
       socket.on('arrange:marker_add', (data) => {

@@ -100,6 +100,14 @@ export interface ArrangeRoomState {
   timeSignature: ArrangeTimeSignature;
   synthStates: Record<string, Record<string, unknown>>;
   markers: TimeMarker[];
+  voiceStates: Record<string, { isMuted: boolean }>;
+  broadcastStates: Record<
+    string,
+    {
+      username: string;
+      trackId: string | null;
+    }
+  >;
   lastUpdated: Date;
 }
 

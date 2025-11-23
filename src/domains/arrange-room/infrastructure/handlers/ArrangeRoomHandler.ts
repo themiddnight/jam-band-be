@@ -84,6 +84,8 @@ export class ArrangeRoomHandler {
       timeSignature: state.timeSignature,
       synthStates: state.synthStates,
       markers: state.markers || [],
+      voiceStates: state.voiceStates,
+      broadcastStates: state.broadcastStates,
     });
 
     loggingService.logInfo('Arrange room state requested', {
@@ -865,13 +867,23 @@ export class ArrangeRoomHandler {
    */
   handleUserLeave(roomId: string, userId: string, namespace: Namespace): void {
     const releasedElementIds = this.arrangeRoomStateService.releaseUserLocks(roomId, userId);
-    if (!releasedElementIds.length) {
-      return;
-    }
-
     releasedElementIds.forEach((elementId) => {
       namespace.to(roomId).emit('arrange:lock_released', { elementId });
     });
+
+    if (this.arrangeRoomStateService.removeVoiceState(roomId, userId)) {
+      namespace.to(roomId).emit('arrange:voice_state', { userId, isMuted: true });
+    }
+
+    const removedBroadcast = this.arrangeRoomStateService.removeBroadcastState(roomId, userId);
+    if (removedBroadcast) {
+      namespace.to(roomId).emit('arrange:broadcast_state', {
+        userId,
+        username: removedBroadcast.username,
+        broadcasting: false,
+        trackId: null,
+      });
+    }
   }
 
   /**
@@ -1031,6 +1043,30 @@ export class ArrangeRoomHandler {
   /**
    * Handle broadcast state change (user starts/stops broadcasting)
    */
+  handleVoiceState(
+    socket: Socket,
+    namespace: Namespace,
+    data: { roomId: string; isMuted: boolean }
+  ): void {
+    const session = this.getSession(socket);
+    if (!session || session.roomId !== data.roomId) {
+      return;
+    }
+
+    try {
+      this.arrangeRoomStateService.setVoiceState(data.roomId, session.userId, data.isMuted);
+      namespace.to(data.roomId).emit('arrange:voice_state', {
+        userId: session.userId,
+        isMuted: data.isMuted,
+      });
+    } catch (error) {
+      loggingService.logError(error as Error, {
+        context: 'ArrangeRoomHandler:handleVoiceState',
+        roomId: data.roomId,
+      });
+    }
+  }
+
   handleBroadcastState(
     socket: Socket,
     namespace: Namespace,
@@ -1048,6 +1084,10 @@ export class ArrangeRoomHandler {
     }
 
     try {
+      this.arrangeRoomStateService.setBroadcastState(data.roomId, data.userId, {
+        username: data.username,
+        trackId: data.broadcasting ? data.trackId : null,
+      });
       // Broadcast to all other users in the room (exclude sender)
       socket.to(data.roomId).emit('arrange:broadcast_state', {
         userId: data.userId,
