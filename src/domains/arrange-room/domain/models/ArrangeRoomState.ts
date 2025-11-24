@@ -98,6 +98,7 @@ export interface ArrangeRoomState {
   selectedRegionIds: string[];
   bpm: number;
   timeSignature: ArrangeTimeSignature;
+  ownerScale?: { rootNote: string; scale: 'major' | 'minor' };
   synthStates: Record<string, Record<string, unknown>>;
   markers: TimeMarker[];
   voiceStates: Record<string, { isMuted: boolean }>;

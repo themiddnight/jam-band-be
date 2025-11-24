@@ -768,6 +768,18 @@ export class NamespaceEventHandlers {
           (socket, data) => this.arrangeRoomHandler.handleVoiceState(socket, namespace, data))(socket, data);
       });
 
+      socket.on('arrange:project_scale_change', (data) => {
+        const rateLimitCheck = checkSocketRateLimit(socket, 'arrange:project_scale_change');
+        if (!rateLimitCheck.allowed) {
+          socket.emit('error', {
+            message: `Rate limit exceeded for project scale change. Try again in ${rateLimitCheck.retryAfter} seconds.`,
+            retryAfter: rateLimitCheck.retryAfter
+          });
+          return;
+        }
+        this.arrangeRoomHandler.handleProjectScaleChange(socket, namespace, data);
+      });
+
       socket.on('arrange:marker_add', (data) => {
         this.arrangeRoomHandler.handleMarkerAdd(socket, namespace, data);
       });
