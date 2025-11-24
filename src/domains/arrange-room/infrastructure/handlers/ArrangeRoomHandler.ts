@@ -82,6 +82,7 @@ export class ArrangeRoomHandler {
       selectedRegionIds: state.selectedRegionIds,
       bpm: state.bpm,
       timeSignature: state.timeSignature,
+      projectScale: state.ownerScale,
       synthStates: state.synthStates,
       markers: state.markers || [],
       voiceStates: state.voiceStates,
@@ -1037,6 +1038,41 @@ export class ArrangeRoomHandler {
         roomId: data.roomId,
       });
       socket.emit('error', { message: 'Failed to delete marker' });
+    }
+  }
+
+  /**
+   * Handle project scale change
+   */
+  handleProjectScaleChange(
+    socket: Socket,
+    namespace: Namespace,
+    data: { roomId: string; rootNote: string; scale: 'major' | 'minor' }
+  ): void {
+    const session = this.getSession(socket);
+    if (!session || session.roomId !== data.roomId) {
+      return;
+    }
+
+    try {
+      this.arrangeRoomStateService.updateOwnerScale(data.roomId, data.rootNote, data.scale);
+      namespace.to(data.roomId).emit('arrange:project_scale_changed', {
+        rootNote: data.rootNote,
+        scale: data.scale,
+        userId: session.userId,
+      });
+      loggingService.logInfo('Project scale changed', {
+        roomId: data.roomId,
+        rootNote: data.rootNote,
+        scale: data.scale,
+        userId: session.userId,
+      });
+    } catch (error) {
+      loggingService.logError(error as Error, {
+        context: 'ArrangeRoomHandler:handleProjectScaleChange',
+        roomId: data.roomId,
+      });
+      socket.emit('error', { message: 'Failed to change project scale' });
     }
   }
 

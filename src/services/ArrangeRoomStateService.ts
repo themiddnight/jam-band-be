@@ -435,5 +435,32 @@ export class ArrangeRoomStateService {
       markers: state.markers.filter((m) => m.id !== markerId),
     });
   }
+
+  /**
+   * Update room owner's scale
+   */
+  updateOwnerScale(roomId: string, rootNote: string, scale: 'major' | 'minor'): ArrangeRoomState {
+    return this.updateState(roomId, {
+      ownerScale: { rootNote, scale },
+    });
+  }
+
+  /**
+   * Clear owner scale
+   */
+  clearOwnerScale(roomId: string): ArrangeRoomState {
+    const state = this.getState(roomId);
+    if (!state) {
+      throw new Error(`Room state not found for room: ${roomId}`);
+    }
+    
+    const { ownerScale: _ownerScale, ...rest } = state;
+    const updatedState: ArrangeRoomState = {
+      ...rest,
+      lastUpdated: new Date(),
+    };
+    this.roomStates.set(roomId, updatedState);
+    return updatedState;
+  }
 }
 
