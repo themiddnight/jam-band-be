@@ -63,6 +63,7 @@ export class ArrangeRoomHandler {
         bpm: 120,
         timeSignature: { numerator: 4, denominator: 4 },
         synthStates: {},
+        effectChains: {},
         markers: [],
       });
       return;
@@ -84,6 +85,7 @@ export class ArrangeRoomHandler {
       timeSignature: state.timeSignature,
       projectScale: state.ownerScale,
       synthStates: state.synthStates,
+      effectChains: state.effectChains || {},
       markers: state.markers || [],
       voiceStates: state.voiceStates,
       broadcastStates: state.broadcastStates,
@@ -759,8 +761,10 @@ export class ArrangeRoomHandler {
     }
 
     try {
-      // Store effect chain in track metadata (we'll need to extend Track type or use a separate store)
-      // For now, we'll just broadcast it
+      // Store effect chain in room state
+      this.arrangeRoomStateService.updateEffectChain(data.roomId, data.chainType, data.effectChain);
+      
+      // Broadcast to other users
       namespace.to(data.roomId).emit('arrange:effect_chain_updated', {
         trackId: data.trackId,
         chainType: data.chainType,
