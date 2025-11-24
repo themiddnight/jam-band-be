@@ -89,6 +89,24 @@ export interface TimeMarker {
   color?: string;
 }
 
+export interface EffectParameterState {
+  name: string;
+  value: number;
+}
+
+export interface EffectInstanceState {
+  id: string;
+  type: string;
+  bypassed: boolean;
+  order: number;
+  parameters: EffectParameterState[];
+}
+
+export interface EffectChainState {
+  type: string;
+  effects: EffectInstanceState[];
+}
+
 export interface ArrangeRoomState {
   roomId: string;
   tracks: Track[];
@@ -100,6 +118,7 @@ export interface ArrangeRoomState {
   timeSignature: ArrangeTimeSignature;
   ownerScale?: { rootNote: string; scale: 'major' | 'minor' };
   synthStates: Record<string, Record<string, unknown>>;
+  effectChains: Record<string, EffectChainState>; // Key is chainType (e.g., "track:trackId")
   markers: TimeMarker[];
   voiceStates: Record<string, { isMuted: boolean }>;
   broadcastStates: Record<

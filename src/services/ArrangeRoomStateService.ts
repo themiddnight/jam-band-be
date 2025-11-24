@@ -22,6 +22,7 @@ export class ArrangeRoomStateService {
       selectedTrackId: null,
       selectedRegionIds: [],
       synthStates: {},
+      effectChains: {},
       bpm: 120,
       timeSignature: { numerator: 4, denominator: 4 },
       markers: [],
@@ -96,9 +97,14 @@ export class ArrangeRoomStateService {
     const regionsToRemove = state.regions.filter((r) => r.trackId === trackId).map((r) => r.id);
     const updatedRegions = state.regions.filter((r) => r.trackId !== trackId);
 
+    // Remove effect chain for this track
+    const chainType = `track:${trackId}`;
+    const { [chainType]: _removedChain, ...remainingChains } = state.effectChains;
+
     return this.updateState(roomId, {
       tracks: state.tracks.filter((t) => t.id !== trackId),
       regions: updatedRegions,
+      effectChains: remainingChains,
       selectedTrackId: state.selectedTrackId === trackId ? null : state.selectedTrackId,
       selectedRegionIds: state.selectedRegionIds.filter((id) => !regionsToRemove.includes(id)),
     });
@@ -461,6 +467,38 @@ export class ArrangeRoomStateService {
     };
     this.roomStates.set(roomId, updatedState);
     return updatedState;
+  }
+
+  /**
+   * Update effect chain for a track or other chain type
+   */
+  updateEffectChain(roomId: string, chainType: string, effectChain: any): ArrangeRoomState {
+    const state = this.getState(roomId);
+    if (!state) {
+      throw new Error(`Room state not found for room: ${roomId}`);
+    }
+
+    return this.updateState(roomId, {
+      effectChains: {
+        ...state.effectChains,
+        [chainType]: effectChain,
+      },
+    });
+  }
+
+  /**
+   * Remove effect chain for a track or other chain type
+   */
+  removeEffectChain(roomId: string, chainType: string): ArrangeRoomState {
+    const state = this.getState(roomId);
+    if (!state) {
+      throw new Error(`Room state not found for room: ${roomId}`);
+    }
+
+    const { [chainType]: _removed, ...rest } = state.effectChains;
+    return this.updateState(roomId, {
+      effectChains: rest,
+    });
   }
 }
 

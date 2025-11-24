@@ -151,6 +151,7 @@ export class ProjectController {
         bpm: projectData.project?.bpm || 120,
         timeSignature: projectData.project?.timeSignature || { numerator: 4, denominator: 4 },
         synthStates: projectData.synthStates || {},
+        effectChains: projectData.effectChains || {},
         selectedTrackId: null,
         selectedRegionIds: [],
       });
