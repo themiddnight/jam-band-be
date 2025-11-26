@@ -7,7 +7,7 @@ import multer from 'multer';
 import os from 'os';
 import { AudioRegionController } from '../domains/arrange-room/infrastructure/controllers/AudioRegionController';
 import { ProjectController } from '../domains/arrange-room/infrastructure/controllers/ProjectController';
-import { hlsBroadcastService } from '../services/HlsBroadcastService';
+import { hlsBroadcastService } from '../services/HLSBroadcastService';
 import { hlsLimiter } from '../middleware/rateLimit';
 
 const upload = multer({

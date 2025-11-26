@@ -2,7 +2,7 @@ import { Socket, Namespace } from 'socket.io';
 import { RoomService } from '../../../../services/RoomService';
 import { RoomSessionManager } from '../../../../services/RoomSessionManager';
 import { loggingService } from '../../../../services/LoggingService';
-import { hlsBroadcastService } from '../../../../services/HlsBroadcastService';
+import { hlsBroadcastService } from '../../../../services/HLSBroadcastService';
 import { ToggleBroadcastData, BroadcastAudioChunkData } from '../../../../types';
 
 /**
