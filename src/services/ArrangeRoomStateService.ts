@@ -443,6 +443,33 @@ export class ArrangeRoomStateService {
   }
 
   /**
+   * Set full state (for undo/redo operations)
+   */
+  setFullState(
+    roomId: string,
+    newState: {
+      tracks: any[];
+      regions: any[];
+      markers: any[];
+      bpm: number;
+      timeSignature: any;
+    }
+  ): ArrangeRoomState {
+    const state = this.getState(roomId);
+    if (!state) {
+      throw new Error(`Room state not found for room: ${roomId}`);
+    }
+
+    return this.updateState(roomId, {
+      tracks: newState.tracks,
+      regions: newState.regions,
+      markers: newState.markers,
+      bpm: newState.bpm,
+      timeSignature: newState.timeSignature,
+    });
+  }
+
+  /**
    * Update room owner's scale
    */
   updateOwnerScale(roomId: string, rootNote: string, scale: 'major' | 'minor'): ArrangeRoomState {

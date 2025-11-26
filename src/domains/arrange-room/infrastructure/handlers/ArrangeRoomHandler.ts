@@ -1046,6 +1046,54 @@ export class ArrangeRoomHandler {
   }
 
   /**
+   * Handle full state update (for undo/redo operations)
+   */
+  handleFullStateUpdate(
+    socket: Socket,
+    namespace: Namespace,
+    data: {
+      roomId: string;
+      state: {
+        tracks: any[];
+        regions: any[];
+        markers: any[];
+        bpm: number;
+        timeSignature: any;
+      };
+    }
+  ): void {
+    const session = this.getSession(socket);
+    if (!session || session.roomId !== data.roomId) {
+      return;
+    }
+
+    try {
+      // Update backend state with the new full state
+      this.arrangeRoomStateService.setFullState(data.roomId, data.state);
+
+      // Broadcast to all other users in the room (exclude sender)
+      socket.to(data.roomId).emit('arrange:full_state_update', {
+        userId: session.userId,
+        state: data.state,
+      });
+
+      loggingService.logInfo('Full state updated (undo/redo)', {
+        roomId: data.roomId,
+        userId: session.userId,
+        tracks: data.state.tracks.length,
+        regions: data.state.regions.length,
+        markers: data.state.markers.length,
+      });
+    } catch (error) {
+      loggingService.logError(error as Error, {
+        context: 'ArrangeRoomHandler:handleFullStateUpdate',
+        roomId: data.roomId,
+      });
+      socket.emit('error', { message: 'Failed to update full state' });
+    }
+  }
+
+  /**
    * Handle project scale change
    */
   handleProjectScaleChange(
