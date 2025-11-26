@@ -6,14 +6,18 @@ import { config } from '../config/environment';
 
 // HTTP API rate limiting
 export const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  windowMs: 1 * 60 * 1000, // 1 minute window (shorter for faster recovery)
+  max: config.nodeEnv === 'development' ? 500 : 200, // More permissive limits
   message: {
     error: 'Too many requests from this IP, please try again later.',
-    retryAfter: '15 minutes'
+    retryAfter: '1 minute'
   },
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  skip: (req: Request) => {
+    // Skip rate limiting for HLS endpoints (they have their own limiter)
+    return req.path.includes('/broadcast/');
+  },
   handler: (req: Request, res: Response) => {
     // Log rate limit violation
     loggingService.logSecurityEvent('HTTP Rate Limit Exceeded', {
@@ -25,8 +29,30 @@ export const apiLimiter = rateLimit({
 
     res.status(429).json({
       error: 'Too many requests from this IP, please try again later.',
-      retryAfter: '15 minutes'
+      retryAfter: '1 minute'
     });
+  }
+});
+
+// HLS streaming rate limiting - more permissive for live streaming
+// HLS.js fetches playlist every 2-4 seconds and segments frequently
+export const hlsLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 300, // 300 requests per minute (5 per second) - enough for HLS polling
+  message: {
+    error: 'Too many HLS requests, please try again.',
+    retryAfter: '1 minute'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req: Request) => {
+    // Rate limit per IP + room combination
+    const roomId = req.params.roomId || 'unknown';
+    return `${req.ip}-${roomId}`;
+  },
+  skip: (_req: Request) => {
+    // Skip rate limiting in development if needed
+    return false;
   }
 });
 
