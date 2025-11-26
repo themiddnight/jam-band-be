@@ -162,6 +162,7 @@ export class RoomService {
           isPrivate: room.isPrivate,
           isHidden: room.isHidden,
           createdAt: room.createdAt,
+          isBroadcasting: room.isBroadcasting ?? false,
         };
       })
       .filter((room) => room.userCount > 0); // Filter out rooms with no users (including grace period)
@@ -734,5 +735,25 @@ export class RoomService {
     this.cacheService.invalidateRoomCaches();
 
     return true;
+  }
+
+  // Toggle audience broadcast for a room
+  toggleBroadcast(roomId: string, isBroadcasting: boolean): boolean {
+    const room = this.rooms.get(roomId);
+    if (!room) return false;
+
+    room.isBroadcasting = isBroadcasting;
+
+    // Invalidate caches to ensure room list updates reflect the changes
+    this.cacheService.invalidateRoom(roomId);
+    this.cacheService.invalidateRoomCaches();
+
+    return true;
+  }
+
+  // Get broadcast status for a room
+  getBroadcastStatus(roomId: string): boolean {
+    const room = this.rooms.get(roomId);
+    return room?.isBroadcasting ?? false;
   }
 }

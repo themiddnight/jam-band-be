@@ -5,6 +5,7 @@ import { ApprovalWorkflowHandler } from '../domains/user-management/infrastructu
 import { AudioRoutingHandler, NotePlayingHandler } from '../domains/audio-processing/infrastructure/handlers';
 import { MetronomeHandler } from '../domains/room-management/infrastructure/handlers';
 import { InstrumentSwapHandler } from '../domains/room-management/infrastructure/handlers/InstrumentSwapHandler';
+import { PerformBroadcastHandler } from '../domains/room-management/infrastructure/handlers/PerformBroadcastHandler';
 import { RoomSessionManager } from '../services/RoomSessionManager';
 import { PerformanceMonitoringService } from '../services/PerformanceMonitoringService';
 import { ConnectionHealthService } from '../services/ConnectionHealthService';
@@ -59,6 +60,7 @@ export class NamespaceEventHandlers {
   private connectionHealth: ConnectionHealthService | null = null;
   private connectionOptimization: ConnectionOptimizationService | null = null;
   private errorRecoveryService: BackendErrorRecoveryService;
+  private performBroadcastHandler: PerformBroadcastHandler | null = null;
 
   constructor(
     private roomHandlers: RoomHandlers,
@@ -70,9 +72,11 @@ export class NamespaceEventHandlers {
     private metronomeHandler: MetronomeHandler,
     private notePlayingHandler: NotePlayingHandler,
     private instrumentSwapHandler: InstrumentSwapHandler,
-    private arrangeRoomHandler?: any // ArrangeRoomHandler - optional to avoid breaking existing code
+    private arrangeRoomHandler?: any, // ArrangeRoomHandler - optional to avoid breaking existing code
+    performBroadcastHandler?: PerformBroadcastHandler
   ) {
     this.errorRecoveryService = new BackendErrorRecoveryService();
+    this.performBroadcastHandler = performBroadcastHandler || null;
   }
 
   /**
@@ -803,6 +807,21 @@ export class NamespaceEventHandlers {
 
       socket.on('arrange:broadcast_note', (data) => {
         this.arrangeRoomHandler.handleBroadcastNote(socket, namespace, data);
+      });
+    }
+
+    // Perform room broadcast events (for audience HLS streaming)
+    if (this.performBroadcastHandler) {
+      socket.on('perform:toggle_broadcast', (data) => {
+        this.performBroadcastHandler!.handleToggleBroadcast(socket, data, namespace);
+      });
+
+      socket.on('perform:broadcast_audio_chunk', (data) => {
+        this.performBroadcastHandler!.handleBroadcastAudioChunk(socket, data, namespace);
+      });
+
+      socket.on('perform:request_broadcast_state', () => {
+        this.performBroadcastHandler!.handleRequestBroadcastState(socket);
       });
     }
   }

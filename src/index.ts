@@ -224,6 +224,10 @@ const arrangeRoomHandler = new ArrangeRoomHandler(
   audioRegionStorageService
 );
 
+// Import and create PerformBroadcastHandler
+import { PerformBroadcastHandler } from './domains/room-management/infrastructure/handlers/PerformBroadcastHandler';
+const performBroadcastHandler = new PerformBroadcastHandler(roomService, roomSessionManager);
+
 const roomHandlers = new RoomHandlers(
   roomService,
   roomSessionManager,
@@ -242,7 +246,8 @@ const namespaceEventHandlers = new NamespaceEventHandlers(
   metronomeHandler,
   notePlayingHandler,
   instrumentSwapHandler,
-  arrangeRoomHandler
+  arrangeRoomHandler,
+  performBroadcastHandler
 );
 
 // Set up namespace event handlers

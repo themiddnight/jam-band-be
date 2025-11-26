@@ -57,6 +57,8 @@ export interface Room {
     rootNote: string;
     scale: 'major' | 'minor';
   };
+  // Audience broadcast state
+  isBroadcasting?: boolean;
 }
 
 export interface UserSession {
@@ -122,6 +124,7 @@ export interface RoomListResponse {
   isPrivate: boolean;
   isHidden: boolean;
   createdAt: Date;
+  isBroadcasting?: boolean;
 }
 
 // WebRTC Voice Communication Types
@@ -242,4 +245,16 @@ export interface RoomOwnerScaleChangeData {
 
 export interface ToggleFollowRoomOwnerData {
   followRoomOwner: boolean;
+}
+
+// Audience Broadcast Types
+export interface ToggleBroadcastData {
+  isBroadcasting: boolean;
+}
+
+export interface BroadcastAudioChunkData {
+  chunk: string; // Base64 encoded audio chunk
+  timestamp: number;
+  sequenceNumber: number;
+  isInitSegment?: boolean; // True for first chunk containing WebM header
 } 
