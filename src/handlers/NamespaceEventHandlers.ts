@@ -792,6 +792,10 @@ export class NamespaceEventHandlers {
         this.arrangeRoomHandler.handleMarkerDelete(socket, namespace, data);
       });
 
+      socket.on('arrange:full_state_update', (data) => {
+        this.arrangeRoomHandler.handleFullStateUpdate(socket, namespace, data);
+      });
+
       // Broadcast events
       socket.on('arrange:broadcast_state', (data) => {
         this.arrangeRoomHandler.handleBroadcastState(socket, namespace, data);
