@@ -29,7 +29,9 @@ export const corsOptions = {
       }
     } else {
       // Development mode - allow frontend URL and local development origins
-      const allowedOrigins = [config.cors.frontendUrl, ...config.cors.developmentOrigins];
+      // Support multiple frontend URLs separated by comma
+      const frontendUrls = config.cors.frontendUrl.split(',').map(url => url.trim());
+      const allowedOrigins = [...frontendUrls, ...config.cors.developmentOrigins];
       
       if (config.cors.strictMode) {
         // Strict development mode - only allow specified origins
