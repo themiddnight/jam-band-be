@@ -73,13 +73,15 @@ describe.skip('RoomLifecycleHandler - Performance Benchmarks', () => {
     roomSessionManager = new RoomSessionManager();
     roomService = new RoomService(roomSessionManager);
     namespaceManager = new NamespaceManager(io);
+    const metronomeService = new MetronomeService(io, roomService);
 
     // Initialize handler
     roomLifecycleHandler = new RoomLifecycleHandler(
       roomService,
       io,
       namespaceManager,
-      roomSessionManager
+      roomSessionManager,
+      metronomeService
     );
 
     // Start server on random port
@@ -155,6 +157,7 @@ describe.skip('RoomLifecycleHandler - Performance Benchmarks', () => {
         name: 'Performance Test Room',
         username: 'PerfUser',
         userId: 'perf-123',
+        roomType: 'perform' as const,
         isPrivate: false,
         isHidden: false
       };
@@ -203,6 +206,7 @@ describe.skip('RoomLifecycleHandler - Performance Benchmarks', () => {
         name: 'Join Perf Room',
         username: 'Owner',
         userId: 'owner-123',
+        roomType: 'perform' as const,
         isPrivate: false,
         isHidden: false
       };
@@ -228,6 +232,7 @@ describe.skip('RoomLifecycleHandler - Performance Benchmarks', () => {
         roomId,
         username: 'Joiner',
         userId: 'joiner-123',
+        roomType: 'perform' as const,
         role: 'audience'
       };
 
@@ -270,6 +275,7 @@ describe.skip('RoomLifecycleHandler - Performance Benchmarks', () => {
         name: 'Leave Perf Room',
         username: 'Owner',
         userId: 'owner-123',
+        roomType: 'perform' as const,
         isPrivate: false,
         isHidden: false
       };
@@ -291,6 +297,7 @@ describe.skip('RoomLifecycleHandler - Performance Benchmarks', () => {
         roomId,
         username: 'Member',
         userId: 'member-123',
+        roomType: 'perform' as const,
         role: 'band_member'
       };
 
@@ -344,6 +351,7 @@ describe.skip('RoomLifecycleHandler - Performance Benchmarks', () => {
         name: 'Ownership Perf Room',
         username: 'Owner',
         userId: 'owner-123',
+        roomType: 'perform' as const,
         isPrivate: false,
         isHidden: false
       };
@@ -365,6 +373,7 @@ describe.skip('RoomLifecycleHandler - Performance Benchmarks', () => {
         roomId,
         username: 'Member',
         userId: 'member-123',
+        roomType: 'perform' as const,
         role: 'band_member'
       };
 
@@ -492,6 +501,7 @@ describe.skip('RoomLifecycleHandler - Performance Benchmarks', () => {
         name: 'Concurrent Join Room',
         username: 'Owner',
         userId: 'owner-123',
+        roomType: 'perform' as const,
         isPrivate: false,
         isHidden: false
       };
@@ -730,8 +740,8 @@ describe.skip('RoomLifecycleHandler - Performance Benchmarks', () => {
       memorySnapshots.push(process.memoryUsage().heapUsed);
 
       // Analyze memory trend
-      const initialMemory = memorySnapshots[0];
-      const finalMemory = memorySnapshots[memorySnapshots.length - 1];
+      const initialMemory = memorySnapshots[0] || 0;
+      const finalMemory = memorySnapshots[memorySnapshots.length - 1] || 0;
       const memoryIncrease = finalMemory - initialMemory;
       const memoryIncreaseMB = memoryIncrease / 1024 / 1024;
 
@@ -786,7 +796,7 @@ describe.skip('RoomLifecycleHandler - Performance Benchmarks', () => {
       const avg = durations.reduce((sum, d) => sum + d, 0) / durations.length;
       const min = Math.min(...durations);
       const max = Math.max(...durations);
-      const median = durations.sort((a, b) => a - b)[Math.floor(durations.length / 2)];
+      const median = durations.sort((a, b) => a - b)[Math.floor(durations.length / 2)] || 0;
 
       console.log(`\n🔍 ${operation.toUpperCase().replace(/_/g, ' ')}:`);
       console.log(`   Samples: ${durations.length}`);

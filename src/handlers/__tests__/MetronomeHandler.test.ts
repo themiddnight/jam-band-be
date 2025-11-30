@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { Socket, Namespace } from 'socket.io';
-import { MetronomeHandler } from '../domains/room-management/infrastructure/handlers/MetronomeHandler';
+import { MetronomeHandler } from '../../domains/room-management/infrastructure/handlers/MetronomeHandler';
 import { RoomService } from '../../services/RoomService';
 import { MetronomeService } from '../../services/MetronomeService';
 import { RoomSessionManager } from '../../services/RoomSessionManager';
@@ -86,6 +86,7 @@ describe('MetronomeHandler', () => {
       isPrivate: false,
       isHidden: false,
       createdAt: new Date(),
+      roomType: 'perform' as const,
       metronome: {
         bpm: 100,
         lastTickTimestamp: Date.now()
@@ -94,6 +95,7 @@ describe('MetronomeHandler', () => {
 
     const mockUpdatedRoom: Room = {
       ...mockRoom,
+      roomType: 'perform' as const,
       metronome: {
         bpm: 120,
         lastTickTimestamp: Date.now()
@@ -223,6 +225,7 @@ describe('MetronomeHandler', () => {
       isPrivate: false,
       isHidden: false,
       createdAt: new Date(),
+      roomType: 'perform' as const,
       metronome: {
         bpm: 100,
         lastTickTimestamp: Date.now()
@@ -231,6 +234,7 @@ describe('MetronomeHandler', () => {
 
     const mockUpdatedRoom: Room = {
       ...mockRoom,
+      roomType: 'perform' as const,
       metronome: {
         bpm: 140,
         lastTickTimestamp: Date.now()
@@ -300,10 +304,12 @@ describe('MetronomeHandler', () => {
         isPrivate: false,
         isHidden: false,
         createdAt: new Date(),
+      roomType: 'perform' as const,
         metronome: { bpm: 100, lastTickTimestamp: Date.now() }
       };
       const updatedRoom = {
         ...mockRoom,
+      roomType: 'perform' as const,
         metronome: { bpm: 150, lastTickTimestamp: Date.now() }
       };
       

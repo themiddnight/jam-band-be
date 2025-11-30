@@ -26,7 +26,7 @@ const mockSocket = {
   broadcast: {
     emit: jest.fn()
   }
-} as Partial<Socket>;
+} as unknown as Socket;
 
 const mockNamespace = {
   name: '/room-test-room',

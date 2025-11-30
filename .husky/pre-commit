@@ -5,7 +5,7 @@ echo "🧪 Running backend tests before commit..."
 
 # Run integration tests
 echo "📦 Running integration tests..."
-npm test -- tests/integration/ --ci --maxWorkers=2 --bail
+npm test -- tests/integration/ --ci --maxWorkers=2 --bail --forceExit
 
 if [ $? -ne 0 ]; then
   echo "❌ Integration tests failed! Commit aborted."
@@ -14,7 +14,7 @@ fi
 
 # Run regression tests
 echo "🔄 Running regression tests..."
-npm test -- tests/regression/ --ci --maxWorkers=2 --bail
+npm test -- tests/regression/ --ci --maxWorkers=2 --bail --forceExit
 
 if [ $? -ne 0 ]; then
   echo "❌ Regression tests failed! Commit aborted."
