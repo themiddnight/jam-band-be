@@ -42,7 +42,7 @@ export class RoomMetronome {
     const metronomeState = this.roomService.getMetronomeState(this.roomId);
     if (!metronomeState) return;
 
-    const intervalMs = (60 / metronomeState.bpm) * 1000; // Convert BPM to milliseconds
+    // Interval calculated when scheduling each tick to keep precision with live BPM
     
     // Initialize timing state
     this.startTime = getHighResolutionTime();
