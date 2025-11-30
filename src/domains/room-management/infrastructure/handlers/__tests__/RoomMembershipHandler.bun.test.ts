@@ -108,6 +108,7 @@ describe('RoomMembershipHandler - Bun Runtime Tests', () => {
     owner: 'owner-id',
     users: new Map(),
     pendingMembers: new Map(),
+      roomType: 'perform' as const,
     metronome: { bpm: 120, lastTickTimestamp: Date.now() },
     isPrivate: true,
     isHidden: false,

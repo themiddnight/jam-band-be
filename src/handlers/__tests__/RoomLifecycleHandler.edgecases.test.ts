@@ -57,13 +57,15 @@ describe('RoomLifecycleHandler - Edge Cases & Complex Scenarios', () => {
     roomSessionManager = new RoomSessionManager();
     roomService = new RoomService(roomSessionManager);
     namespaceManager = new NamespaceManager(io);
+    const metronomeService = new MetronomeService(io, roomService);
 
     // Initialize handler
     roomLifecycleHandler = new RoomLifecycleHandler(
       roomService,
       io,
       namespaceManager,
-      roomSessionManager
+      roomSessionManager,
+      metronomeService
     );
 
     // Start server on random port
@@ -150,6 +152,7 @@ describe('RoomLifecycleHandler - Edge Cases & Complex Scenarios', () => {
         name: 'Grace Period Test Room',
         username: 'Owner',
         userId: 'owner-123',
+        roomType: 'perform' as const,
         isPrivate: false,
         isHidden: false
       };
@@ -257,6 +260,7 @@ describe('RoomLifecycleHandler - Edge Cases & Complex Scenarios', () => {
         name: 'Grace Expiry Room',
         username: 'Owner',
         userId: 'owner-123',
+        roomType: 'perform' as const,
         isPrivate: false,
         isHidden: false
       };
@@ -279,6 +283,7 @@ describe('RoomLifecycleHandler - Edge Cases & Complex Scenarios', () => {
         roomId,
         username: 'ExpiryUser',
         userId: 'expiry-user-123',
+        roomType: 'perform' as const,
         role: 'band_member'
       };
 
@@ -320,6 +325,7 @@ describe('RoomLifecycleHandler - Edge Cases & Complex Scenarios', () => {
         name: 'Multiple Rejoin Room',
         username: 'Owner',
         userId: 'owner-123',
+        roomType: 'perform' as const,
         isPrivate: false,
         isHidden: false
       };
@@ -336,6 +342,7 @@ describe('RoomLifecycleHandler - Edge Cases & Complex Scenarios', () => {
         roomId,
         username: 'MultiRejoinUser',
         userId: 'multi-rejoin-123',
+        roomType: 'perform' as const,
         role: 'band_member'
       };
 
@@ -396,6 +403,7 @@ describe('RoomLifecycleHandler - Edge Cases & Complex Scenarios', () => {
         name: 'Rapid Transfer Room',
         username: 'Owner',
         userId: 'owner-123',
+        roomType: 'perform' as const,
         isPrivate: false,
         isHidden: false
       };
@@ -487,6 +495,7 @@ describe('RoomLifecycleHandler - Edge Cases & Complex Scenarios', () => {
         name: 'Pending Members Room',
         username: 'Owner',
         userId: 'owner-123',
+        roomType: 'perform' as const,
         isPrivate: true,
         isHidden: false
       };
@@ -509,6 +518,7 @@ describe('RoomLifecycleHandler - Edge Cases & Complex Scenarios', () => {
         roomId,
         username: 'Member',
         userId: 'member-123',
+        roomType: 'perform' as const,
         role: 'audience' // Audience can join private rooms directly
       };
 
@@ -565,6 +575,7 @@ describe('RoomLifecycleHandler - Edge Cases & Complex Scenarios', () => {
         name: 'Concurrent Join Room',
         username: 'Owner',
         userId: 'owner-123',
+        roomType: 'perform' as const,
         isPrivate: false,
         isHidden: false
       };
@@ -601,6 +612,7 @@ describe('RoomLifecycleHandler - Edge Cases & Complex Scenarios', () => {
         roomId,
         username: 'ConcurrentUser',
         userId: 'concurrent-user-123',
+        roomType: 'perform' as const,
         role: 'band_member'
       };
 
@@ -638,6 +650,7 @@ describe('RoomLifecycleHandler - Edge Cases & Complex Scenarios', () => {
         name: 'Mixed Operations Room',
         username: 'BaseOwner',
         userId: 'base-owner-123',
+        roomType: 'perform' as const,
         isPrivate: false,
         isHidden: false
       };
@@ -751,6 +764,7 @@ describe('RoomLifecycleHandler - Edge Cases & Complex Scenarios', () => {
         name: 'Recovery Test Room',
         username: 'RecoveryUser',
         userId: 'recovery-123',
+        roomType: 'perform' as const,
         isPrivate: false,
         isHidden: false
       };
@@ -802,7 +816,7 @@ describe('RoomLifecycleHandler - Edge Cases & Complex Scenarios', () => {
 
       roomService.getRoom = function(...args) {
         if (serviceUnavailable) {
-          return null;
+          return undefined;
         }
         return originalGetRoom.apply(this, args);
       };
@@ -816,6 +830,7 @@ describe('RoomLifecycleHandler - Edge Cases & Complex Scenarios', () => {
         name: 'Service Test Room',
         username: 'ServiceUser',
         userId: 'service-123',
+        roomType: 'perform' as const,
         isPrivate: false,
         isHidden: false
       };

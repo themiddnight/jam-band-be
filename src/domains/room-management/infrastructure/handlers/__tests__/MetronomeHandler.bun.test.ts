@@ -113,6 +113,7 @@ describe('MetronomeHandler - Bun Test Suite', () => {
       isPrivate: false,
       isHidden: false,
       createdAt: new Date(),
+      roomType: 'perform' as const,
       metronome: {
         bpm: 100,
         lastTickTimestamp: Date.now()
@@ -124,6 +125,7 @@ describe('MetronomeHandler - Bun Test Suite', () => {
         // Arrange
         const updatedRoom: Room = {
           ...mockRoom,
+      roomType: 'perform' as const,
           metronome: {
             bpm: 120,
             lastTickTimestamp: Date.now()
@@ -158,6 +160,7 @@ describe('MetronomeHandler - Bun Test Suite', () => {
 
         const updatedRoom: Room = {
           ...mockRoom,
+      roomType: 'perform' as const,
           metronome: {
             bpm: 140,
             lastTickTimestamp: Date.now()
@@ -204,6 +207,7 @@ describe('MetronomeHandler - Bun Test Suite', () => {
         // Arrange
         const updatedRoom: Room = {
           ...mockRoom,
+      roomType: 'perform' as const,
           metronome: {
             bpm: 130,
             lastTickTimestamp: Date.now()
@@ -233,6 +237,7 @@ describe('MetronomeHandler - Bun Test Suite', () => {
         // Arrange
         const updatedRoom: Room = {
           ...mockRoom,
+      roomType: 'perform' as const,
           metronome: {
             bpm: 110,
             lastTickTimestamp: Date.now()
@@ -378,6 +383,7 @@ describe('MetronomeHandler - Bun Test Suite', () => {
       isPrivate: false,
       isHidden: false,
       createdAt: new Date(),
+      roomType: 'perform' as const,
       metronome: {
         bpm: 100,
         lastTickTimestamp: Date.now()
@@ -389,6 +395,7 @@ describe('MetronomeHandler - Bun Test Suite', () => {
         // Arrange
         const updatedRoom: Room = {
           ...mockRoom,
+      roomType: 'perform' as const,
           metronome: {
             bpm: 150,
             lastTickTimestamp: Date.now()
@@ -419,6 +426,7 @@ describe('MetronomeHandler - Bun Test Suite', () => {
         // Arrange
         const updatedRoom: Room = {
           ...mockRoom,
+      roomType: 'perform' as const,
           metronome: {
             bpm: 125,
             lastTickTimestamp: Date.now()
@@ -592,6 +600,7 @@ describe('MetronomeHandler - Bun Test Suite', () => {
       isPrivate: false,
       isHidden: false,
       createdAt: new Date(),
+      roomType: 'perform' as const,
       metronome: {
         bpm: 100,
         lastTickTimestamp: Date.now()
@@ -602,6 +611,7 @@ describe('MetronomeHandler - Bun Test Suite', () => {
       // Arrange
       const updatedRoom: Room = {
         ...mockSyncRoom,
+      roomType: 'perform' as const,
         metronome: {
           bpm: 160,
           lastTickTimestamp: Date.now()
@@ -633,6 +643,7 @@ describe('MetronomeHandler - Bun Test Suite', () => {
       // Arrange
       const updatedRoom: Room = {
         ...mockSyncRoom,
+      roomType: 'perform' as const,
         metronome: {
           bpm: 180,
           lastTickTimestamp: Date.now()
@@ -662,6 +673,7 @@ describe('MetronomeHandler - Bun Test Suite', () => {
       const bpmValues = [120, 130, 140, 150, 160];
       const updatedRooms = bpmValues.map(bpm => ({
         ...mockSyncRoom,
+      roomType: 'perform' as const,
         metronome: {
           bpm,
           lastTickTimestamp: Date.now()
@@ -738,11 +750,13 @@ describe('MetronomeHandler - Bun Test Suite', () => {
 
       const ownerUpdatedRoom: Room = {
         ...mockSyncRoom,
+      roomType: 'perform' as const,
         metronome: { bpm: 140, lastTickTimestamp: Date.now() }
       };
 
       const bandMemberUpdatedRoom: Room = {
         ...mockSyncRoom,
+      roomType: 'perform' as const,
         metronome: { bpm: 150, lastTickTimestamp: Date.now() }
       };
 
@@ -795,6 +809,7 @@ describe('MetronomeHandler - Bun Test Suite', () => {
       isPrivate: false,
       isHidden: false,
       createdAt: new Date(),
+      roomType: 'perform' as const,
       metronome: {
         bpm: 100,
         lastTickTimestamp: Date.now()
@@ -812,6 +827,7 @@ describe('MetronomeHandler - Bun Test Suite', () => {
       const updateCount = 50;
       const updatedRoom: Room = {
         ...mockRoom,
+      roomType: 'perform' as const,
         metronome: { bpm: 120, lastTickTimestamp: Date.now() }
       };
       mockRoomService.updateMetronomeBPM.mockReturnValue(updatedRoom);
@@ -863,6 +879,7 @@ describe('MetronomeHandler - Bun Test Suite', () => {
       const beforeTime = Date.now();
       const updatedRoom: Room = {
         ...mockRoom,
+      roomType: 'perform' as const,
         metronome: {
           bpm: 140,
           lastTickTimestamp: Date.now()
@@ -893,6 +910,7 @@ describe('MetronomeHandler - Bun Test Suite', () => {
       
       const updatedRooms = bpmValues.map(bpm => ({
         ...mockRoom,
+      roomType: 'perform' as const,
         metronome: { bpm, lastTickTimestamp: Date.now() }
       }));
 
@@ -948,6 +966,7 @@ describe('MetronomeHandler - Bun Test Suite', () => {
         isPrivate: false,
         isHidden: false,
         createdAt: new Date(),
+      roomType: 'perform' as const,
         metronome: { bpm: 100, lastTickTimestamp: Date.now() }
       };
 
@@ -997,6 +1016,7 @@ describe('MetronomeHandler - Bun Test Suite', () => {
         isPrivate: false,
         isHidden: false,
         createdAt: new Date(),
+      roomType: 'perform' as const,
         metronome: { bpm: 100, lastTickTimestamp: Date.now() }
       };
 
@@ -1037,11 +1057,13 @@ describe('MetronomeHandler - Bun Test Suite', () => {
         isPrivate: false,
         isHidden: false,
         createdAt: new Date(),
+      roomType: 'perform' as const,
         metronome: { bpm: 100, lastTickTimestamp: Date.now() }
       };
 
       const updatedRoom: Room = {
         ...mockRoom,
+      roomType: 'perform' as const,
         metronome: { bpm: 130, lastTickTimestamp: Date.now() }
       };
 
