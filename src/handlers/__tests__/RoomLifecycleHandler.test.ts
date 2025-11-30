@@ -1,7 +1,7 @@
 import { Server } from 'socket.io';
 import { createServer } from 'http';
 import { Socket as ClientSocket, io as Client } from 'socket.io-client';
-import { RoomLifecycleHandler } from '../domains/room-management/infrastructure/handlers/RoomLifecycleHandler';
+import { RoomLifecycleHandler } from '../../domains/room-management/infrastructure/handlers/RoomLifecycleHandler';
 import { RoomService } from '../../services/RoomService';
 import { MetronomeService } from '../../services/MetronomeService';
 import { NamespaceManager } from '../../services/NamespaceManager';
@@ -144,6 +144,7 @@ describe('RoomLifecycleHandler Integration Tests', () => {
         name: 'Test Room',
         username: 'TestUser',
         userId: 'user-123',
+        roomType: 'perform' as const,
         isPrivate: false,
         isHidden: false
       };
@@ -183,6 +184,7 @@ describe('RoomLifecycleHandler Integration Tests', () => {
         name: 'Private Room',
         username: 'Owner',
         userId: 'owner-123',
+        roomType: 'perform' as const,
         isPrivate: true,
         isHidden: false
       };
@@ -211,6 +213,7 @@ describe('RoomLifecycleHandler Integration Tests', () => {
         name: 'First Room',
         username: 'TestUser',
         userId: 'user-123',
+        roomType: 'perform' as const,
         isPrivate: false,
         isHidden: false
       };
@@ -259,6 +262,7 @@ describe('RoomLifecycleHandler Integration Tests', () => {
         name: 'Broadcast Room',
         username: 'Creator',
         userId: 'creator-123',
+        roomType: 'perform' as const,
         isPrivate: false,
         isHidden: false
       };
@@ -288,6 +292,7 @@ describe('RoomLifecycleHandler Integration Tests', () => {
         name: 'Join Test Room',
         username: 'Owner',
         userId: 'owner-123',
+        roomType: 'perform' as const,
         isPrivate: false,
         isHidden: false
       };
@@ -314,6 +319,7 @@ describe('RoomLifecycleHandler Integration Tests', () => {
         roomId,
         username: 'Joiner',
         userId: 'joiner-123',
+        roomType: 'perform' as const,
         role: 'audience'
       };
 
@@ -357,6 +363,7 @@ describe('RoomLifecycleHandler Integration Tests', () => {
         roomId,
         username: 'Musician',
         userId: 'musician-123',
+        roomType: 'perform' as const,
         role: 'band_member'
       };
 
@@ -385,6 +392,7 @@ describe('RoomLifecycleHandler Integration Tests', () => {
         name: 'Private Room',
         username: 'PrivateOwner',
         userId: 'private-owner-123',
+        roomType: 'perform' as const,
         isPrivate: true,
         isHidden: false
       };
@@ -411,6 +419,7 @@ describe('RoomLifecycleHandler Integration Tests', () => {
         roomId: privateRoomId,
         username: 'Musician',
         userId: 'musician-123',
+        roomType: 'perform' as const,
         role: 'band_member'
       };
 
@@ -436,6 +445,7 @@ describe('RoomLifecycleHandler Integration Tests', () => {
         roomId,
         username: 'Rejoiner',
         userId: 'rejoiner-123',
+        roomType: 'perform' as const,
         role: 'audience'
       };
 
@@ -479,6 +489,7 @@ describe('RoomLifecycleHandler Integration Tests', () => {
         roomId,
         username: 'GraceUser',
         userId: 'grace-123',
+        roomType: 'perform' as const,
         role: 'band_member'
       };
 
@@ -537,6 +548,7 @@ describe('RoomLifecycleHandler Integration Tests', () => {
         roomId: 'non-existent-room',
         username: 'Joiner',
         userId: 'joiner-123',
+        roomType: 'perform' as const,
         role: 'audience'
       };
 
@@ -567,6 +579,7 @@ describe('RoomLifecycleHandler Integration Tests', () => {
         name: 'Leave Test Room',
         username: 'Owner',
         userId: 'owner-123',
+        roomType: 'perform' as const,
         isPrivate: false,
         isHidden: false
       };
@@ -589,6 +602,7 @@ describe('RoomLifecycleHandler Integration Tests', () => {
         roomId,
         username: 'Member',
         userId: 'member-123',
+        roomType: 'perform' as const,
         role: 'band_member'
       };
 
@@ -732,6 +746,7 @@ describe('RoomLifecycleHandler Integration Tests', () => {
         name: 'Private Room',
         username: 'PrivateOwner',
         userId: 'private-owner-123',
+        roomType: 'perform' as const,
         isPrivate: true,
         isHidden: false
       };
@@ -790,6 +805,7 @@ describe('RoomLifecycleHandler Integration Tests', () => {
         name: 'Performance Test Room',
         username: 'PerfUser',
         userId: 'perf-123',
+        roomType: 'perform' as const,
         isPrivate: false,
         isHidden: false
       };
@@ -816,6 +832,7 @@ describe('RoomLifecycleHandler Integration Tests', () => {
         name: 'Join Perf Room',
         username: 'Owner',
         userId: 'owner-123',
+        roomType: 'perform' as const,
         isPrivate: false,
         isHidden: false
       };
@@ -840,6 +857,7 @@ describe('RoomLifecycleHandler Integration Tests', () => {
         roomId,
         username: 'Joiner',
         userId: 'joiner-123',
+        roomType: 'perform' as const,
         role: 'audience'
       };
 
@@ -925,6 +943,7 @@ describe('RoomLifecycleHandler Integration Tests', () => {
         name: '', // Invalid empty name
         username: 'TestUser',
         userId: 'user-123',
+        roomType: 'perform' as const,
         isPrivate: false,
         isHidden: false
       };
@@ -947,6 +966,7 @@ describe('RoomLifecycleHandler Integration Tests', () => {
         name: 'Cleanup Test Room',
         username: 'Owner',
         userId: 'owner-123',
+        roomType: 'perform' as const,
         isPrivate: false,
         isHidden: false
       };

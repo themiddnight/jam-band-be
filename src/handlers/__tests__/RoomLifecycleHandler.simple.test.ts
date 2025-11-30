@@ -94,6 +94,7 @@ describe('RoomLifecycleHandler - Core Functionality', () => {
         name: 'Test Room',
         username: 'TestUser',
         userId: 'user-123',
+        roomType: 'perform' as const,
         isPrivate: false,
         isHidden: false
       };
@@ -135,6 +136,7 @@ describe('RoomLifecycleHandler - Core Functionality', () => {
         name: 'Private Room',
         username: 'Owner',
         userId: 'owner-123',
+        roomType: 'perform' as const,
         isPrivate: true,
         isHidden: false
       };
@@ -162,6 +164,7 @@ describe('RoomLifecycleHandler - Core Functionality', () => {
         name: 'First Room',
         username: 'TestUser',
         userId: 'user-123',
+        roomType: 'perform' as const,
         isPrivate: false,
         isHidden: false
       };
@@ -199,6 +202,7 @@ describe('RoomLifecycleHandler - Core Functionality', () => {
         name: 'Join Test Room',
         username: 'Owner',
         userId: 'owner-123',
+        roomType: 'perform' as const,
         isPrivate: false,
         isHidden: false
       };
@@ -222,6 +226,7 @@ describe('RoomLifecycleHandler - Core Functionality', () => {
         roomId,
         username: 'Joiner',
         userId: 'joiner-123',
+        roomType: 'perform' as const,
         role: 'audience'
       };
 
@@ -261,6 +266,7 @@ describe('RoomLifecycleHandler - Core Functionality', () => {
         roomId,
         username: 'Musician',
         userId: 'musician-123',
+        roomType: 'perform' as const,
         role: 'band_member'
       };
 
@@ -285,6 +291,7 @@ describe('RoomLifecycleHandler - Core Functionality', () => {
         name: 'Private Room',
         username: 'PrivateOwner',
         userId: 'private-owner-123',
+        roomType: 'perform' as const,
         isPrivate: true,
         isHidden: false
       };
@@ -305,6 +312,7 @@ describe('RoomLifecycleHandler - Core Functionality', () => {
         roomId: privateRoomId!,
         username: 'Musician',
         userId: 'musician-123',
+        roomType: 'perform' as const,
         role: 'band_member'
       };
 
@@ -334,6 +342,7 @@ describe('RoomLifecycleHandler - Core Functionality', () => {
         roomId,
         username: 'Rejoiner',
         userId: 'rejoiner-123',
+        roomType: 'perform' as const,
         role: 'audience'
       };
 
@@ -371,6 +380,7 @@ describe('RoomLifecycleHandler - Core Functionality', () => {
         roomId: 'non-existent-room',
         username: 'Joiner',
         userId: 'joiner-123',
+        roomType: 'perform' as const,
         role: 'audience'
       };
 
@@ -399,6 +409,7 @@ describe('RoomLifecycleHandler - Core Functionality', () => {
         name: 'Leave Test Room',
         username: 'Owner',
         userId: 'owner-123',
+        roomType: 'perform' as const,
         isPrivate: false,
         isHidden: false
       };
@@ -422,6 +433,7 @@ describe('RoomLifecycleHandler - Core Functionality', () => {
         roomId,
         username: 'Member',
         userId: 'member-123',
+        roomType: 'perform' as const,
         role: 'band_member'
       };
 
@@ -556,6 +568,7 @@ describe('RoomLifecycleHandler - Core Functionality', () => {
         name: 'Load Test Room',
         username: 'Owner',
         userId: 'owner-123',
+        roomType: 'perform' as const,
         isPrivate: false,
         isHidden: false
       };
@@ -613,6 +626,7 @@ describe('RoomLifecycleHandler - Core Functionality', () => {
         name: '', // Invalid empty name
         username: 'TestUser',
         userId: 'user-123',
+        roomType: 'perform' as const,
         isPrivate: false,
         isHidden: false
       } as CreateRoomData;

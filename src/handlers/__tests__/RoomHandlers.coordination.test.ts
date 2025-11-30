@@ -204,7 +204,9 @@ describe('RoomHandlers Coordination Layer', () => {
     it('should handle join room namespace by setting session and delegating to lifecycle handler', () => {
       const joinData = {
         roomId: 'test-room',
-        userId: 'test-user'
+        userId: 'test-user',
+        username: 'Test User',
+        role: 'band_member' as const
       };
 
       roomHandlers.handleJoinRoomNamespace(mockSocket, joinData);

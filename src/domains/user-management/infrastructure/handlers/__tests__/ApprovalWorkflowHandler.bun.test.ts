@@ -71,6 +71,7 @@ describe('ApprovalWorkflowHandler - Bun Runtime Tests', () => {
     isPrivate: true,
     isHidden: false,
     createdAt: new Date(),
+      roomType: 'perform' as const,
     metronome: { bpm: 120, lastTickTimestamp: Date.now() }
   });
 
