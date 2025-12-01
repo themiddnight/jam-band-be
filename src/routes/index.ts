@@ -9,6 +9,8 @@ import { AudioRegionController } from '../domains/arrange-room/infrastructure/co
 import { ProjectController } from '../domains/arrange-room/infrastructure/controllers/ProjectController';
 import { hlsBroadcastService } from '../services/HLSBroadcastService';
 import { hlsLimiter } from '../middleware/rateLimit';
+import authRoutes from './auth';
+import userPresetsRoutes from './userPresets';
 
 const upload = multer({
   storage: multer.diskStorage({
@@ -32,6 +34,12 @@ export const createRoutes = (
   projectController: ProjectController
 ): Router => {
   const router = Router();
+
+  // Auth routes
+  router.use('/auth', authRoutes);
+
+  // User presets and settings routes
+  router.use('/user', userPresetsRoutes);
 
   // Simple health check endpoint (no dependencies)
   router.get('/health/simple', (req, res) => {

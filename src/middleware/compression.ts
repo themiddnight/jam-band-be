@@ -1,7 +1,7 @@
 import compression from 'compression';
-import { Request, Response } from 'express';
+import { Request, Response, RequestHandler } from 'express';
 
-export const compressionMiddleware = compression({
+export const compressionMiddleware: RequestHandler = compression({
   filter: (req: Request, res: Response) => {
     // Don't compress responses with this request header
     if (req.headers['x-no-compression']) {

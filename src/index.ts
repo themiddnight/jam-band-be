@@ -54,6 +54,7 @@ import { ConnectionHealthService } from "./services/ConnectionHealthService";
 import { NamespaceCleanupService } from "./services/NamespaceCleanupService";
 import { ConnectionOptimizationService } from "./services/ConnectionOptimizationService";
 import { loggingService } from "./services/LoggingService";
+import passport from "passport";
 
 // Event System
 import { EventSystemInitializer } from "./shared/infrastructure/events/EventSystemInitializer";
@@ -292,6 +293,9 @@ app.use(corsMiddleware);
 
 // Rate limiting for API endpoints
 app.use("/api", apiLimiter);
+
+// Initialize Passport
+app.use(passport.initialize());
 
 // Body parsing and sanitization with optimized limits
 app.use(

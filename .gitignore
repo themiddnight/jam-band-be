@@ -55,3 +55,4 @@ Thumbs.db
 .tmp/
 .cache/
 .cursor/
+/src/generated/prisma
