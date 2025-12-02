@@ -7,8 +7,6 @@ import multer from 'multer';
 import os from 'os';
 import { AudioRegionController } from '../domains/arrange-room/infrastructure/controllers/AudioRegionController';
 import { ProjectController } from '../domains/arrange-room/infrastructure/controllers/ProjectController';
-import analyticsRoutes from './analytics';
-import feedbackRoutes from './feedback';
 import { hlsBroadcastService } from '../services/HLSBroadcastService';
 import { hlsLimiter } from '../middleware/rateLimit';
 import authRoutes from './auth';
@@ -135,10 +133,6 @@ export const createRoutes = (
   router.get('/rooms/:roomId/projects', (req, res) =>
     projectController.getProject(req, res)
   );
-  // Mount analytics and feedback routes
-  router.use(analyticsRoutes);
-  router.use(feedbackRoutes);
-
   // HLS Broadcast endpoints for audience streaming
   // Use separate rate limiter for HLS (more permissive than general API)
   // Playlist endpoint - returns the m3u8 playlist

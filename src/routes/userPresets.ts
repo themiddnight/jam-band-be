@@ -1,8 +1,11 @@
 import { Router, type Router as RouterType } from 'express';
-import { PresetType } from '@prisma/client';
+import type { PresetType } from '@prisma/client';
 import { authenticateToken, AuthRequest } from '../domains/auth/infrastructure/middleware/authMiddleware';
 import { requireRegistered } from '../domains/auth/infrastructure/middleware/guestLimitations';
 import { prisma } from '../domains/auth/infrastructure/db/prisma';
+
+// Define valid preset types as constant array (matches Prisma enum)
+const VALID_PRESET_TYPES = ['SYNTH', 'EFFECT', 'SEQUENCER', 'INSTRUMENT'] as const;
 
 const router: RouterType = Router();
 
@@ -18,7 +21,7 @@ router.get('/presets', authenticateToken, requireRegistered, async (req: AuthReq
     const { type } = req.query;
     const where: any = { userId: req.user.id };
     
-    if (type && Object.values(PresetType).includes(type as PresetType)) {
+    if (type && VALID_PRESET_TYPES.includes(type as typeof VALID_PRESET_TYPES[number])) {
       where.presetType = type;
     }
 
@@ -49,7 +52,7 @@ router.post('/presets', authenticateToken, requireRegistered, async (req: AuthRe
       return;
     }
 
-    if (!Object.values(PresetType).includes(presetType)) {
+    if (!VALID_PRESET_TYPES.includes(presetType)) {
       res.status(400).json({ error: 'Invalid preset type' });
       return;
     }

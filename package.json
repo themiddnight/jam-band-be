@@ -8,7 +8,7 @@
     "start:prod": "NODE_ENV=production node --max-old-space-size=2048 dist/index.js",
     "start:dev": "tsx watch src/index.ts",
     "start:dev:gc": "NODE_ENV=development ENABLE_GC=true tsx watch src/index.ts",
-    "build": "tsc",
+    "build": "prisma generate && tsc",
     "lint": "eslint . --ext .ts",
     "lint:fix": "eslint . --ext .ts --fix",
     "clean": "rm -rf dist",

@@ -156,7 +156,7 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: Response): Pro
       res.status(403).json({
         error: 'Project limit reached',
         message: `You can only save up to ${limit === Infinity ? 'unlimited' : limit} project${limit > 1 ? 's' : ''}. Please delete an existing project first.`,
-        projects: existingProjects.map((p) => ({
+        projects: existingProjects.map((p: { id: string; name: string; roomType: string; createdAt: Date; updatedAt: Date }) => ({
           id: p.id,
           name: p.name,
           roomType: p.roomType,

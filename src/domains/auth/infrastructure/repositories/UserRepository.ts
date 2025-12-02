@@ -1,4 +1,4 @@
-import { UserType as PrismaUserType } from '@prisma/client';
+import type { UserType as PrismaUserType } from '@prisma/client';
 import { AuthUserModel, UserType } from '../../domain/models/User';
 import { EmailVerificationModel } from '../../domain/models/EmailVerification';
 import { PasswordResetModel } from '../../domain/models/PasswordReset';
