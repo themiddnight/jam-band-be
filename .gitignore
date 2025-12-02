@@ -8,7 +8,6 @@ coverage/
 
 # Runtime artifacts
 record-audio/
-storage/
 tmp/
 tmp/recordings/
 

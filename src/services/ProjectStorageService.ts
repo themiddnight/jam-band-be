@@ -240,9 +240,9 @@ export class ProjectStorageService {
                 projectId,
                 totalVersions: fileVersions.length,
                 failedCount: failures.length,
-                errors: failures.map((f) => 
-                  f.status === 'rejected' ? f.reason : null
-                ).filter(Boolean),
+                errors: failures
+                  .map((failure) => failure.reason)
+                  .filter(Boolean),
               }
             );
           } else {
@@ -269,17 +269,22 @@ export class ProjectStorageService {
             userId,
             projectId,
             fileCount: files.length,
-            files: files.map(f => path.basename(f)),
+            files: files.map((filePath: string) => path.basename(filePath)),
           });
 
           // Delete all files
           const deleteResults = await Promise.allSettled(
-            files.map((fileKey) => this.storageAdapter!.deleteFile(fileKey))
+            files.map((fileKey: string) => this.storageAdapter!.deleteFile(fileKey))
           );
 
           // Check for failures
-          const failures = deleteResults.filter((r) => r.status === 'rejected');
+          const failures = deleteResults.filter(
+            (result: PromiseSettledResult<unknown>): result is PromiseRejectedResult => result.status === 'rejected'
+          );
           if (failures.length > 0) {
+            const errorReasons = failures
+              .map((failure: PromiseRejectedResult) => failure.reason)
+              .filter((reason: unknown): reason is unknown => Boolean(reason));
             loggingService.logError(
               new Error(`Failed to delete ${failures.length} file(s) from Backblaze`),
               {
@@ -288,9 +293,7 @@ export class ProjectStorageService {
                 projectId,
                 totalFiles: files.length,
                 failedCount: failures.length,
-                errors: failures.map((f) => 
-                  f.status === 'rejected' ? f.reason : null
-                ).filter(Boolean),
+                errors: errorReasons,
               }
             );
           } else {
@@ -368,17 +371,22 @@ export class ProjectStorageService {
           userId,
           projectId,
           fileCount: audioKeys.length,
-          files: audioKeys.map(f => path.basename(f)),
+          files: audioKeys.map((filePath: string) => path.basename(filePath)),
         });
 
         // Delete all audio files
         const deleteResults = await Promise.allSettled(
-          audioKeys.map((fileKey) => this.storageAdapter!.deleteFile(fileKey))
+          audioKeys.map((fileKey: string) => this.storageAdapter!.deleteFile(fileKey))
         );
 
         // Check for failures
-        const failures = deleteResults.filter((r) => r.status === 'rejected');
+        const failures = deleteResults.filter(
+          (result: PromiseSettledResult<unknown>): result is PromiseRejectedResult => result.status === 'rejected'
+        );
         if (failures.length > 0) {
+          const errorReasons = failures
+            .map((failure: PromiseRejectedResult) => failure.reason)
+            .filter((reason: unknown): reason is unknown => Boolean(reason));
           loggingService.logError(
             new Error(`Failed to delete ${failures.length} old audio file(s) from Backblaze`),
             {
@@ -387,9 +395,7 @@ export class ProjectStorageService {
               projectId,
               totalFiles: audioKeys.length,
               failedCount: failures.length,
-              errors: failures.map((f) => 
-                f.status === 'rejected' ? f.reason : null
-              ).filter(Boolean),
+              errors: errorReasons,
             }
           );
         } else {
@@ -530,17 +536,22 @@ export class ProjectStorageService {
             userId,
             projectId,
             fileCount: files.length,
-            files: files.map(f => path.basename(f)),
+            files: files.map((filePath: string) => path.basename(filePath)),
           });
 
           // Delete all files
           const deleteResults = await Promise.allSettled(
-            files.map((fileKey) => this.storageAdapter!.deleteFile(fileKey))
+            files.map((fileKey: string) => this.storageAdapter!.deleteFile(fileKey))
           );
 
           // Check for failures
-          const failures = deleteResults.filter((r) => r.status === 'rejected');
+          const failures = deleteResults.filter(
+            (result: PromiseSettledResult<unknown>): result is PromiseRejectedResult => result.status === 'rejected'
+          );
           if (failures.length > 0) {
+            const errorReasons = failures
+              .map((failure: PromiseRejectedResult) => failure.reason)
+              .filter((reason: unknown): reason is unknown => Boolean(reason));
             loggingService.logError(
               new Error(`Failed to delete ${failures.length} file(s) from Backblaze`),
               {
@@ -549,9 +560,7 @@ export class ProjectStorageService {
                 projectId,
                 totalFiles: files.length,
                 failedCount: failures.length,
-                errors: failures.map((f) => 
-                  f.status === 'rejected' ? f.reason : null
-                ).filter(Boolean),
+                errors: errorReasons,
               }
             );
           } else {
