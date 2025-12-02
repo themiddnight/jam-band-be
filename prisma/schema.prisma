@@ -38,6 +38,7 @@ model User {
   oauthAccounts      OAuthAccount[]
   presets            UserPreset[]
   settings           UserSettings[]
+  savedProjects      SavedProject[]
 
   @@map("users")
 }
@@ -111,4 +112,20 @@ model UserSettings {
 
   @@index([userId])
   @@map("user_settings")
+}
+
+model SavedProject {
+  id          String   @id @default(uuid())
+  userId      String
+  name        String
+  roomType    String   // 'perform' | 'arrange'
+  projectData Json     // Serialized project/session data
+  metadata    Json?    // Additional metadata (createdAt, roomId, etc.)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("saved_projects")
 }

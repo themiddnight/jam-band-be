@@ -69,12 +69,19 @@ export class AuthService {
 
   async login(data: LoginData): Promise<{ user: AuthUserModel; token: string }> {
     const user = await this.userRepository.findByEmail(data.email);
-    if (!user || !user.passwordHash) {
+    if (!user) {
+      console.log(`[AuthService] Login failed: User not found for email: ${data.email}`);
+      throw new Error('Invalid email or password');
+    }
+    
+    if (!user.passwordHash) {
+      console.log(`[AuthService] Login failed: User ${user.id} has no password hash`);
       throw new Error('Invalid email or password');
     }
 
     const isValidPassword = await bcrypt.compare(data.password, user.passwordHash);
     if (!isValidPassword) {
+      console.log(`[AuthService] Login failed: Invalid password for user ${user.id}`);
       throw new Error('Invalid email or password');
     }
 

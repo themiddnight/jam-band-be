@@ -298,6 +298,20 @@ app.use("/api", apiLimiter);
 app.use(passport.initialize());
 
 // Body parsing and sanitization with optimized limits
+// Increase limit for /api/projects route (projects can contain large audio files as base64)
+app.use(
+  "/api/projects",
+  express.json({
+    limit: "50mb", // Increased limit for project routes
+    strict: true,
+    verify: (req, res, buf) => {
+      // Store raw body for potential verification
+      (req as any).rawBody = buf;
+    },
+  })
+);
+
+// Default body parsing for other routes
 app.use(
   express.json({
     limit: "1mb",
