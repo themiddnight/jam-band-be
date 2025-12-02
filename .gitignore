@@ -23,8 +23,6 @@ webrtc-https-test-report.json
 .env
 .env.local
 .env.production
-env.local
-env.production
 
 # Logs
 logs

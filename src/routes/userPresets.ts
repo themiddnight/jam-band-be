@@ -207,5 +207,78 @@ router.put('/settings', authenticateToken, requireRegistered, async (req: AuthRe
   }
 });
 
+// Update feedback state (submitted or dismissed)
+// @ts-expect-error - Type compatibility issue with Express middleware
+router.put('/feedback-state', authenticateToken, requireRegistered, async (req: AuthRequest, res) => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Authentication required' });
+      return;
+    }
+
+    const { action } = req.body; // 'submitted' or 'dismissed'
+
+    if (!action || !['submitted', 'dismissed'].includes(action)) {
+      res.status(400).json({ error: 'action must be either "submitted" or "dismissed"' });
+      return;
+    }
+
+    const updateData: any = {};
+    if (action === 'submitted') {
+      updateData.feedbackSubmittedAt = new Date();
+    } else if (action === 'dismissed') {
+      updateData.feedbackDismissedAt = new Date();
+    }
+
+    const user = await prisma.user.update({
+      where: { id: req.user.id },
+      data: updateData,
+      select: {
+        id: true,
+        feedbackSubmittedAt: true,
+        feedbackDismissedAt: true,
+      },
+    });
+
+    res.json({ user });
+  } catch (error) {
+    console.error('Failed to update feedback state:', error);
+    res.status(500).json({ error: 'Failed to update feedback state' });
+  }
+});
+
+// Get feedback state
+// @ts-expect-error - Type compatibility issue with Express middleware
+router.get('/feedback-state', authenticateToken, requireRegistered, async (req: AuthRequest, res) => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Authentication required' });
+      return;
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: {
+        id: true,
+        feedbackSubmittedAt: true,
+        feedbackDismissedAt: true,
+      },
+    });
+
+    if (!user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    res.json({
+      feedbackSubmittedAt: user.feedbackSubmittedAt,
+      feedbackDismissedAt: user.feedbackDismissedAt,
+    });
+  } catch (error) {
+    console.error('Failed to get feedback state:', error);
+    res.status(500).json({ error: 'Failed to get feedback state' });
+  }
+});
+
 export default router;
 

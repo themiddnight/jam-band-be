@@ -29,6 +29,8 @@ model User {
   passwordHash   String?
   emailVerified Boolean   @default(false)
   userType      UserType  @default(GUEST)
+  feedbackSubmittedAt DateTime?
+  feedbackDismissedAt DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -39,6 +41,7 @@ model User {
   presets            UserPreset[]
   settings           UserSettings[]
   savedProjects      SavedProject[]
+  refreshTokens      RefreshToken[]
 
   @@map("users")
 }
@@ -128,4 +131,19 @@ model SavedProject {
 
   @@index([userId])
   @@map("saved_projects")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String
+  token     String    @unique
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+  @@map("refresh_tokens")
 }

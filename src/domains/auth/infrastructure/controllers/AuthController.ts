@@ -64,7 +64,7 @@ export class AuthController {
         return;
       }
 
-      const { user, token } = await this.authService.login({ email, password });
+      const { user, accessToken, refreshToken } = await this.authService.login({ email, password });
 
       res.json({
         user: {
@@ -74,10 +74,31 @@ export class AuthController {
           userType: user.userType,
           emailVerified: user.emailVerified,
         },
-        token,
+        accessToken,
+        refreshToken,
       });
     } catch (error: any) {
       res.status(401).json({ error: error.message || 'Login failed' });
+    }
+  };
+
+  refreshToken = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { refreshToken } = req.body;
+
+      if (!refreshToken) {
+        res.status(400).json({ error: 'Refresh token is required' });
+        return;
+      }
+
+      const { accessToken, refreshToken: newRefreshToken } = await this.authService.refreshAccessToken(refreshToken);
+
+      res.json({
+        accessToken,
+        refreshToken: newRefreshToken,
+      });
+    } catch (error: any) {
+      res.status(401).json({ error: error.message || 'Token refresh failed' });
     }
   };
 
@@ -192,9 +213,49 @@ export class AuthController {
     }
   };
 
-  logout = async (req: Request, res: Response): Promise<void> => {
-    // JWT is stateless, so logout is handled client-side by removing the token
-    res.json({ message: 'Logged out successfully' });
+  logout = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      // If user is authenticated, revoke all their refresh tokens
+      if (req.user) {
+        const userRepository = new UserRepository();
+        await userRepository.revokeAllUserRefreshTokens(req.user.id);
+      }
+      res.json({ message: 'Logged out successfully' });
+    } catch {
+      // Even if revoke fails, still return success
+      res.json({ message: 'Logged out successfully' });
+    }
+  };
+
+  updateUsername = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      if (!req.user) {
+        res.status(401).json({ error: 'Authentication required' });
+        return;
+      }
+
+      const { username } = req.body;
+
+      if (!username) {
+        res.status(400).json({ error: 'Username is required' });
+        return;
+      }
+
+      const user = await this.authService.updateUsername(req.user.id, username);
+
+      res.json({
+        message: 'Username updated successfully',
+        user: {
+          id: user.id,
+          email: user.email,
+          username: user.username,
+          userType: user.userType,
+          emailVerified: user.emailVerified,
+        },
+      });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message || 'Failed to update username' });
+    }
   };
 }
 

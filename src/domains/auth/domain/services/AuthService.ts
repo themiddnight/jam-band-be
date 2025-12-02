@@ -67,7 +67,7 @@ export class AuthService {
     return { user, verificationToken };
   }
 
-  async login(data: LoginData): Promise<{ user: AuthUserModel; token: string }> {
+  async login(data: LoginData): Promise<{ user: AuthUserModel; accessToken: string; refreshToken: string }> {
     const user = await this.userRepository.findByEmail(data.email);
     if (!user) {
       console.log(`[AuthService] Login failed: User not found for email: ${data.email}`);
@@ -85,14 +85,29 @@ export class AuthService {
       throw new Error('Invalid email or password');
     }
 
-    // Generate JWT token
-    const token = tokenService.generateToken({
+    // Generate tokens
+    const accessToken = tokenService.generateAccessToken({
       userId: user.id,
       email: user.email,
       userType: user.userType,
     });
 
-    return { user, token };
+    const refreshToken = tokenService.generateRefreshToken({
+      userId: user.id,
+      email: user.email,
+      userType: user.userType,
+    });
+
+    // Save refresh token to database
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
+    await this.userRepository.createRefreshToken({
+      userId: user.id,
+      token: refreshToken,
+      expiresAt,
+    });
+
+    return { user, accessToken, refreshToken };
   }
 
   async verifyEmail(token: string): Promise<AuthUserModel> {
@@ -206,7 +221,7 @@ export class AuthService {
     await this.userRepository.deletePasswordResetsByUserId(user.id);
   }
 
-  async findOrCreateOAuthUser(provider: string, providerId: string, email: string, name: string): Promise<{ user: AuthUserModel; token: string }> {
+  async findOrCreateOAuthUser(provider: string, providerId: string, email: string, name: string): Promise<{ user: AuthUserModel; accessToken: string; refreshToken: string }> {
     // Check if OAuth account exists
     const oauthAccount = await this.userRepository.findOAuthAccount(provider, providerId);
     
@@ -216,13 +231,28 @@ export class AuthService {
         throw new Error('User not found');
       }
 
-      const token = tokenService.generateToken({
+      const accessToken = tokenService.generateAccessToken({
         userId: user.id,
         email: user.email,
         userType: user.userType,
       });
 
-      return { user, token };
+      const refreshToken = tokenService.generateRefreshToken({
+        userId: user.id,
+        email: user.email,
+        userType: user.userType,
+      });
+
+      // Save refresh token to database
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
+      await this.userRepository.createRefreshToken({
+        userId: user.id,
+        token: refreshToken,
+        expiresAt,
+      });
+
+      return { user, accessToken, refreshToken };
     }
 
     // Check if user with email exists
@@ -236,13 +266,28 @@ export class AuthService {
         providerId,
       });
 
-      const token = tokenService.generateToken({
+      const accessToken = tokenService.generateAccessToken({
         userId: user.id,
         email: user.email,
         userType: user.userType,
       });
 
-      return { user, token };
+      const refreshToken = tokenService.generateRefreshToken({
+        userId: user.id,
+        email: user.email,
+        userType: user.userType,
+      });
+
+      // Save refresh token to database
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
+      await this.userRepository.createRefreshToken({
+        userId: user.id,
+        token: refreshToken,
+        expiresAt,
+      });
+
+      return { user, accessToken, refreshToken };
     }
 
     // Create new user
@@ -261,13 +306,113 @@ export class AuthService {
       providerId,
     });
 
-    const token = tokenService.generateToken({
+    const accessToken = tokenService.generateAccessToken({
       userId: user.id,
       email: user.email,
       userType: user.userType,
     });
 
-    return { user, token };
+    const refreshToken = tokenService.generateRefreshToken({
+      userId: user.id,
+      email: user.email,
+      userType: user.userType,
+    });
+
+    // Save refresh token to database
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
+    await this.userRepository.createRefreshToken({
+      userId: user.id,
+      token: refreshToken,
+      expiresAt,
+    });
+
+    return { user, accessToken, refreshToken };
+  }
+
+  async refreshAccessToken(refreshToken: string): Promise<{ accessToken: string; refreshToken: string }> {
+    // Verify refresh token
+    const payload = tokenService.verifyRefreshToken(refreshToken);
+
+    // Check if token exists in database and is valid
+    const tokenRecord = await this.userRepository.findRefreshTokenByToken(refreshToken);
+    if (!tokenRecord) {
+      throw new Error('Refresh token not found');
+    }
+
+    if (tokenRecord.revokedAt) {
+      throw new Error('Refresh token has been revoked');
+    }
+
+    if (tokenRecord.expiresAt < new Date()) {
+      throw new Error('Refresh token has expired');
+    }
+
+    // Get user
+    const user = await this.userRepository.findById(payload.userId);
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // Generate new tokens
+    const newAccessToken = tokenService.generateAccessToken({
+      userId: user.id,
+      email: user.email,
+      userType: user.userType,
+    });
+
+    // Rotate refresh token (more secure)
+    const newRefreshToken = tokenService.generateRefreshToken({
+      userId: user.id,
+      email: user.email,
+      userType: user.userType,
+    });
+
+    // Revoke old refresh token and save new one
+    await this.userRepository.revokeRefreshToken(refreshToken);
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+    await this.userRepository.createRefreshToken({
+      userId: user.id,
+      token: newRefreshToken,
+      expiresAt,
+    });
+
+    return { accessToken: newAccessToken, refreshToken: newRefreshToken };
+  }
+
+  async updateUsername(userId: string, newUsername: string): Promise<AuthUserModel> {
+    // Validate username
+    if (!newUsername || newUsername.trim().length === 0) {
+      throw new Error('Username cannot be empty');
+    }
+
+    const trimmedUsername = newUsername.trim();
+
+    if (trimmedUsername.length < 3 || trimmedUsername.length > 30) {
+      throw new Error('Username must be between 3 and 30 characters');
+    }
+
+    if (!/^[a-zA-Z0-9_-]+$/.test(trimmedUsername)) {
+      throw new Error('Username can only contain letters, numbers, underscores, and hyphens');
+    }
+
+    // Check if username is already taken by another user
+    const existingUser = await this.userRepository.findByUsername(trimmedUsername);
+    if (existingUser && existingUser.id !== userId) {
+      throw new Error('Username already taken');
+    }
+
+    // Update username
+    await this.userRepository.updateUsername(userId, trimmedUsername);
+
+    // Get updated user
+    const user = await this.userRepository.findById(userId);
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    return user;
   }
 }
 

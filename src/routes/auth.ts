@@ -35,33 +35,8 @@ passport.deserializeUser(async (id: string, done) => {
 // Register
 router.post('/register', authController.register);
 
-// Login
-router.post('/login', passport.authenticate('local', { session: false }), (req, res) => {
-  const user = req.user as any;
-  if (!user) {
-    res.status(401).json({ error: 'Login failed' });
-    return;
-  }
-
-  // Generate token
-  const { tokenService } = require('../domains/auth/domain/services/TokenService');
-  const token = tokenService.generateToken({
-    userId: user.id,
-    email: user.email,
-    userType: user.userType,
-  });
-
-  res.json({
-    user: {
-      id: user.id,
-      email: user.email,
-      username: user.username,
-      userType: user.userType,
-      emailVerified: user.emailVerified,
-    },
-    token,
-  });
-});
+// Login - use AuthController which handles refresh tokens
+router.post('/login', authController.login);
 
 // Verify email
 router.get('/verify-email/:token', authController.verifyEmail);
@@ -90,17 +65,19 @@ router.get(
         return;
       }
 
-      // Generate token for the user
-      const { tokenService } = require('../domains/auth/domain/services/TokenService');
-      const token = tokenService.generateToken({
-        userId: user.id,
-        email: user.email,
-        userType: user.userType,
-      });
+      // Tokens are already attached to user object by GoogleStrategy
+      const accessToken = (user as any).accessToken;
+      const refreshToken = (user as any).refreshToken;
 
-      // Redirect to frontend with token
-      res.redirect(`${config.cors.frontendUrl}/auth/callback?token=${token}`);
-    } catch {
+      if (!accessToken || !refreshToken) {
+        res.redirect(`${config.cors.frontendUrl}/login?error=oauth_failed`);
+        return;
+      }
+
+      // Redirect to frontend with tokens
+      res.redirect(`${config.cors.frontendUrl}/auth/callback?accessToken=${accessToken}&refreshToken=${refreshToken}`);
+    } catch (error) {
+      console.error('Google OAuth callback error:', error);
       res.redirect(`${config.cors.frontendUrl}/login?error=oauth_failed`);
     }
   }
@@ -110,8 +87,16 @@ router.get(
 // @ts-expect-error - Type compatibility issue with Express middleware
 router.get('/me', authenticateToken, authController.getCurrentUser);
 
+// Update username
+// @ts-expect-error - Type compatibility issue with Express middleware
+router.put('/username', authenticateToken, authController.updateUsername);
+
+// Refresh token
+router.post('/refresh-token', authController.refreshToken);
+
 // Logout
-router.post('/logout', authController.logout);
+// @ts-expect-error - Type compatibility issue with Express middleware
+router.post('/logout', authenticateToken, authController.logout);
 
 export default router;
 

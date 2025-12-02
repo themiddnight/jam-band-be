@@ -30,6 +30,12 @@ export interface CreateOAuthAccountData {
   providerId: string;
 }
 
+export interface CreateRefreshTokenData {
+  userId: string;
+  token: string;
+  expiresAt: Date;
+}
+
 export class UserRepository {
   async findById(id: string): Promise<AuthUserModel | null> {
     const user = await prisma.user.findUnique({
@@ -164,6 +170,40 @@ export class UserRepository {
     });
 
     return account ? { userId: account.userId } : null;
+  }
+
+  async createRefreshToken(data: CreateRefreshTokenData): Promise<void> {
+    await prisma.refreshToken.create({ data });
+  }
+
+  async findRefreshTokenByToken(token: string): Promise<{ userId: string; expiresAt: Date; revokedAt: Date | null } | null> {
+    const refreshToken = await prisma.refreshToken.findUnique({
+      where: { token },
+      select: { userId: true, expiresAt: true, revokedAt: true },
+    });
+    return refreshToken;
+  }
+
+  async revokeRefreshToken(token: string): Promise<void> {
+    await prisma.refreshToken.update({
+      where: { token },
+      data: { revokedAt: new Date() },
+    });
+  }
+
+  async revokeAllUserRefreshTokens(userId: string): Promise<void> {
+    await prisma.refreshToken.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+  }
+
+  async deleteExpiredRefreshTokens(): Promise<void> {
+    await prisma.refreshToken.deleteMany({
+      where: {
+        expiresAt: { lt: new Date() },
+      },
+    });
   }
 }
 

@@ -142,6 +142,14 @@ Important variables (see `env.local.example` and `env.production.example`):
 - `PROJECT_STORAGE_PATH` — File storage path for project files
 - `MAX_PROJECT_SIZE_MB` — Maximum project file size limit
 
+### Authentication & OAuth
+- `JWT_SECRET` — Secret key for signing JWT tokens
+- `GOOGLE_CLIENT_ID` — Google OAuth client ID
+- `GOOGLE_CLIENT_SECRET` — Google OAuth client secret
+- `BACKEND_URL` — Backend URL for OAuth callback (e.g., `http://localhost:3001`)
+- `FRONTEND_URL` — Frontend URL for OAuth redirect (e.g., `http://localhost:5173`)
+- `EMAIL_VERIFICATION_EXPIRES_HOURS` — Email verification token expiration (default: 24)
+
 Always store production secrets securely and do not commit `.env` files to source control.
 
 ## Room Architecture 🏗️
@@ -183,6 +191,154 @@ src/domains/arrange-room/
 - **File Storage**: Audio region files stored on disk with metadata
 - **Collaborative Locks**: Per-element locking to prevent conflicts
 - **State Synchronization**: Late-joiner support with full state sync
+
+## 🔐 Authentication Flow
+
+The backend supports two authentication methods: **Email/Password Login** and **Google OAuth**. Authentication is handled by the `auth` domain using Passport.js strategies.
+
+### Email/Password Login Flow
+
+```mermaid
+sequenceDiagram
+    participant Frontend
+    participant Backend
+    participant Database
+    
+    Frontend->>Backend: 1. POST /api/auth/login<br/>{email, password}
+    Backend->>Database: 2. AuthService.login()<br/>Find user by email
+    Database->>Backend: 3. Return user with passwordHash
+    Backend->>Backend: 4. Verify password with bcrypt.compare()
+    Backend->>Backend: 5. Generate JWT tokens<br/>(accessToken, refreshToken)
+    Backend->>Database: 6. Save refreshToken to DB
+    Database->>Backend: 7. Token saved
+    Backend->>Frontend: 8. Return {user, accessToken, refreshToken}
+```
+
+**Steps:**
+1. Frontend sends `POST /api/auth/login` with email and password
+2. `AuthController.login()` calls `AuthService.login()`
+3. `AuthService` queries database for user by email
+4. Password is verified using `bcrypt.compare()`
+5. JWT tokens are generated using `TokenService`:
+   - `accessToken`: Short-lived token (default: 15 minutes)
+   - `refreshToken`: Long-lived token (default: 7 days)
+6. Refresh token is saved to database (`RefreshToken` table)
+7. Backend returns user data and both tokens to frontend
+
+**Endpoints:**
+- `POST /api/auth/login` — Email/password login
+- `POST /api/auth/refresh-token` — Refresh access token using refresh token
+- `POST /api/auth/logout` — Revoke refresh tokens and logout
+
+### Google OAuth Login Flow
+
+```mermaid
+sequenceDiagram
+    participant Frontend
+    participant Backend
+    participant Google
+    participant Database
+    
+    Frontend->>Backend: 1. Redirect to /api/auth/google
+    Backend->>Google: 2. Passport Google Strategy<br/>Redirect to Google
+    Note over Google: 3. User authorizes
+    Google->>Backend: 4. Redirect to callback<br/>with authorization code
+    Backend->>Google: 5. Exchange code for tokens<br/>Get user profile
+    Google->>Backend: 6. Return profile data<br/>(email, name, Google ID)
+    Backend->>Backend: 7. GoogleStrategy callback<br/>Extract email, name
+    Backend->>Database: 8. AuthService.findOrCreateOAuthUser()<br/>Check OAuthAccount<br/>Create if not exists
+    Database->>Backend: 9. Return user/OAuth account
+    Backend->>Backend: 10. Generate JWT tokens
+    Backend->>Database: 11. Save refreshToken & OAuth account
+    Database->>Backend: 12. Tokens saved
+    Backend->>Frontend: 13. Redirect to /auth/callback<br/>?accessToken=...&refreshToken=...
+```
+
+**Steps:**
+1. Frontend redirects browser to `GET /api/auth/google`
+2. Backend uses Passport Google Strategy to redirect to Google OAuth consent screen
+3. User authorizes the application on Google
+4. Google redirects to `{BACKEND_URL}/api/auth/google/callback` with authorization code
+5. Backend exchanges authorization code for access token and fetches user profile from Google
+6. Google returns user profile (email, name, Google ID)
+7. `GoogleStrategy` callback executes:
+   - Extracts email and name from Google profile
+   - Calls `AuthService.findOrCreateOAuthUser('google', providerId, email, name)`
+8. `AuthService` checks if OAuth account exists:
+   - If exists: Returns existing user
+   - If not: Creates new user and OAuth account record
+9. JWT tokens are generated and refresh token is saved to database
+10. OAuth account and refresh token are persisted
+11. Tokens are attached to user object
+12. Backend redirects to `{FRONTEND_URL}/auth/callback?accessToken=...&refreshToken=...`
+13. Frontend receives tokens in URL query parameters
+
+**Endpoints:**
+- `GET /api/auth/google` — Initiate Google OAuth flow
+- `GET /api/auth/google/callback` — Handle Google OAuth callback
+
+**OAuth Configuration:**
+- Uses `passport-google-oauth20` strategy
+- Requires `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` environment variables
+- Callback URL must be registered in Google Cloud Console: `{BACKEND_URL}/api/auth/google/callback`
+- See `GOOGLE_OAUTH_SETUP.md` for detailed setup instructions
+
+### Authentication Architecture
+
+**Domain Structure:**
+```
+src/domains/auth/
+├── domain/
+│   ├── models/              # User, OAuthAccount, RefreshToken models
+│   └── services/            # AuthService (business logic)
+├── infrastructure/
+│   ├── controllers/         # AuthController (HTTP handlers)
+│   ├── middleware/          # authMiddleware (JWT validation)
+│   ├── repositories/        # UserRepository (database access)
+│   ├── strategies/          # Passport strategies (local, google)
+│   └── services/            # EmailService, TokenService
+└── routes/                  # Express routes (auth.ts)
+```
+
+**Key Components:**
+- **AuthService**: Core authentication business logic
+  - `register()`: Create new user with email verification
+  - `login()`: Validate credentials and generate tokens
+  - `findOrCreateOAuthUser()`: Handle OAuth user creation/lookup
+  - `refreshAccessToken()`: Generate new access token from refresh token
+  - `verifyEmail()`: Verify email address with token
+  - `requestPasswordReset()`: Generate password reset token
+  - `resetPassword()`: Reset password with token
+
+- **TokenService**: JWT token generation and validation
+  - `generateAccessToken()`: Short-lived access token
+  - `generateRefreshToken()`: Long-lived refresh token
+  - `verifyToken()`: Validate and decode JWT tokens
+
+- **AuthController**: HTTP request handlers
+  - Validates request data
+  - Calls AuthService methods
+  - Returns JSON responses
+
+- **authMiddleware**: JWT authentication middleware
+  - Validates access token from `Authorization` header
+  - Attaches user to `req.user` for protected routes
+
+**Database Models:**
+- **User**: Main user table with email, passwordHash, userType
+- **OAuthAccount**: Links users to OAuth providers (Google, etc.)
+- **RefreshToken**: Stores refresh tokens for token rotation
+- **EmailVerification**: Email verification tokens
+- **PasswordReset**: Password reset tokens
+
+### Security Features
+
+- **Password Hashing**: Uses `bcrypt` with salt rounds (10)
+- **JWT Tokens**: Signed with `JWT_SECRET`, includes expiration
+- **Token Rotation**: Refresh tokens can be rotated on each use
+- **Email Verification**: Required for new registrations
+- **Password Reset**: Secure token-based password reset flow
+- **OAuth Account Linking**: Multiple OAuth providers per user account
 
 ## API endpoints
 

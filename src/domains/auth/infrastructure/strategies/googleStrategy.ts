@@ -18,15 +18,17 @@ export const createGoogleStrategy = (authService: AuthService) => {
           return done(new Error('No email provided by Google'), false);
         }
 
-        const { user, token } = await authService.findOrCreateOAuthUser(
+        const { user, accessToken: appAccessToken, refreshToken: appRefreshToken } = await authService.findOrCreateOAuthUser(
           'google',
           profile.id,
           email,
           name
         );
 
-        // Attach token to user object for later use
-        (user as any).token = token;
+        // Attach tokens and providerId to user object for later use
+        (user as any).accessToken = appAccessToken;
+        (user as any).refreshToken = appRefreshToken;
+        (user as any).providerId = profile.id;
 
         return done(null, user);
       } catch (error) {
