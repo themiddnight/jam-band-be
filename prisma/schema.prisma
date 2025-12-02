@@ -10,124 +10,149 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum RoomType {
-  PERFORM
-  PRODUCE
+// ============================================
+// Enums from enhance/user-register (Auth)
+// ============================================
+
+enum UserType {
+  GUEST
+  REGISTERED
+  PREMIUM
 }
 
-enum UserRole {
-  ROOM_OWNER
-  BAND_MEMBER
-  AUDIENCE
+enum PresetType {
+  SYNTH
+  EFFECT
+  SEQUENCER
+  INSTRUMENT
 }
 
-enum FeedbackCategory {
-  BUG_REPORT
-  FEATURE_REQUEST
-  GENERAL_FEEDBACK
-}
-
-enum ExperienceLevel {
-  BEGINNER
-  INTERMEDIATE
-  ADVANCED
-}
+// ============================================
+// Auth Models from enhance/user-register
+// ============================================
 
 model User {
-  id                String        @id @default(uuid()) @db.Uuid
-  username          String?
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
-  firstSeen         DateTime      @default(now())
-  lastSeen          DateTime      @default(now())
-  totalSessions     Int           @default(0)
-  totalRoomsCreated Int           @default(0)
-  totalRoomsJoined  Int           @default(0)
-  preferences       Json?
+  id            String    @id @default(uuid())
+  email         String?   @unique
+  username      String?
+  passwordHash   String?
+  emailVerified Boolean   @default(false)
+  userType      UserType  @default(GUEST)
+  feedbackSubmittedAt DateTime?
+  feedbackDismissedAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
-  sessions          RoomSession[]
-  feedbacks         UserFeedback[]
+  // Relations
+  emailVerifications EmailVerification[]
+  passwordResets     PasswordReset[]
+  oauthAccounts      OAuthAccount[]
+  presets            UserPreset[]
+  settings           UserSettings[]
+  savedProjects      SavedProject[]
+  refreshTokens      RefreshToken[]
 
-  @@index([username])
-  @@index([lastSeen])
+  @@map("users")
 }
 
-model Room {
-  id            String       @id @default(uuid()) @db.Uuid
-  externalId    String?      @unique
-  name          String?
-  description   String?
-  ownerId       String?      @db.Uuid
-  roomType      RoomType     @default(PERFORM)
-  isPrivate     Boolean      @default(false)
-  isHidden      Boolean      @default(false)
-  createdAt     DateTime     @default(now())
-  closedAt      DateTime?
-  settings      Json?
+model EmailVerification {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
 
-  sessions      RoomSession[]
-  feedbacks     UserFeedback[]
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([ownerId])
-  @@index([createdAt])
+  @@index([token])
+  @@index([userId])
+  @@map("email_verifications")
 }
 
-model RoomSession {
-  id               String     @id @default(uuid()) @db.Uuid
-  roomId           String?    @db.Uuid
-  room             Room?      @relation(fields: [roomId], references: [id])
+model PasswordReset {
+  id        String    @id @default(uuid())
+  userId    String
+  token     String    @unique
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  usedAt    DateTime?
 
-  externalRoomId   String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  userId           String?    @db.Uuid
-  user             User?      @relation(fields: [userId], references: [id])
+  @@index([token])
+  @@index([userId])
+  @@map("password_resets")
+}
 
-  anonymousId      String
-  role             UserRole    @default(AUDIENCE)
-  joinedAt         DateTime    @default(now())
-  leftAt           DateTime?
-  durationSeconds  Int?
-  instrumentUsed   String?
-  wasKicked        Boolean     @default(false)
+model OAuthAccount {
+  id         String   @id @default(uuid())
+  userId     String
+  provider   String   // 'google', 'github', etc.
+  providerId String
+  createdAt  DateTime @default(now())
 
-  usernameSnapshot String?
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerId])
+  @@index([userId])
+  @@map("oauth_accounts")
+}
+
+model UserPreset {
+  id         String     @id @default(uuid())
+  userId     String
+  presetType PresetType
+  name       String
+  data       Json
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, presetType])
+  @@map("user_presets")
+}
+
+model UserSettings {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  settingsType String  // 'metronome', 'instrument_preferences', etc.
+  data        Json
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
-  @@index([anonymousId])
-  @@index([roomId])
-  @@index([externalRoomId])
-  @@index([joinedAt])
+  @@map("user_settings")
 }
 
-model UserFeedback {
-  id               String            @id @default(uuid()) @db.Uuid
-  userId           String?           @db.Uuid
-  user             User?             @relation(fields: [userId], references: [id])
+model SavedProject {
+  id          String   @id @default(uuid())
+  userId      String
+  name        String
+  roomType    String   // 'perform' | 'arrange'
+  projectData Json     // Serialized project/session data
+  metadata    Json?    // Additional metadata (createdAt, roomId, etc.)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  anonymousId      String
-  category         FeedbackCategory
-  experienceLevel  ExperienceLevel
-  rating           Int?
-  message          String?
-  usagePurposes    String[]
-
-  submittedAt      DateTime          @default(now())
-  roomId           String?           @db.Uuid
-  room             Room?             @relation(fields: [roomId], references: [id])
-  externalRoomId   String?
-  roleUsed         UserRole?
-  usernameSnapshot String?
-
-  country          String?
-  city             String?
-  timezone         String?
-  userAgent        String?
-  ipAddress        String?
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
-  @@index([anonymousId])
-  @@index([category])
-  @@index([submittedAt])
-  @@index([rating])
+  @@map("saved_projects")
 }
 
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String
+  token     String    @unique
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+  @@map("refresh_tokens")
+}

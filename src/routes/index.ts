@@ -11,6 +11,9 @@ import analyticsRoutes from './analytics';
 import feedbackRoutes from './feedback';
 import { hlsBroadcastService } from '../services/HLSBroadcastService';
 import { hlsLimiter } from '../middleware/rateLimit';
+import authRoutes from './auth';
+import userPresetsRoutes from './userPresets';
+import projectsRoutes from './projects';
 
 const upload = multer({
   storage: multer.diskStorage({
@@ -23,7 +26,7 @@ const upload = multer({
     },
   }),
   limits: {
-    fileSize: 50 * 1024 * 1024, // 50 MB
+    fileSize: 200 * 1024 * 1024, // 200 MB (increased for project files with multiple audio files)
   },
 });
 
@@ -34,6 +37,15 @@ export const createRoutes = (
   projectController: ProjectController
 ): Router => {
   const router = Router();
+
+  // Auth routes
+  router.use('/auth', authRoutes);
+
+  // User presets and settings routes
+  router.use('/user', userPresetsRoutes);
+
+  // Saved projects routes
+  router.use('/projects', projectsRoutes);
 
   // Simple health check endpoint (no dependencies)
   router.get('/health/simple', (req, res) => {
