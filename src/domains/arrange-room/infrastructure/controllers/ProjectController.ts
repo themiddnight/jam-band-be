@@ -169,6 +169,15 @@ export class ProjectController {
         selectedRegionIds: [],
       });
 
+      // Update scale if provided in project data
+      if (projectData.scale) {
+        this.arrangeRoomStateService.updateOwnerScale(
+          roomId,
+          projectData.scale.rootNote || 'C',
+          projectData.scale.scale || 'major'
+        );
+      }
+
       // 7. Save project metadata in memory
       projectStorageService.saveProject(roomId, projectData, username);
 
@@ -254,7 +263,7 @@ export class ProjectController {
             isMetronomeEnabled: true,
             snapToGrid: true,
           },
-          scale: {
+          scale: state.ownerScale || {
             rootNote: 'C',
             scale: 'major',
           },
