@@ -104,13 +104,18 @@ export class ProjectController {
       }
 
       // 4. Update audio URLs in project data to point to server
+      // Use audioFileId if available (for deduplication), otherwise use region.id
       if (projectData.regions) {
         projectData.regions = projectData.regions.map((region: any) => {
-          if (region.type === 'audio' && region.audioFileRef) {
-            const regionId = region.id;
+          if (region.type === 'audio') {
+            // Use audioFileId if available (for regions that share the same audio file)
+            // Otherwise fall back to region.id
+            const audioFileId = region.audioFileId || region.id;
             return {
               ...region,
-              audioUrl: this.audioStorage.getRegionPlaybackPath(roomId, regionId),
+              audioUrl: this.audioStorage.getRegionPlaybackPath(roomId, audioFileId),
+              // Ensure audioFileId is set for proper reference
+              audioFileId,
             };
           }
           return region;
@@ -118,17 +123,25 @@ export class ProjectController {
       }
 
       // 5. Clean up old audio files from previous project (if any)
+      // Only clean up if we have existing state AND the new project has different regions
+      // This prevents accidental deletion when refreshing the page
       try {
         const existingState = this.arrangeRoomStateService.getState(roomId);
-        if (existingState) {
-          const oldAudioRegions = existingState.regions.filter((r: any) => r.type === 'audio');
-          loggingService.logInfo('Cleaning up old audio files', {
-            roomId,
-            oldAudioRegionCount: oldAudioRegions.length,
-            oldRegionIds: oldAudioRegions.map((r: any) => r.id),
-          });
-          for (const region of oldAudioRegions) {
-            await this.audioStorage.deleteRegionAudio(roomId, region.id).catch(() => {});
+        if (existingState && existingState.regions.length > 0) {
+          const newRegionIds = new Set((projectData.regions || []).map((r: any) => r.id));
+          const oldAudioRegions = existingState.regions.filter(
+            (r: any) => r.type === 'audio' && !newRegionIds.has(r.id)
+          );
+          
+          if (oldAudioRegions.length > 0) {
+            loggingService.logInfo('Cleaning up old audio files (replaced by new project)', {
+              roomId,
+              oldAudioRegionCount: oldAudioRegions.length,
+              oldRegionIds: oldAudioRegions.map((r: any) => r.id),
+            });
+            for (const region of oldAudioRegions) {
+              await this.audioStorage.deleteRegionAudio(roomId, region.id).catch(() => {});
+            }
           }
         }
       } catch (error) {
@@ -155,6 +168,15 @@ export class ProjectController {
         selectedTrackId: null,
         selectedRegionIds: [],
       });
+
+      // Update scale if provided in project data
+      if (projectData.scale) {
+        this.arrangeRoomStateService.updateOwnerScale(
+          roomId,
+          projectData.scale.rootNote || 'C',
+          projectData.scale.scale || 'major'
+        );
+      }
 
       // 7. Save project metadata in memory
       projectStorageService.saveProject(roomId, projectData, username);
@@ -217,22 +239,93 @@ export class ProjectController {
     }
 
     try {
-      const project = projectStorageService.getProject(roomId);
+      // Try to get state from ArrangeRoomStateService first (most up-to-date)
+      const state = this.arrangeRoomStateService.getState(roomId);
+      
+      if (state && (state.tracks.length > 0 || state.regions.length > 0)) {
+        // Convert state to project data format
+        const projectData = {
+          version: '1.0.0',
+          metadata: {
+            name: 'Current Project',
+            createdAt: state.lastUpdated.toISOString(),
+            modifiedAt: state.lastUpdated.toISOString(),
+          },
+          project: {
+            bpm: state.bpm,
+            timeSignature: state.timeSignature,
+            gridDivision: 16,
+            loop: {
+              enabled: false,
+              start: 0,
+              end: 0,
+            },
+            isMetronomeEnabled: true,
+            snapToGrid: true,
+          },
+          scale: state.ownerScale || {
+            rootNote: 'C',
+            scale: 'major',
+          },
+          tracks: state.tracks,
+          regions: state.regions,
+          effectChains: state.effectChains,
+          synthStates: state.synthStates,
+          markers: state.markers || [],
+        };
 
-      if (!project) {
-        res.status(404).json({ success: false, message: 'No project found for this room' });
+        // Get metadata from projectStorageService if available
+        const projectMeta = projectStorageService.getProject(roomId);
+
+        res.status(200).json({
+          success: true,
+          project: projectData,
+          metadata: {
+            projectName: projectMeta?.projectName || 'Current Project',
+            uploadedBy: projectMeta?.uploadedBy || 'Unknown',
+            uploadedAt: projectMeta?.uploadedAt?.toISOString() || state.lastUpdated.toISOString(),
+          },
+        });
         return;
       }
 
-      res.status(200).json({
-        success: true,
-        project: project.projectData,
-        metadata: {
-          projectName: project.projectName,
-          uploadedBy: project.uploadedBy,
-          uploadedAt: project.uploadedAt,
-        },
-      });
+      // Fallback to projectStorageService (for page refresh - state is in memory)
+      const project = projectStorageService.getProject(roomId);
+
+      if (project && project.projectData) {
+        // Ensure audio URLs are correct for regions
+        // Use audioFileId if available (for deduplication), otherwise use region.id
+        const projectData = { ...project.projectData };
+        if (projectData.regions) {
+          projectData.regions = projectData.regions.map((region: any) => {
+            if (region.type === 'audio') {
+              // Use audioFileId if available (for regions that share the same audio file)
+              // Otherwise fall back to region.id
+              const audioFileId = region.audioFileId || region.id;
+              return {
+                ...region,
+                audioUrl: this.audioStorage.getRegionPlaybackPath(roomId, audioFileId),
+                // Ensure audioFileId is set for proper reference
+                audioFileId,
+              };
+            }
+            return region;
+          });
+        }
+
+        res.status(200).json({
+          success: true,
+          project: projectData,
+          metadata: {
+            projectName: project.projectName,
+            uploadedBy: project.uploadedBy,
+            uploadedAt: project.uploadedAt,
+          },
+        });
+        return;
+      }
+
+      res.status(404).json({ success: false, message: 'No project found for this room' });
     } catch (error) {
       loggingService.logError(error as Error, {
         context: 'ProjectController:getProject',

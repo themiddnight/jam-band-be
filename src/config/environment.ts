@@ -68,10 +68,9 @@ export const config = {
     url: process.env.DATABASE_URL,
   },
   
-  // JWT configuration (if needed in future)
+  // JWT configuration
   jwt: {
     secret: process.env.JWT_SECRET,
-    expiresIn: process.env.JWT_EXPIRES_IN || '24h',
   },
   
   // Logging configuration
@@ -93,6 +92,15 @@ export const config = {
     recordingsDir,
     tempDir: path.join(process.cwd(), 'tmp', 'recordings'),
     publicBaseUrl: process.env.AUDIO_PUBLIC_BASE_URL,
+    backblaze: {
+      enabled: process.env.BACKBLAZE_ENABLED === 'true',
+      accessKeyId: process.env.BACKBLAZE_ACCESS_KEY_ID,
+      secretAccessKey: process.env.BACKBLAZE_SECRET_ACCESS_KEY,
+      bucketName: process.env.BACKBLAZE_BUCKET_NAME,
+      endpoint: process.env.BACKBLAZE_ENDPOINT,
+      region: process.env.BACKBLAZE_REGION,
+      publicUrl: process.env.BACKBLAZE_PUBLIC_URL,
+    },
   },
 } as const;
 

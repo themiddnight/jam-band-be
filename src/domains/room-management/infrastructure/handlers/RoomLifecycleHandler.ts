@@ -442,12 +442,31 @@ export class RoomLifecycleHandler {
       return;
     }
 
+    // Use authenticated user from socket if available, otherwise use provided data (guest mode)
+    const authUser = (socket as any).data?.user;
+    let finalUserId: string;
+    let finalUsername: string;
+
+    if (authUser) {
+      // Authenticated user - use from JWT
+      finalUserId = authUser.id;
+      finalUsername = authUser.username || data.username || `User_${authUser.id.slice(0, 6)}`;
+    } else {
+      // Guest mode - use provided data
+      if (!data.username || !data.userId) {
+        socket.emit('create_room_error', { message: 'Missing required fields: username, userId' });
+        return;
+      }
+      finalUserId = data.userId;
+      finalUsername = data.username;
+    }
+
     // Convert to strongly-typed IDs for internal processing
-    const userIdTyped = this.ensureUserId(data.userId);
+    const userIdTyped = this.ensureUserId(finalUserId);
 
     const { room, user, session } = this.roomService.createRoom(
       data.name,
-      data.username,
+      finalUsername,
       this.userIdToString(userIdTyped), // Convert back to string for legacy service
       data.isPrivate,
       data.isHidden,
@@ -517,13 +536,43 @@ export class RoomLifecycleHandler {
     const { roomId, username, userId, role } = data;
 
     // Validate input
-    if (!roomId || !username || !userId) {
-      socket.emit('join_error', { message: 'Missing required fields: roomId, username, userId' });
+    if (!roomId) {
+      socket.emit('join_error', { message: 'Missing required field: roomId' });
       return;
     }
 
+    // Use authenticated user from socket if available, otherwise use provided data (guest mode)
+    const authUser = (socket as any).data?.user;
+    let finalUserId: string;
+    let finalUsername: string;
+
+    if (authUser) {
+      // Authenticated user - use from JWT
+      finalUserId = authUser.id;
+      finalUsername = authUser.username || username || `User_${authUser.id.slice(0, 6)}`;
+      
+      // Guest users cannot join private rooms
+      if (authUser.userType === 'GUEST' && role === 'band_member') {
+        const room = this.roomService.getRoom(roomId);
+        if (room?.isPrivate) {
+          socket.emit('join_error', { 
+            message: 'Guest users cannot join private rooms. Please sign up to access this feature.' 
+          });
+          return;
+        }
+      }
+    } else {
+      // Guest mode - use provided data
+      if (!username || !userId) {
+        socket.emit('join_error', { message: 'Missing required fields: username, userId' });
+        return;
+      }
+      finalUserId = userId;
+      finalUsername = username;
+    }
+
     const roomIdTyped = this.ensureRoomId(roomId);
-    const userIdTyped = this.ensureUserId(userId);
+    const userIdTyped = this.ensureUserId(finalUserId);
     const roomIdString = this.roomIdToString(roomIdTyped);
     const userIdString = this.userIdToString(userIdTyped);
 
@@ -563,17 +612,17 @@ export class RoomLifecycleHandler {
 
         if (shouldPreserveOwnerRole) {
           console.log(
-            `👑 Preserving room owner role for ${username} during grace period reconnection (requested ${requestedRole})`
+            `👑 Preserving room owner role for ${finalUsername} during grace period reconnection (requested ${requestedRole})`
           );
           user = {
             ...gracePeriodUserData,
-            username,
+            username: finalUsername,
           };
         } else if (requestedRole !== previousRole) {
-          console.log(`🔄 User ${username} changing role from ${previousRole} to ${requestedRole} during grace period`);
+          console.log(`🔄 User ${finalUsername} changing role from ${previousRole} to ${requestedRole} during grace period`);
           user = {
             id: userIdString,
-            username,
+            username: finalUsername,
             role: requestedRole,
             isReady: requestedRole === 'audience',
             // Don't restore instrument data when role changes - let user choose fresh
@@ -582,7 +631,7 @@ export class RoomLifecycleHandler {
           // Same role - restore user with their original data (instruments, settings, etc.)
           user = {
             ...gracePeriodUserData,
-            username, // Update username in case it changed
+            username: finalUsername, // Update username in case it changed
           };
         }
         this.roomService.removeFromGracePeriod(userIdString, roomIdString);
@@ -591,7 +640,7 @@ export class RoomLifecycleHandler {
         const userRole = role || 'audience';
         user = {
           id: userIdString,
-          username,
+          username: finalUsername,
           role: userRole,
           isReady: userRole === 'audience',
           // Don't set default instruments - let frontend send user's preferences
@@ -607,7 +656,7 @@ export class RoomLifecycleHandler {
       const userRole = role || 'audience';
       user = {
         id: userIdString,
-        username,
+        username: finalUsername,
         role: userRole,
         isReady: userRole === 'audience',
         // Don't set default instruments - let frontend send user's preferences
@@ -620,7 +669,7 @@ export class RoomLifecycleHandler {
       const userRole = role || 'audience';
       user = {
         id: userIdString,
-        username,
+        username: finalUsername,
         role: userRole,
         isReady: userRole === 'audience',
         // Don't set default instruments - let frontend send user's preferences

@@ -8,7 +8,6 @@ coverage/
 
 # Runtime artifacts
 record-audio/
-storage/
 tmp/
 tmp/recordings/
 
@@ -23,8 +22,6 @@ webrtc-https-test-report.json
 .env
 .env.local
 .env.production
-env.local
-env.production
 
 # Logs
 logs
@@ -55,3 +52,4 @@ Thumbs.db
 .tmp/
 .cache/
 .cursor/
+/src/generated/prisma

@@ -1,0 +1,157 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================
+// Enums from enhance/user-register (Auth)
+// ============================================
+
+enum UserType {
+  GUEST
+  REGISTERED
+  PREMIUM
+}
+
+enum PresetType {
+  SYNTH
+  EFFECT
+  SEQUENCER
+  INSTRUMENT
+}
+
+// ============================================
+// Auth Models from enhance/user-register
+// ============================================
+
+model User {
+  id            String    @id @default(uuid())
+  email         String?   @unique
+  username      String?
+  passwordHash   String?
+  emailVerified Boolean   @default(false)
+  userType      UserType  @default(GUEST)
+  feedbackSubmittedAt DateTime?
+  feedbackDismissedAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  emailVerifications EmailVerification[]
+  passwordResets     PasswordReset[]
+  oauthAccounts      OAuthAccount[]
+  presets            UserPreset[]
+  settings           UserSettings[]
+  savedProjects      SavedProject[]
+  refreshTokens      RefreshToken[]
+
+  @@map("users")
+}
+
+model EmailVerification {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+  @@map("email_verifications")
+}
+
+model PasswordReset {
+  id        String    @id @default(uuid())
+  userId    String
+  token     String    @unique
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  usedAt    DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+  @@map("password_resets")
+}
+
+model OAuthAccount {
+  id         String   @id @default(uuid())
+  userId     String
+  provider   String   // 'google', 'github', etc.
+  providerId String
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerId])
+  @@index([userId])
+  @@map("oauth_accounts")
+}
+
+model UserPreset {
+  id         String     @id @default(uuid())
+  userId     String
+  presetType PresetType
+  name       String
+  data       Json
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, presetType])
+  @@map("user_presets")
+}
+
+model UserSettings {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  settingsType String  // 'metronome', 'instrument_preferences', etc.
+  data        Json
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("user_settings")
+}
+
+model SavedProject {
+  id          String   @id @default(uuid())
+  userId      String
+  name        String
+  roomType    String   // 'perform' | 'arrange'
+  projectData Json     // Serialized project/session data
+  metadata    Json?    // Additional metadata (createdAt, roomId, etc.)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("saved_projects")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String
+  token     String    @unique
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+  @@map("refresh_tokens")
+}

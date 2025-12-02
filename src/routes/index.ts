@@ -9,6 +9,9 @@ import { AudioRegionController } from '../domains/arrange-room/infrastructure/co
 import { ProjectController } from '../domains/arrange-room/infrastructure/controllers/ProjectController';
 import { hlsBroadcastService } from '../services/HLSBroadcastService';
 import { hlsLimiter } from '../middleware/rateLimit';
+import authRoutes from './auth';
+import userPresetsRoutes from './userPresets';
+import projectsRoutes from './projects';
 
 const upload = multer({
   storage: multer.diskStorage({
@@ -21,7 +24,7 @@ const upload = multer({
     },
   }),
   limits: {
-    fileSize: 50 * 1024 * 1024, // 50 MB
+    fileSize: 200 * 1024 * 1024, // 200 MB (increased for project files with multiple audio files)
   },
 });
 
@@ -32,6 +35,15 @@ export const createRoutes = (
   projectController: ProjectController
 ): Router => {
   const router = Router();
+
+  // Auth routes
+  router.use('/auth', authRoutes);
+
+  // User presets and settings routes
+  router.use('/user', userPresetsRoutes);
+
+  // Saved projects routes
+  router.use('/projects', projectsRoutes);
 
   // Simple health check endpoint (no dependencies)
   router.get('/health/simple', (req, res) => {
@@ -121,6 +133,52 @@ export const createRoutes = (
   router.get('/rooms/:roomId/projects', (req, res) =>
     projectController.getProject(req, res)
   );
+  // HLS Broadcast endpoints for audience streaming
+  // Use separate rate limiter for HLS (more permissive than general API)
+  // Playlist endpoint - returns the m3u8 playlist
+  router.get('/broadcast/:roomId/playlist.m3u8', hlsLimiter, (req, res) => {
+    const roomId = req.params.roomId;
+    if (!roomId) {
+      return res.status(400).json({ error: 'Room ID required' });
+    }
+    
+    const playlist = hlsBroadcastService.getPlaylist(roomId);
+    
+    if (!playlist) {
+      return res.status(404).json({ error: 'Broadcast not found or not ready' });
+    }
+
+    res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    return res.send(playlist);
+  });
+
+  // Segment endpoint - returns individual .ts segments
+  router.get('/broadcast/:roomId/:segmentName', hlsLimiter, (req, res) => {
+    const roomId = req.params.roomId;
+    const segmentName = req.params.segmentName;
+    
+    if (!roomId || !segmentName) {
+      return res.status(400).json({ error: 'Room ID and segment name required' });
+    }
+    
+    // Only allow .ts files
+    if (!segmentName.endsWith('.ts')) {
+      return res.status(400).json({ error: 'Invalid segment format' });
+    }
+
+    const segment = hlsBroadcastService.getSegment(roomId, segmentName);
+    
+    if (!segment) {
+      return res.status(404).json({ error: 'Segment not found' });
+    }
+
+    res.setHeader('Content-Type', 'video/mp2t');
+    res.setHeader('Cache-Control', 'max-age=3600');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    return res.send(segment);
+  });
 
   // HLS Broadcast endpoints for audience streaming
   // Use separate rate limiter for HLS (more permissive than general API)
