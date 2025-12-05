@@ -13,7 +13,7 @@ export class RoomSessionManager {
   private roomSessions = new Map<string, Map<string, NamespaceSession>>(); // roomId -> socketId -> session
   private approvalSessions = new Map<string, Map<string, NamespaceSession>>(); // roomId -> socketId -> session
   private lobbySessions = new Map<string, NamespaceSession>(); // socketId -> session
-  
+
   // Reverse lookup: socketId -> session for quick access
   private socketToSession = new Map<string, NamespaceSession>();
 
@@ -254,13 +254,18 @@ export class RoomSessionManager {
 
   /**
    * Remove old sessions for a user (keeping only the current socket)
+   * If roomId is provided, only removes sessions in that room.
    */
-  removeOldSessionsForUser(userId: string, currentSocketId: string): void {
+  removeOldSessionsForUser(userId: string, currentSocketId: string, roomId?: string): string[] {
     const sessionsToRemove: string[] = [];
 
     // Check all sessions for this user
     for (const [socketId, session] of this.socketToSession.entries()) {
       if (session.userId === userId && socketId !== currentSocketId) {
+        // If roomId is provided, only remove if the session is in that room
+        if (roomId && session.roomId !== roomId) {
+          continue;
+        }
         sessionsToRemove.push(socketId);
       }
     }
@@ -274,9 +279,12 @@ export class RoomSessionManager {
       loggingService.logInfo('Removed old sessions for user', {
         userId,
         currentSocketId,
+        roomId,
         removedSessions: sessionsToRemove.length
       });
     }
+
+    return sessionsToRemove;
   }
 
   /**

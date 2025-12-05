@@ -439,7 +439,7 @@ export class RoomService {
     // Perform ownership update
     room.owner = newOwner.id;
     newOwner.role = "room_owner";
-    
+
     // For ownership transfers, preserve existing instruments or use defaults only as fallback
     // This ensures that if a user already has instrument preferences, they are maintained
     if (!newOwner.currentInstrument || !newOwner.currentCategory) {
@@ -558,8 +558,8 @@ export class RoomService {
     return undefined;
   }
 
-  removeOldSessionsForUser(userId: string, currentSocketId: string): void {
-    this.roomSessionManager.removeOldSessionsForUser(userId, currentSocketId);
+  removeOldSessionsForUser(userId: string, currentSocketId: string, roomId?: string): string[] {
+    return this.roomSessionManager.removeOldSessionsForUser(userId, currentSocketId, roomId);
   }
 
   // Room state management
