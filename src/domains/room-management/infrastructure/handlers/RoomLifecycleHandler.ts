@@ -550,13 +550,13 @@ export class RoomLifecycleHandler {
       // Authenticated user - use from JWT
       finalUserId = authUser.id;
       finalUsername = authUser.username || username || `User_${authUser.id.slice(0, 6)}`;
-      
+
       // Guest users cannot join private rooms
       if (authUser.userType === 'GUEST' && role === 'band_member') {
         const room = this.roomService.getRoom(roomId);
         if (room?.isPrivate) {
-          socket.emit('join_error', { 
-            message: 'Guest users cannot join private rooms. Please sign up to access this feature.' 
+          socket.emit('join_error', {
+            message: 'Guest users cannot join private rooms. Please sign up to access this feature.'
           });
           return;
         }
@@ -682,8 +682,17 @@ export class RoomLifecycleHandler {
     socket.data = session;
     this.roomSessionManager.setRoomSession(roomIdString, socket.id, session);
 
-    // Remove old sessions for this user
-    this.roomSessionManager.removeOldSessionsForUser(userIdString, socket.id);
+    // Remove old sessions for this user in this room only
+    const removedSocketIds = this.roomSessionManager.removeOldSessionsForUser(userIdString, socket.id, roomIdString);
+
+    // Notify and disconnect kicked devices
+    removedSocketIds.forEach(socketId => {
+      const socketToRemove = this.io.sockets.sockets.get(socketId);
+      if (socketToRemove) {
+        socketToRemove.emit('kicked', { message: 'You have joined this room from another device.' });
+        socketToRemove.leave(roomIdString);
+      }
+    });
 
     if (existingUser) {
       // User already exists in room, join them directly (e.g., page refresh)
